@@ -724,7 +724,7 @@ func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
 		if f.RestName != nil {
 			nBindings++
 		}
-		fenv := make(Map, nBindings)
+		fenv := vm.ChildEnv(nBindings)
 		i := 0
 		for i < nPosArgs {
 			paramName := f.ParamNames[i]
@@ -743,7 +743,6 @@ func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
 				fenv[f.RestName] = nil
 			}
 		}
-		fenv[symProto] = vm.curEnv
 		result, err = vm.InEnv(fenv, func() (Value, error) {
 			for _, form := range body {
 				result, err = vm.Eval(form)
@@ -937,6 +936,17 @@ func (vm *VM) InEnv(env Map, f func() (Value, error)) (Value, error) {
 	return result, err
 }
 
+func (vm *VM) ChildEnv(size int) Map {
+	var m Map
+	if size == 0 {
+		m = make(Map)
+	} else {
+		m = make(Map, size+1)
+	}
+	m[symProto] = vm.curEnv
+	return m
+}
+
 type ImportFn func(vm *VM) error
 
 var registeredModules = make(map[string]ImportFn)
@@ -1071,6 +1081,48 @@ func evalDef(vm *VM, args []Value) (Value, error) {
 	return value, nil
 }
 
+func evalDo(vm *VM, args []Value) (result Value, err error) {
+	for _, form := range args {
+		result, err = vm.Eval(form)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return result, err
+}
+
+func evalLet(vm *VM, args []Value) (Value, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+	bindings, ok := args[0].(Vector)
+	if !ok {
+		return nil, fmt.Errorf("let expects bindings in a vector, got %T", args[0])
+	}
+	if len(bindings)%2 != 0 {
+		return nil, fmt.Errorf("let bindings should contain even number of keys and values: %v", args[0])
+	}
+	letenv := make(Map, len(bindings)/2+1)
+	letenv[symProto] = vm.curEnv
+	i := 0
+	for i < len(bindings) {
+		k := bindings[i]
+		if _, ok := k.(*Symbol); !ok {
+			return nil, fmt.Errorf("let binding keys should be symbols, got: %v", k)
+		}
+		i++
+		v, err := vm.Eval(bindings[i])
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate let binding value: %v", bindings[i])
+		}
+		i++
+		letenv[k] = v
+	}
+	return vm.InEnv(letenv, func() (Value, error) {
+		return evalDo(vm, args[1:])
+	})
+}
+
 func evalAssert(vm *VM, args []Value) (Value, error) {
 	expr := args[0]
 	value, err := vm.Eval(expr)
@@ -1118,6 +1170,8 @@ func init() {
 		vm.defineNativeMacro("quasiquote", evalQuasiQuote)
 		vm.defineNativeMacro("fn", evalFn)
 		vm.defineNativeMacro("def", evalDef)
+		vm.defineNativeMacro("do", evalDo)
+		vm.defineNativeMacro("let", evalLet)
 		if _, err := vm.LoadString(langsamL); err != nil {
 			return err
 		}

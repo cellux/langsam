@@ -16,3 +16,5 @@
 
 (def x 5)
 (assert (= x 5))
+(let [x 6] (assert (= x 6)))
+(assert (= x 5))
