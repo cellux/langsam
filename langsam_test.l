@@ -13,3 +13,6 @@
 
 (assert (= ((fn [x] x) 5) 5))
 (assert (= ((fn [x y] (+ x y)) 2 3) 5))
+
+(def x 5)
+(assert (= x 5))

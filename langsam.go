@@ -44,7 +44,6 @@ type Function struct {
 	Name       *Symbol
 	ParamNames []*Symbol
 	RestName   *Symbol
-	Env        Map
 	EvalArgs   bool
 	EvalResult bool
 	Body       Value
@@ -695,11 +694,6 @@ func (f *Function) WithRestName(name string) *Function {
 	return f
 }
 
-func (f *Function) WithEnv(env Map) *Function {
-	f.Env = env
-	return f
-}
-
 func (f *Function) WithEvalArgs(evalArgs bool) *Function {
 	f.EvalArgs = evalArgs
 	return f
@@ -723,14 +717,14 @@ func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
 	} else {
 		realArgs = args
 	}
-	var fenv Map
-	if f.Env != nil {
+	switch body := f.Body.(type) {
+	case Vector:
 		nPosArgs := min(len(realArgs), len(f.ParamNames))
 		nBindings := nPosArgs
 		if f.RestName != nil {
 			nBindings++
 		}
-		fenv = make(Map, nBindings)
+		fenv := make(Map, nBindings)
 		i := 0
 		for i < nPosArgs {
 			paramName := f.ParamNames[i]
@@ -749,26 +743,21 @@ func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
 				fenv[f.RestName] = nil
 			}
 		}
-		fenv[symProto] = f.Env
-	} else {
-		fenv = vm.curEnv
-	}
-	result, err = vm.InEnv(fenv, func() (Value, error) {
-		switch b := f.Body.(type) {
-		case Vector:
-			for _, form := range b {
+		fenv[symProto] = vm.curEnv
+		result, err = vm.InEnv(fenv, func() (Value, error) {
+			for _, form := range body {
 				result, err = vm.Eval(form)
 				if err != nil {
 					return nil, err
 				}
 			}
 			return result, err
-		case NativeFn:
-			return b(vm, realArgs)
-		default:
-			return nil, fmt.Errorf("invalid function body, expected Vector or NativeFn, got %T", f.Body)
-		}
-	})
+		})
+	case NativeFn:
+		result, err = body(vm, realArgs)
+	default:
+		return nil, fmt.Errorf("invalid function body, expected Vector or NativeFn, got %T", f.Body)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -928,13 +917,16 @@ func (vm *VM) defineNativeFn(name string, fn NativeFn) *Function {
 	sym := internSymbol(name)
 	f := &Function{
 		Name:       sym,
-		Env:        vm.curEnv,
 		EvalArgs:   true,
 		EvalResult: false,
 		Body:       fn,
 	}
 	vm.curEnv[sym] = f
 	return f
+}
+
+func (vm *VM) defineNativeMacro(name string, fn NativeFn) *Function {
+	return vm.defineNativeFn(name, fn).WithEvalArgs(false)
 }
 
 func (vm *VM) InEnv(env Map, f func() (Value, error)) (Value, error) {
@@ -1060,11 +1052,23 @@ func evalFn(vm *VM, args []Value) (Value, error) {
 		Name:       fnName,
 		ParamNames: paramNames,
 		RestName:   restName,
-		Env:        vm.curEnv,
 		EvalArgs:   evalArgs,
 		EvalResult: evalResult,
 		Body:       Vector(args),
 	}, nil
+}
+
+func evalDef(vm *VM, args []Value) (Value, error) {
+	if len(args) < 2 {
+		return nil, fmt.Errorf("def needs at least two arguments")
+	}
+	name := args[0]
+	value, err := vm.Eval(args[1])
+	if err != nil {
+		return nil, err
+	}
+	vm.curEnv[name] = value
+	return value, nil
 }
 
 func evalAssert(vm *VM, args []Value) (Value, error) {
@@ -1109,10 +1113,11 @@ func init() {
 		vm.defineNativeFn("-", evalSub)
 		vm.defineNativeFn("*", evalMul)
 		vm.defineNativeFn("/", evalDiv)
-		vm.defineNativeFn("assert", evalAssert).WithEvalArgs(false)
-		vm.defineNativeFn("quote", evalQuote).WithEvalArgs(false)
-		vm.defineNativeFn("quasiquote", evalQuasiQuote).WithEvalArgs(false)
-		vm.defineNativeFn("fn", evalFn).WithEvalArgs(false)
+		vm.defineNativeMacro("assert", evalAssert)
+		vm.defineNativeMacro("quote", evalQuote)
+		vm.defineNativeMacro("quasiquote", evalQuasiQuote)
+		vm.defineNativeMacro("fn", evalFn)
+		vm.defineNativeMacro("def", evalDef)
 		if _, err := vm.LoadString(langsamL); err != nil {
 			return err
 		}
