@@ -23,13 +23,13 @@ func main() {
 				die("Error opening %s: %v\n", arg, err)
 			}
 			defer f.Close()
-			if _, err := vm.Load(f); err != nil {
-				die("Error while loading %s: %v\n", arg, err)
+			if result := vm.Load(f); langsam.IsError(result) {
+				die("Error while loading %s: %v\n", arg, result)
 			}
 		}
 	} else {
-		if _, err := vm.Load(os.Stdin); err != nil {
-			die("Error while loading from stdin: %v\n", err)
+		if result := vm.Load(os.Stdin); langsam.IsError(result) {
+			die("Error while loading from stdin: %v\n", result)
 		}
 	}
 }

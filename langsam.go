@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -17,6 +18,8 @@ var langsamL string
 // value types
 
 type Value any
+
+type Error error
 
 type Boolean bool
 type Integer int64
@@ -49,38 +52,45 @@ type Function struct {
 	Body       Value
 }
 
-type NativeFn func(vm *VM, args []Value) (Value, error)
+type NativeFn func(vm *VM, args []Value) Value
 
 // value interfaces
 
+type IType interface {
+	Type(vm *VM) Value
+}
+
+type ICmp interface {
+	Cmp(vm *VM, rhs Value) Value
+}
+
 type IAdd interface {
-	Add(vm *VM, args []Value) (Value, error)
+	Add(vm *VM, rhs Value) Value
 }
 
 type ISub interface {
-	Sub(vm *VM, args []Value) (Value, error)
+	Sub(vm *VM, rhs Value) Value
 }
 
 type IMul interface {
-	Mul(vm *VM, args []Value) (Value, error)
+	Mul(vm *VM, rhs Value) Value
 }
 
 type IDiv interface {
-	Div(vm *VM, args []Value) (Value, error)
+	Div(vm *VM, rhs Value) Value
 }
 
 type ICall interface {
-	Call(vm *VM, args []Value) (Value, error)
+	Call(vm *VM, args []Value) Value
+}
+
+type ILen interface {
+	Len(vm *VM) Integer
 }
 
 type IEval interface {
-	Eval(vm *VM) (Value, error)
+	Eval(vm *VM) Value
 }
-
-// value constants
-
-var TrueValue = Boolean(true)
-var FalseValue = Boolean(false)
 
 // predefined symbols
 
@@ -96,11 +106,6 @@ var symQuasiQuote = internSymbol("quasiquote")
 var symUnquote = internSymbol("unquote")
 var symUnquoteSplicing = internSymbol("unquote-splicing")
 
-// predefined keywords
-
-var kwEvalArgs = internKeyword("eval-args?")
-var kwEvalResult = internKeyword("eval-result?")
-
 // Value
 
 func stringify(v Value) string {
@@ -111,7 +116,55 @@ func stringify(v Value) string {
 	}
 }
 
+// Error
+
+func IsError(v Value) bool {
+	_, ok := v.(error)
+	return ok
+}
+
+// Nil
+
+var symNilType = internSymbol("Nil")
+
+func NilType(vm *VM, args []Value) Value {
+	return nil
+}
+
 // Boolean
+
+var symBooleanType = internSymbol("Boolean")
+
+func BooleanType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Boolean expects one argument, got %d", len(args))
+	}
+	switch args[0].(type) {
+	case Boolean:
+		return args[0]
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Boolean", args[0])
+	}
+}
+
+var TrueValue = Boolean(true)
+var FalseValue = Boolean(false)
+
+func (b Boolean) Type(vm *VM) Value {
+	return vm.rootEnv[symBooleanType]
+}
+
+func (b Boolean) Eval(vm *VM) Value {
+	return b
+}
+
+func (b1 Boolean) Cmp(vm *VM, v2 Value) Value {
+	if b2, ok := v2.(Boolean); ok && b1 == b2 {
+		return Integer(0)
+	} else {
+		return fmt.Errorf("cannot compare Boolean with value of type %T", v2)
+	}
+}
 
 func (b Boolean) String() string {
 	if b == TrueValue {
@@ -119,10 +172,6 @@ func (b Boolean) String() string {
 	} else {
 		return "false"
 	}
-}
-
-func (b Boolean) Eval(vm *VM) (Value, error) {
-	return b, nil
 }
 
 // numbers
@@ -213,12 +262,55 @@ func readNumber(src io.ByteScanner, b byte) (Value, error) {
 
 // Integer
 
-func (i Integer) String() string {
-	return fmt.Sprintf("%d", i)
+var symIntegerType = internSymbol("Integer")
+
+func IntegerType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Integer expects one argument, got %d", len(args))
+	}
+	switch args[0].(type) {
+	case Integer:
+		return args[0]
+	case Float:
+		return AsInteger(args[0])
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Integer", args[0])
+	}
 }
 
-func (i Integer) Eval(vm *VM) (Value, error) {
-	return i, nil
+func (i Integer) Type(vm *VM) Value {
+	return vm.rootEnv[symIntegerType]
+}
+
+func (i1 Integer) Cmp(vm *VM, v2 Value) Value {
+	switch v := v2.(type) {
+	case Integer:
+		lhs := i1
+		rhs := v
+		if lhs == rhs {
+			return Integer(0)
+		} else if lhs < rhs {
+			return Integer(-1)
+		} else {
+			return Integer(1)
+		}
+	case Float:
+		lhs := Float(i1)
+		rhs := v
+		if lhs == rhs {
+			return Integer(0)
+		} else if lhs < rhs {
+			return Integer(-1)
+		} else {
+			return Integer(1)
+		}
+	default:
+		return fmt.Errorf("cannot compare Integer with value of type %T", v2)
+	}
+}
+
+func (i Integer) Eval(vm *VM) Value {
+	return i
 }
 
 func AsInteger(v Value) Integer {
@@ -232,39 +324,74 @@ func AsInteger(v Value) Integer {
 	}
 }
 
-func (i Integer) Add(vm *VM, args []Value) (Value, error) {
-	result := i
-	for i := range len(args) {
-		result += AsInteger(args[i])
-	}
-	return result, nil
+func (i Integer) Add(vm *VM, rhs Value) Value {
+	return Integer(i + AsInteger(rhs))
 }
 
-func (i Integer) Sub(vm *VM, args []Value) (Value, error) {
-	result := i
-	for i := range len(args) {
-		result -= AsInteger(args[i])
-	}
-	return result, nil
+func (i Integer) Sub(vm *VM, rhs Value) Value {
+	return Integer(i - AsInteger(rhs))
 }
 
-func (i Integer) Mul(vm *VM, args []Value) (Value, error) {
-	result := i
-	for i := range len(args) {
-		result *= AsInteger(args[i])
-	}
-	return result, nil
+func (i Integer) Mul(vm *VM, rhs Value) Value {
+	return Integer(i * AsInteger(rhs))
 }
 
-func (i Integer) Div(vm *VM, args []Value) (Value, error) {
-	result := i
-	for i := range len(args) {
-		result /= AsInteger(args[i])
-	}
-	return result, nil
+func (i Integer) Div(vm *VM, rhs Value) Value {
+	return Integer(i / AsInteger(rhs))
+}
+
+func (i Integer) String() string {
+	return fmt.Sprintf("%d", i)
 }
 
 // Float
+
+var symFloatType = internSymbol("Float")
+
+func FloatType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Float expects one argument, got %d", len(args))
+	}
+	switch args[0].(type) {
+	case Float:
+		return args[0]
+	case Integer:
+		return AsFloat(args[0])
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Float", args[0])
+	}
+}
+
+func (f Float) Type(vm *VM) Value {
+	return vm.rootEnv[symFloatType]
+}
+
+func (f1 Float) Cmp(vm *VM, v2 Value) Value {
+	switch v := v2.(type) {
+	case Integer:
+		lhs := f1
+		rhs := Float(v)
+		if lhs == rhs {
+			return Integer(0)
+		} else if lhs < rhs {
+			return Integer(-1)
+		} else {
+			return Integer(1)
+		}
+	case Float:
+		lhs := f1
+		rhs := v
+		if lhs == rhs {
+			return Integer(0)
+		} else if lhs < rhs {
+			return Integer(-1)
+		} else {
+			return Integer(1)
+		}
+	default:
+		return fmt.Errorf("cannot compare Float with value of type %T", v2)
+	}
+}
 
 func AsFloat(v Value) Float {
 	switch v := v.(type) {
@@ -277,6 +404,26 @@ func AsFloat(v Value) Float {
 	}
 }
 
+func (f Float) Eval(vm *VM) Value {
+	return f
+}
+
+func (f Float) Add(vm *VM, rhs Value) Value {
+	return Float(f + AsFloat(rhs))
+}
+
+func (f Float) Sub(vm *VM, rhs Value) Value {
+	return Float(f - AsFloat(rhs))
+}
+
+func (f Float) Mul(vm *VM, rhs Value) Value {
+	return Float(f * AsFloat(rhs))
+}
+
+func (f Float) Div(vm *VM, rhs Value) Value {
+	return Float(f / AsFloat(rhs))
+}
+
 func (f Float) String() string {
 	s := strconv.FormatFloat(float64(f), 'f', -1, 64)
 	if !strings.ContainsRune(s, '.') {
@@ -285,43 +432,31 @@ func (f Float) String() string {
 	return s
 }
 
-func (f Float) Eval(vm *VM) (Value, error) {
-	return f, nil
-}
-
-func (f Float) Add(vm *VM, args []Value) (Value, error) {
-	result := f
-	for i := range len(args) {
-		result += AsFloat(args[i])
-	}
-	return result, nil
-}
-
-func (f Float) Sub(vm *VM, args []Value) (Value, error) {
-	result := f
-	for i := range len(args) {
-		result -= AsFloat(args[i])
-	}
-	return result, nil
-}
-
-func (f Float) Mul(vm *VM, args []Value) (Value, error) {
-	result := f
-	for i := range len(args) {
-		result *= AsFloat(args[i])
-	}
-	return result, nil
-}
-
-func (f Float) Div(vm *VM, args []Value) (Value, error) {
-	result := f
-	for i := range len(args) {
-		result /= AsFloat(args[i])
-	}
-	return result, nil
-}
-
 // String
+
+var symStringType = internSymbol("String")
+
+func StringType(vm *VM, args []Value) Value {
+	var sb strings.Builder
+	for _, v := range args {
+		sb.WriteString(stringify(v))
+	}
+	return String(sb.String())
+}
+
+func (s String) Type(vm *VM) Value {
+	return vm.rootEnv[symStringType]
+}
+
+func (s1 String) Cmp(vm *VM, v2 Value) Value {
+	if s2, ok := v2.(String); ok {
+		lhs := string(s1)
+		rhs := string(s2)
+		return Integer(strings.Compare(lhs, rhs))
+	} else {
+		return fmt.Errorf("cannot compare String with value of type %T", v2)
+	}
+}
 
 func readString(src io.ByteScanner) (Value, error) {
 	var sb strings.Builder
@@ -359,15 +494,47 @@ func readString(src io.ByteScanner) (Value, error) {
 	}
 }
 
-func (s String) String() string {
-	return fmt.Sprintf("%#v", s)
+func (s String) Eval(vm *VM) Value {
+	return s
 }
 
-func (s String) Eval(vm *VM) (Value, error) {
-	return s, nil
+func (s String) String() string {
+	return string(s)
 }
 
 // Symbol
+
+var symSymbolType = internSymbol("Symbol")
+
+func SymbolType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Symbol expects one argument, got %d", len(args))
+	}
+	switch v := args[0].(type) {
+	case *Symbol:
+		return args[0]
+	case String:
+		return internSymbol(string(v))
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Symbol", args[0])
+	}
+}
+
+func (sym *Symbol) Type(vm *VM) Value {
+	return vm.rootEnv[symSymbolType]
+}
+
+func (sym1 *Symbol) Cmp(vm *VM, v2 Value) Value {
+	if sym2, ok := v2.(*Symbol); ok {
+		if sym1 == sym2 {
+			return Integer(0)
+		} else {
+			return Integer(1)
+		}
+	} else {
+		return fmt.Errorf("cannot compare Symbol with value of type %T", v2)
+	}
+}
 
 var symtab = make(map[string]*Symbol)
 
@@ -419,15 +586,49 @@ func readSymbol(src io.ByteScanner, firstByte byte) (Value, error) {
 	}
 }
 
+func (sym *Symbol) Eval(vm *VM) Value {
+	return vm.Lookup(sym)
+}
+
 func (sym *Symbol) String() string {
 	return sym.Name
 }
 
-func (sym *Symbol) Eval(vm *VM) (Value, error) {
-	return vm.Lookup(sym), nil
+// Keyword
+
+var symKeywordType = internSymbol("Keyword")
+
+func KeywordType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Keyword expects one argument, got %d", len(args))
+	}
+	switch v := args[0].(type) {
+	case Keyword:
+		return args[0]
+	case String:
+		return internKeyword(string(v))
+	case *Symbol:
+		return internKeyword(v.Name)
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Keyword", args[0])
+	}
 }
 
-// Keyword
+func (kw Keyword) Type(vm *VM) Value {
+	return vm.rootEnv[symKeywordType]
+}
+
+func (kw1 Keyword) Cmp(vm *VM, v2 Value) Value {
+	if kw2, ok := v2.(Keyword); ok {
+		if kw1 == kw2 {
+			return Integer(0)
+		} else {
+			return Integer(1)
+		}
+	} else {
+		return fmt.Errorf("cannot compare Keyword with value of type %T", v2)
+	}
+}
 
 func internKeyword(s string) Keyword {
 	sym := internSymbol(s)
@@ -452,15 +653,48 @@ func readKeyword(src io.ByteScanner) (Value, error) {
 	}
 }
 
+func (kw Keyword) Eval(vm *VM) Value {
+	return kw
+}
+
 func (kw Keyword) String() string {
 	return ":" + kw.Name.Name
 }
 
-func (kw Keyword) Eval(vm *VM) (Value, error) {
-	return kw, nil
+// Cons
+
+var symConsType = internSymbol("Cons")
+
+func ConsType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Cons expects a single argument, got %d", len(args))
+	}
+	switch args[0].(type) {
+	case *Cons:
+		return args[0]
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Cons", args[0])
+	}
 }
 
-// Cons
+func (c *Cons) Type(vm *VM) Value {
+	return vm.rootEnv[symConsType]
+}
+
+func (c1 *Cons) Cmp(vm *VM, v2 Value) Value {
+	if c2, ok := v2.(*Cons); ok {
+		carCmpResult := vm.Cmp(c1.Car, c2.Car)
+		if IsError(carCmpResult) {
+			return carCmpResult
+		}
+		if carCmpResult.(Integer) != 0 {
+			return carCmpResult
+		}
+		return vm.Cmp(c1.Cdr, c2.Cdr)
+	} else {
+		return fmt.Errorf("cannot compare Cons with value of type %T", v2)
+	}
+}
 
 func (c *Cons) String() string {
 	if c == nil {
@@ -483,6 +717,38 @@ func (c *Cons) String() string {
 	}
 	sb.WriteByte(')')
 	return sb.String()
+}
+
+func evalCons(vm *VM, args []Value) Value {
+	if len(args) != 2 {
+		return fmt.Errorf("cons expects two arguments, got %d", len(args))
+	}
+	return &Cons{
+		Car: args[0],
+		Cdr: args[1],
+	}
+}
+
+func evalCar(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("car expects one argument, got %d", len(args))
+	}
+	if c, ok := args[0].(*Cons); ok {
+		return c.Car
+	} else {
+		return fmt.Errorf("car expects a Cons argument, got %T", args[0])
+	}
+}
+
+func evalCdr(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("cdr expects one argument, got %d", len(args))
+	}
+	if c, ok := args[0].(*Cons); ok {
+		return c.Cdr
+	} else {
+		return fmt.Errorf("cdr expects a Cons argument, got %T", args[0])
+	}
 }
 
 // List
@@ -513,6 +779,47 @@ func readList(src io.ByteScanner) (Value, error) {
 	}
 }
 
+func (l1 List) Cmp(vm *VM, v2 Value) Value {
+	if l2, ok := v2.(List); ok {
+		if len(l1) < len(l2) {
+			return Integer(-1)
+		} else if len(l1) > len(l2) {
+			return Integer(1)
+		} else {
+			for i := range l1 {
+				result := vm.Cmp(l1[i], l2[i])
+				if IsError(result) {
+					return result
+				}
+				if result.(Integer) != 0 {
+					return result
+				}
+			}
+			return Integer(0)
+		}
+	} else {
+		return fmt.Errorf("cannot compare List with value of type %T", v2)
+	}
+}
+
+func (l List) Eval(vm *VM) Value {
+	if len(l) == 0 {
+		return fmt.Errorf("cannot evaluate empty list")
+	}
+	v0 := vm.Eval(l[0])
+	if IsError(v0) {
+		return v0
+	}
+	if v0 == nil {
+		return fmt.Errorf("'%v' is nil", l[0])
+	}
+	if f, ok := v0.(ICall); ok {
+		return f.Call(vm, l[1:])
+	} else {
+		return fmt.Errorf("head of list (%v) has type %T which is not callable", l[0], v0)
+	}
+}
+
 func (l List) String() string {
 	var sb strings.Builder
 	sb.WriteByte('(')
@@ -524,21 +831,6 @@ func (l List) String() string {
 	}
 	sb.WriteByte(')')
 	return sb.String()
-}
-
-func (l List) Eval(vm *VM) (Value, error) {
-	if len(l) == 0 {
-		return nil, fmt.Errorf("cannot evaluate empty list")
-	}
-	v0, err := vm.Eval(l[0])
-	if err != nil {
-		return nil, err
-	}
-	if f, ok := v0.(ICall); ok {
-		return f.Call(vm, l[1:])
-	} else {
-		return nil, fmt.Errorf("head of list (%v) has type %T which is not callable", l[0], v0)
-	}
 }
 
 // Vector
@@ -569,6 +861,16 @@ func readVector(src io.ByteScanner) (Value, error) {
 	}
 }
 
+func (v Vector) Eval(vm *VM) Value {
+	ev := make(Vector, len(v))
+	for i := range len(v) {
+		if ev[i] = vm.Eval(v[i]); IsError(ev[i]) {
+			return ev[i]
+		}
+	}
+	return ev
+}
+
 func (v Vector) String() string {
 	var sb strings.Builder
 	sb.WriteByte('[')
@@ -578,18 +880,8 @@ func (v Vector) String() string {
 		}
 		sb.WriteString(stringify(v[i]))
 	}
-	sb.WriteByte(')')
+	sb.WriteByte(']')
 	return sb.String()
-}
-
-func (v Vector) Eval(vm *VM) (result Value, err error) {
-	ev := make(Vector, len(v))
-	for i := range len(v) {
-		if ev[i], err = vm.Eval(v[i]); err != nil {
-			return nil, err
-		}
-	}
-	return ev, nil
 }
 
 // Map
@@ -624,6 +916,35 @@ func readMap(src io.ByteScanner) (Value, error) {
 	}
 }
 
+func (m Map) Eval(vm *VM) Value {
+	em := make(Map, len(m))
+	for k, v := range m {
+		var ek, ev Value
+		if ek = vm.Eval(k); IsError(ek) {
+			return ek
+		}
+		if ev = vm.Eval(v); IsError(ev) {
+			return ev
+		}
+		em[ek] = ev
+	}
+	return em
+}
+
+func (m Map) Lookup(key Value) Value {
+	for m != nil {
+		if val, found := m[key]; found {
+			return val
+		}
+		if proto, found := m[symProto].(Map); found {
+			m = proto
+		} else {
+			break
+		}
+	}
+	return nil
+}
+
 func (m Map) String() string {
 	var sb strings.Builder
 	sb.WriteByte('{')
@@ -641,43 +962,90 @@ func (m Map) String() string {
 	return sb.String()
 }
 
-func (m Map) Eval(vm *VM) (result Value, err error) {
-	em := make(Map, len(m))
-	for k, v := range m {
-		var ek, ev Value
-		if ek, err = vm.Eval(k); err != nil {
-			return nil, err
-		}
-		if ev, err = vm.Eval(v); err != nil {
-			return nil, err
-		}
-		em[ek] = ev
-	}
-	return em, nil
-}
-
-func (m Map) Lookup(key Value) Value {
-	for m != nil {
-		if val, found := m[key]; found {
-			return val
-		}
-		if proto, found := m[symProto].(Map); found {
-			m = proto
-		} else {
-			break
-		}
-	}
-	return nil
-}
-
 // Function
 
-func (f *Function) String() string {
-	return f.Name.Name
+var symFunctionType = internSymbol("Function")
+
+func FunctionType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("Function expects one argument, got %d", len(args))
+	}
+	switch arg := args[0].(type) {
+	case *Function:
+		return args[0]
+	case Map:
+		m := arg
+		f := &Function{
+			EvalArgs:   true,
+			EvalResult: false,
+		}
+		if v, ok := m[internKeyword("name")]; ok {
+			if name, ok := v.(*Symbol); ok {
+				f.Name = name
+			} else {
+				return fmt.Errorf("expected symbol at :name, got %T", v)
+			}
+		}
+		if v, ok := m[internKeyword("param-names")]; ok {
+			if paramNameVector, ok := v.(Vector); ok {
+				paramNames := make([]*Symbol, len(paramNameVector))
+				for i := range len(paramNames) {
+					if paramName, ok := paramNameVector[i].(*Symbol); ok {
+						paramNames[i] = paramName
+					} else {
+						return fmt.Errorf("parameter names must be symbols, got %v", paramNameVector[i])
+					}
+				}
+				f.ParamNames = paramNames
+			} else {
+				return fmt.Errorf("expected vector of symbols at :param-names, got %T", v)
+			}
+		}
+		if v, ok := m[internKeyword("rest-name")]; ok {
+			if restName, ok := v.(*Symbol); ok {
+				f.RestName = restName
+			} else {
+				return fmt.Errorf("expected symbol at :rest-name, got %T", v)
+			}
+		}
+		if v, ok := m[internKeyword("eval-args?")]; ok {
+			if evalArgs, ok := v.(Boolean); ok {
+				f.EvalArgs = bool(evalArgs)
+			} else {
+				return fmt.Errorf("expected boolean at :eval-args?, got %T", v)
+			}
+		}
+		if v, ok := m[internKeyword("eval-result?")]; ok {
+			if evalResult, ok := v.(Boolean); ok {
+				f.EvalResult = bool(evalResult)
+			} else {
+				return fmt.Errorf("expected boolean at :eval-result?, got %T", v)
+			}
+		}
+		if v, ok := m[internKeyword("body")]; ok {
+			switch body := v.(type) {
+			case NativeFn:
+				f.Body = body
+			case List:
+				f.Body = body
+			case Vector:
+				f.Body = List(body)
+			default:
+				return fmt.Errorf("expected list or native fn at :body, got %T", v)
+			}
+		}
+		return f
+	default:
+		return fmt.Errorf("cannot cast value of type %T to Function", args[0])
+	}
 }
 
-func (f *Function) Eval(vm *VM) (Value, error) {
-	return f, nil
+func (b *Function) Type(vm *VM) Value {
+	return vm.rootEnv[symFunctionType]
+}
+
+func (f *Function) Eval(vm *VM) Value {
+	return f
 }
 
 func (f *Function) WithParamNames(names ...string) *Function {
@@ -704,21 +1072,21 @@ func (f *Function) WithEvalResult(evalResult bool) *Function {
 	return f
 }
 
-func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
+func (f *Function) Call(vm *VM, args []Value) (result Value) {
 	var realArgs []Value
 	if f.EvalArgs {
 		realArgs = make([]Value, len(args))
 		for i := range len(args) {
-			realArgs[i], err = vm.Eval(args[i])
-			if err != nil {
-				return nil, fmt.Errorf("%v failed to evaluate arg #%d: %v", f, i, err)
+			realArgs[i] = vm.Eval(args[i])
+			if IsError(realArgs[i]) {
+				return fmt.Errorf("%v failed to evaluate arg #%d: %v", f, i, realArgs[i])
 			}
 		}
 	} else {
 		realArgs = args
 	}
 	switch body := f.Body.(type) {
-	case Vector:
+	case List:
 		nPosArgs := min(len(realArgs), len(f.ParamNames))
 		nBindings := nPosArgs
 		if f.RestName != nil {
@@ -743,28 +1111,101 @@ func (f *Function) Call(vm *VM, args []Value) (result Value, err error) {
 				fenv[f.RestName] = nil
 			}
 		}
-		result, err = vm.InEnv(fenv, func() (Value, error) {
+		result = vm.InEnv(fenv, func() (result Value) {
 			for _, form := range body {
-				result, err = vm.Eval(form)
-				if err != nil {
-					return nil, err
+				result = vm.Eval(form)
+				if IsError(result) {
+					break
 				}
 			}
-			return result, err
+			return result
 		})
 	case NativeFn:
-		result, err = body(vm, realArgs)
+		result = body(vm, realArgs)
 	default:
-		return nil, fmt.Errorf("invalid function body, expected Vector or NativeFn, got %T", f.Body)
+		return fmt.Errorf("invalid function body, expected List or NativeFn, got %T", f.Body)
 	}
-	if err != nil {
-		return nil, err
+	if IsError(result) {
+		return result
 	}
 	if f.EvalResult {
 		return vm.Eval(result)
 	} else {
-		return result, nil
+		return result
 	}
+}
+
+func (f1 *Function) Cmp(vm *VM, v2 Value) Value {
+	if f2, ok := v2.(*Function); ok && f1 == f2 {
+		return Integer(0)
+	} else {
+		return fmt.Errorf("cannot compare Function with value of type %T", v2)
+	}
+}
+
+func (f *Function) String() string {
+	return f.Name.Name
+}
+
+func evalFn(vm *VM, args []Value) Value {
+	options := make(Map)
+	var paramForms Vector
+	for len(args) > 0 && paramForms == nil {
+		switch v := args[0].(type) {
+		case *Symbol:
+			options[internKeyword("name")] = v
+		case Map:
+			m := vm.Eval(v)
+			if IsError(m) {
+				return m
+			}
+			maps.Copy(options, m.(Map))
+		case Vector:
+			paramForms = v
+		}
+		args = args[1:]
+	}
+	var paramNames []Value
+	var restName Value
+	restMarker := symAmpersand // &
+	seenRestMarker := false
+	for i, paramForm := range paramForms {
+		if paramSym, ok := paramForm.(*Symbol); ok {
+			if seenRestMarker {
+				if i != len(paramForms)-1 {
+					return fmt.Errorf("there must be a single symbol after & in parameter list")
+				}
+				restName = paramSym
+			} else if paramSym == restMarker {
+				seenRestMarker = true
+			} else {
+				paramNames = append(paramNames, paramSym)
+			}
+		} else {
+			return fmt.Errorf("parameters must be symbols")
+		}
+	}
+	if paramNames != nil {
+		options[internKeyword("param-names")] = Vector(paramNames)
+	}
+	if restName != nil {
+		options[internKeyword("rest-name")] = restName
+	}
+	if len(args) > 0 {
+		options[internKeyword("body")] = List(args)
+	}
+	return FunctionType(vm, []Value{options})
+}
+
+func evalMacro(vm *VM, args []Value) Value {
+	result := evalFn(vm, args)
+	if IsError(result) {
+		return result
+	}
+	f := result.(*Function)
+	f.EvalArgs = false
+	f.EvalResult = true
+	return f
 }
 
 // VM
@@ -858,7 +1299,7 @@ func read(src io.ByteScanner) (Value, error) {
 				if err != nil {
 					return nil, err
 				}
-				return List([]Value{symUnquote, form, nil}), nil
+				return List([]Value{symUnquote, form}), nil
 			}
 		default:
 			return readSymbol(src, b)
@@ -873,11 +1314,48 @@ type VM struct {
 	modules map[string]string
 }
 
-func (vm *VM) Eval(v Value) (Value, error) {
+func (vm *VM) Type(v Value) Value {
+	if v == nil {
+		return vm.rootEnv[symNilType]
+	}
+	if i, ok := v.(IType); ok {
+		return i.Type(vm)
+	} else {
+		return fmt.Errorf("type of %v cannot be determined", v)
+	}
+}
+
+func (vm *VM) Len(v Value) Value {
+	if i, ok := v.(ILen); ok {
+		return i.Len(vm)
+	} else {
+		return fmt.Errorf("value of type %T does not provide length", v)
+	}
+}
+
+func (vm *VM) Cmp(v1 Value, v2 Value) Value {
+	if v1 == nil {
+		if v2 == nil {
+			return Integer(0)
+		} else {
+			return Integer(1)
+		}
+	}
+	if lhs, ok := v1.(ICmp); ok {
+		return lhs.Cmp(vm, v2)
+	} else {
+		return fmt.Errorf("value of type %T does not support comparison", v1)
+	}
+}
+
+func (vm *VM) Eval(v Value) Value {
+	if v == nil {
+		return nil
+	}
 	if i, ok := v.(IEval); ok {
 		return i.Eval(vm)
 	} else {
-		return nil, fmt.Errorf("value of type %T does not support evaluation", v)
+		return fmt.Errorf("value of type %T does not support evaluation", v)
 	}
 }
 
@@ -885,7 +1363,7 @@ func (vm *VM) Lookup(key Value) Value {
 	return vm.curEnv.Lookup(key)
 }
 
-func (vm *VM) Load(rdr io.Reader) (lastResult Value, error error) {
+func (vm *VM) Load(rdr io.Reader) (result Value) {
 	src := bufio.NewReader(rdr)
 	for {
 		form, err := read(src)
@@ -893,17 +1371,17 @@ func (vm *VM) Load(rdr io.Reader) (lastResult Value, error error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, fmt.Errorf("read failed: %v", err)
+			return fmt.Errorf("read failed: %v", err)
 		}
-		lastResult, err = vm.Eval(form)
-		if err != nil {
-			return nil, fmt.Errorf("%v\nevaluation failed: %v", form, err)
+		result = vm.Eval(form)
+		if IsError(result) {
+			return fmt.Errorf("%v\nevaluation failed: %v", form, result)
 		}
 	}
-	return lastResult, nil
+	return result
 }
 
-func (vm *VM) LoadString(s string) (Value, error) {
+func (vm *VM) LoadString(s string) Value {
 	return vm.Load(strings.NewReader(s))
 }
 
@@ -924,16 +1402,16 @@ func (vm *VM) defineNativeFn(name string, fn NativeFn) *Function {
 	return f
 }
 
-func (vm *VM) defineNativeMacro(name string, fn NativeFn) *Function {
-	return vm.defineNativeFn(name, fn).WithEvalArgs(false)
+func (vm *VM) defineSpecialForm(name string, fn NativeFn) *Function {
+	return vm.defineNativeFn(name, fn).WithEvalArgs(false).WithEvalResult(false)
 }
 
-func (vm *VM) InEnv(env Map, f func() (Value, error)) (Value, error) {
+func (vm *VM) InEnv(env Map, f func() Value) Value {
 	oldEnv := vm.curEnv
 	vm.curEnv = env
-	result, err := f()
+	result := f()
 	vm.curEnv = oldEnv
-	return result, err
+	return result
 }
 
 func (vm *VM) ChildEnv(size int) Map {
@@ -955,152 +1433,165 @@ func RegisterModule(name string, importFn ImportFn) {
 	registeredModules[name] = importFn
 }
 
-func evalEqual(vm *VM, args []Value) (Value, error) {
-	lhs := args[0]
-	for i := 1; i < len(args); i++ {
-		if args[i] != lhs {
-			return FalseValue, nil
-		}
+func evalType(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("type expects one argument, got %d", len(args))
 	}
-	return TrueValue, nil
+	return vm.Type(args[0])
 }
 
-func evalAdd(vm *VM, args []Value) (Value, error) {
+func evalLen(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("len expects one argument, got %d", len(args))
+	}
+	return vm.Len(args[0])
+}
+
+func evalEval(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("eval expects one argument, got %d", len(args))
+	}
+	return vm.Eval(args[0])
+}
+
+func evalEqual(vm *VM, args []Value) Value {
 	if len(args) == 0 {
-		return nil, nil
+		return fmt.Errorf("= expects at least one argument")
 	}
-	if i, ok := args[0].(IAdd); ok {
-		return i.Add(vm, args[1:])
+	if len(args) == 1 {
+		return TrueValue
+	}
+	result := vm.Cmp(args[0], args[1])
+	if IsError(result) {
+		return result
+	}
+	if result.(Integer) != 0 {
+		return FalseValue
+	}
+	if len(args) > 2 {
+		return evalEqual(vm, args[1:])
 	} else {
-		return nil, fmt.Errorf("value of type %T does not support +", args[0])
+		return TrueValue
 	}
 }
 
-func evalSub(vm *VM, args []Value) (Value, error) {
+func evalAdd(vm *VM, args []Value) Value {
 	if len(args) == 0 {
-		return nil, nil
+		return fmt.Errorf("+ expects at least one argument")
 	}
-	if i, ok := args[0].(ISub); ok {
-		return i.Sub(vm, args[1:])
-	} else {
-		return nil, fmt.Errorf("value of type %T does not support -", args[0])
+	if len(args) == 1 {
+		return args[0]
 	}
-}
-
-func evalMul(vm *VM, args []Value) (Value, error) {
-	if len(args) == 0 {
-		return nil, nil
-	}
-	if i, ok := args[0].(IMul); ok {
-		return i.Mul(vm, args[1:])
-	} else {
-		return nil, fmt.Errorf("value of type %T does not support *", args[0])
-	}
-}
-
-func evalDiv(vm *VM, args []Value) (Value, error) {
-	if len(args) == 0 {
-		return nil, nil
-	}
-	if i, ok := args[0].(IDiv); ok {
-		return i.Div(vm, args[1:])
-	} else {
-		return nil, fmt.Errorf("value of type %T does not support /", args[0])
-	}
-}
-
-func evalFn(vm *VM, args []Value) (Value, error) {
-	var fnName *Symbol
-	var options Map
-	var paramForms Vector
-	for len(args) > 0 && paramForms == nil {
-		switch v := args[0].(type) {
-		case *Symbol:
-			fnName = v
-		case Map:
-			optionsValue, err := vm.Eval(v)
-			if err != nil {
-				return nil, err
-			}
-			options = optionsValue.(Map)
-		case Vector:
-			paramForms = v
-		}
-		args = args[1:]
-	}
-	var paramNames []*Symbol
-	var restName *Symbol
-	restMarker := symAmpersand // &
-	seenRestMarker := false
-	for i, paramForm := range paramForms {
-		if paramSym, ok := paramForm.(*Symbol); ok {
-			if seenRestMarker {
-				if i != len(paramForms)-1 {
-					return nil, fmt.Errorf("there must be a single symbol after & in parameter list")
-				}
-				restName = paramSym
-			} else if paramSym == restMarker {
-				seenRestMarker = true
-			} else {
-				paramNames = append(paramNames, paramSym)
-			}
+	if lhs, ok := args[0].(IAdd); ok {
+		rhs := args[1]
+		result := lhs.Add(vm, rhs)
+		if len(args) > 2 {
+			args[1] = result
+			return evalAdd(vm, args[1:])
 		} else {
-			return nil, fmt.Errorf("parameters must be symbols")
+			return result
 		}
+	} else {
+		return fmt.Errorf("value of type %T does not support +", args[0])
 	}
-	evalArgs := true
-	evalResult := false
-	if options != nil {
-		if v, ok := options[kwEvalArgs]; ok {
-			evalArgs = v.(bool)
-		}
-		if v, ok := options[kwEvalResult]; ok {
-			evalResult = v.(bool)
-		}
-	}
-	return &Function{
-		Name:       fnName,
-		ParamNames: paramNames,
-		RestName:   restName,
-		EvalArgs:   evalArgs,
-		EvalResult: evalResult,
-		Body:       Vector(args),
-	}, nil
 }
 
-func evalDef(vm *VM, args []Value) (Value, error) {
+func evalSub(vm *VM, args []Value) Value {
+	if len(args) == 0 {
+		return fmt.Errorf("- expects at least one argument")
+	}
+	if len(args) == 1 {
+		return evalMul(vm, []Value{args[0], Integer(-1)})
+	}
+	if lhs, ok := args[0].(ISub); ok {
+		rhs := args[1]
+		result := lhs.Sub(vm, rhs)
+		if len(args) > 2 {
+			args[1] = result
+			return evalSub(vm, args[1:])
+		} else {
+			return result
+		}
+	} else {
+		return fmt.Errorf("value of type %T does not support -", args[0])
+	}
+}
+
+func evalMul(vm *VM, args []Value) Value {
+	if len(args) == 0 {
+		return fmt.Errorf("* expects at least one argument")
+	}
+	if len(args) == 1 {
+		return args[0]
+	}
+	if lhs, ok := args[0].(IMul); ok {
+		rhs := args[1]
+		result := lhs.Mul(vm, rhs)
+		if len(args) > 2 {
+			args[1] = result
+			return evalMul(vm, args[1:])
+		} else {
+			return result
+		}
+	} else {
+		return fmt.Errorf("value of type %T does not support *", args[0])
+	}
+}
+
+func evalDiv(vm *VM, args []Value) Value {
+	if len(args) == 0 {
+		return fmt.Errorf("/ expects at least one argument")
+	}
+	if len(args) == 1 {
+		return args[0]
+	}
+	if lhs, ok := args[0].(IDiv); ok {
+		rhs := args[1]
+		result := lhs.Div(vm, rhs)
+		if len(args) > 2 {
+			args[1] = result
+			return evalDiv(vm, args[1:])
+		} else {
+			return result
+		}
+	} else {
+		return fmt.Errorf("value of type %T does not support /", args[0])
+	}
+}
+
+func evalDef(vm *VM, args []Value) Value {
 	if len(args) < 2 {
-		return nil, fmt.Errorf("def needs at least two arguments")
+		return fmt.Errorf("def needs at least two arguments")
 	}
 	name := args[0]
-	value, err := vm.Eval(args[1])
-	if err != nil {
-		return nil, err
+	value := vm.Eval(args[1])
+	if IsError(value) {
+		return value
 	}
 	vm.curEnv[name] = value
-	return value, nil
+	return value
 }
 
-func evalDo(vm *VM, args []Value) (result Value, err error) {
+func evalDo(vm *VM, args []Value) (result Value) {
 	for _, form := range args {
-		result, err = vm.Eval(form)
-		if err != nil {
-			return nil, err
+		result = vm.Eval(form)
+		if IsError(result) {
+			break
 		}
 	}
-	return result, err
+	return result
 }
 
-func evalLet(vm *VM, args []Value) (Value, error) {
+func evalLet(vm *VM, args []Value) Value {
 	if len(args) == 0 {
-		return nil, nil
+		return nil
 	}
 	bindings, ok := args[0].(Vector)
 	if !ok {
-		return nil, fmt.Errorf("let expects bindings in a vector, got %T", args[0])
+		return fmt.Errorf("let expects bindings in a vector, got %T", args[0])
 	}
 	if len(bindings)%2 != 0 {
-		return nil, fmt.Errorf("let bindings should contain even number of keys and values: %v", args[0])
+		return fmt.Errorf("let bindings should contain even number of keys and values: %v", args[0])
 	}
 	letenv := make(Map, len(bindings)/2+1)
 	letenv[symProto] = vm.curEnv
@@ -1108,51 +1599,149 @@ func evalLet(vm *VM, args []Value) (Value, error) {
 	for i < len(bindings) {
 		k := bindings[i]
 		if _, ok := k.(*Symbol); !ok {
-			return nil, fmt.Errorf("let binding keys should be symbols, got: %v", k)
+			return fmt.Errorf("let binding keys should be symbols, got: %v", k)
 		}
 		i++
-		v, err := vm.Eval(bindings[i])
-		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate let binding value: %v", bindings[i])
+		v := vm.Eval(bindings[i])
+		if IsError(v) {
+			return fmt.Errorf("failed to evaluate let binding %v: %v", bindings[i], v)
 		}
 		i++
 		letenv[k] = v
 	}
-	return vm.InEnv(letenv, func() (Value, error) {
+	return vm.InEnv(letenv, func() Value {
 		return evalDo(vm, args[1:])
 	})
 }
 
-func evalAssert(vm *VM, args []Value) (Value, error) {
+func evalAssert(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("assert expects one argument, got %d", len(args))
+	}
 	expr := args[0]
-	value, err := vm.Eval(expr)
-	if err != nil {
-		return nil, err
+	value := vm.Eval(expr)
+	if IsError(value) {
+		return value
 	}
 	if value != TrueValue {
 		if l, ok := expr.(List); ok && len(l) == 3 && l[0] == symEqual {
-			actual, err := vm.Eval(l[1])
-			if err != nil {
-				return nil, err
+			actual := vm.Eval(l[1])
+			if IsError(actual) {
+				return actual
 			}
-			expected, err := vm.Eval(l[2])
-			if err != nil {
-				return nil, err
+			expected := vm.Eval(l[2])
+			if IsError(expected) {
+				return expected
 			}
-			return nil, fmt.Errorf("assertion failed: %v: %v != %v", expr, actual, expected)
+			return fmt.Errorf("assertion failed: %v: %v != %v", expr, actual, expected)
 		}
-		return nil, fmt.Errorf("assertion failed: %v", expr)
+		return fmt.Errorf("assertion failed: %v", expr)
 	}
-	return value, nil
+	return value
 }
 
-func evalQuote(vm *VM, args []Value) (Value, error) {
-	return args[0], nil
+func evalQuote(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("quote expects one argument, got %d", len(args))
+	}
+	return args[0]
 }
 
-func evalQuasiQuote(vm *VM, args []Value) (Value, error) {
-	// TODO
-	return args[0], nil
+func handleUnquoteSplicing(vm *VM, v Value) Value {
+	if l, ok := v.(List); ok {
+		if sym, ok := l[0].(*Symbol); ok && sym == symUnquoteSplicing {
+			return vm.Eval(l[1])
+		}
+	}
+	return nil
+}
+
+func qq(vm *VM, arg Value) Value {
+	switch v := arg.(type) {
+	case Cons:
+		car := qq(vm, v.Car)
+		if IsError(car) {
+			return car
+		}
+		cdr := qq(vm, v.Cdr)
+		if IsError(cdr) {
+			return cdr
+		}
+		return &Cons{
+			Car: car,
+			Cdr: cdr,
+		}
+	case List:
+		if len(v) == 0 {
+			return arg
+		}
+		if sym, ok := v[0].(*Symbol); ok && sym == symUnquote {
+			return vm.Eval(v[1])
+		}
+		result := make(List, 0, len(v))
+		for _, item := range v {
+			qqResult := qq(vm, item)
+			if IsError(qqResult) {
+				return qqResult
+			}
+			if l := handleUnquoteSplicing(vm, qqResult); l != nil {
+				if IsError(l) {
+					return l
+				}
+				for _, v := range l.(List) {
+					result = append(result, v)
+				}
+			} else {
+				result = append(result, qqResult)
+			}
+		}
+		return result
+	case Vector:
+		if len(v) == 0 {
+			return arg
+		}
+		result := make(Vector, 0, len(v))
+		for _, item := range v {
+			qqResult := qq(vm, item)
+			if IsError(qqResult) {
+				return qqResult
+			}
+			if l := handleUnquoteSplicing(vm, qqResult); l != nil {
+				if IsError(l) {
+					return l
+				}
+				for _, v := range l.(List) {
+					result = append(result, v)
+				}
+			} else {
+				result = append(result, qqResult)
+			}
+		}
+		return result
+	case Map:
+		result := make(Map, len(v))
+		for k, v := range v {
+			qqk := qq(vm, k)
+			if IsError(qqk) {
+				return qqk
+			}
+			qqv := qq(vm, v)
+			if IsError(qqv) {
+				return qqv
+			}
+			result[qqk] = qqv
+		}
+		return result
+	default:
+		return arg
+	}
+}
+
+func evalQuasiQuote(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return fmt.Errorf("quasiquote expects one argument, got %d", len(args))
+	}
+	return qq(vm, args[0])
 }
 
 func init() {
@@ -1160,40 +1749,57 @@ func init() {
 		vm.defineValue("nil", nil)
 		vm.defineValue("true", TrueValue)
 		vm.defineValue("false", FalseValue)
+		vm.defineSpecialForm("assert", evalAssert)
+		vm.defineSpecialForm("quote", evalQuote)
+		vm.defineSpecialForm("quasiquote", evalQuasiQuote)
+		vm.defineSpecialForm("fn", evalFn)
+		vm.defineSpecialForm("macro", evalMacro)
+		vm.defineSpecialForm("def", evalDef)
+		vm.defineSpecialForm("do", evalDo)
+		vm.defineSpecialForm("let", evalLet)
+		vm.defineNativeFn("Nil", NilType)
+		vm.defineNativeFn("Boolean", BooleanType)
+		vm.defineNativeFn("Integer", IntegerType)
+		vm.defineNativeFn("Float", FloatType)
+		vm.defineNativeFn("String", StringType)
+		vm.defineNativeFn("Symbol", SymbolType)
+		vm.defineNativeFn("Keyword", KeywordType)
+		vm.defineNativeFn("Cons", ConsType)
+		vm.defineNativeFn("Function", FunctionType)
 		vm.defineNativeFn("=", evalEqual)
 		vm.defineNativeFn("+", evalAdd)
 		vm.defineNativeFn("-", evalSub)
 		vm.defineNativeFn("*", evalMul)
 		vm.defineNativeFn("/", evalDiv)
-		vm.defineNativeMacro("assert", evalAssert)
-		vm.defineNativeMacro("quote", evalQuote)
-		vm.defineNativeMacro("quasiquote", evalQuasiQuote)
-		vm.defineNativeMacro("fn", evalFn)
-		vm.defineNativeMacro("def", evalDef)
-		vm.defineNativeMacro("do", evalDo)
-		vm.defineNativeMacro("let", evalLet)
-		if _, err := vm.LoadString(langsamL); err != nil {
-			return err
+		vm.defineNativeFn("eval", evalEval)
+		vm.defineNativeFn("type", evalType)
+		vm.defineNativeFn("len", evalLen)
+		vm.defineNativeFn("cons", evalCons)
+		vm.defineNativeFn("car", evalCar)
+		vm.defineNativeFn("cdr", evalCdr)
+		if result := vm.LoadString(langsamL); IsError(result) {
+			return result.(error)
 		}
 		return nil
 	})
 }
 
-func NewVM() (vm *VM, newError error) {
+func NewVM() (vm *VM, err error) {
 	vm = &VM{}
+	var importResult Value
 	vm.once.Do(func() {
 		vm.rootEnv = make(Map)
-		_, newError = vm.InEnv(vm.rootEnv, func() (Value, error) {
+		importResult = vm.InEnv(vm.rootEnv, func() Value {
 			for name, importModule := range registeredModules {
 				if err := importModule(vm); err != nil {
-					return nil, fmt.Errorf("import failed for module %s: %v", name, err)
+					return fmt.Errorf("import failed for module %s: %v", name, err)
 				}
 			}
-			return nil, nil
+			return nil
 		})
 	})
-	if newError != nil {
-		return
+	if importResult != nil {
+		return nil, importResult.(error)
 	}
 	vm.curEnv = make(Map)
 	vm.curEnv[symProto] = vm.rootEnv
