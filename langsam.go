@@ -94,6 +94,10 @@ type ILen interface {
 	Len(vm *VM) int
 }
 
+type IDeref interface {
+	Deref(vm *VM) Value
+}
+
 type IEval interface {
 	Eval(vm *VM) Value
 }
@@ -124,6 +128,14 @@ func Repr(v Value) string {
 	} else {
 		return Str(v)
 	}
+}
+
+// Nil
+
+var symNilType = internSymbol("Nil")
+
+func NilType(vm *VM, args []Value) Value {
+	return nil
 }
 
 // Error
@@ -162,9 +174,9 @@ func IsRuntimeException(v Value) bool {
 }
 
 func Errorf(format string, args ...any) Value {
-	err := fmt.Errorf(format, args...)
+	err := fmt.Sprintf(format, args...)
 	return Error{
-		Payload: err,
+		Payload: String(err),
 	}
 }
 
@@ -192,6 +204,10 @@ func (e Error) Type(vm *VM) Value {
 	return vm.rootlet[symErrorType]
 }
 
+func (e Error) Deref(vm *VM) Value {
+	return e.Payload
+}
+
 func (e Error) String() string {
 	if c, ok := e.Payload.(*Cons); ok {
 		return Str(c.Cdr)
@@ -201,15 +217,7 @@ func (e Error) String() string {
 }
 
 func (e Error) Repr() string {
-	return Repr(e.Payload)
-}
-
-// Nil
-
-var symNilType = internSymbol("Nil")
-
-func NilType(vm *VM, args []Value) Value {
-	return nil
+	return fmt.Sprintf("(error '%s)", Repr(e.Payload))
 }
 
 // Boolean
@@ -246,7 +254,7 @@ func BooleanType(vm *VM, args []Value) Value {
 		} else {
 			return TrueValue
 		}
-	case Symbol, Keyword, *Function:
+	case *Symbol, Keyword, *Function:
 		return TrueValue
 	case *Cons:
 		if v == nil {
@@ -992,27 +1000,19 @@ func readListOrCons(src io.ByteScanner) (Value, error) {
 	}
 }
 
-func (l1 List) Cmp(vm *VM, v2 Value) Value {
+func (l1 List) Eq(vm *VM, v2 Value) bool {
 	if l2, ok := v2.(List); ok {
-		if len(l1) < len(l2) {
-			return Integer(-1)
-		} else if len(l1) > len(l2) {
-			return Integer(1)
-		} else {
-			for i := range l1 {
-				result := vm.Cmp(l1[i], l2[i])
-				if IsError(result) {
-					return result
-				}
-				if result.(Integer) != 0 {
-					return result
-				}
-			}
-			return Integer(0)
+		if len(l1) != len(l2) {
+			return false
 		}
-	} else {
-		return vm.RuntimeExceptionf("cannot compare List with value of type %T", v2)
+		for i := range l1 {
+			if !vm.Eq(l1[i], l2[i]) {
+				return false
+			}
+		}
+		return true
 	}
+	return false
 }
 
 func (l List) Len(vm *VM) int {
@@ -1114,27 +1114,19 @@ func readVector(src io.ByteScanner) (Value, error) {
 	}
 }
 
-func (vec1 Vector) Cmp(vm *VM, v2 Value) Value {
+func (vec1 Vector) Eq(vm *VM, v2 Value) bool {
 	if vec2, ok := v2.(Vector); ok {
-		if len(vec1) < len(vec2) {
-			return Integer(-1)
-		} else if len(vec1) > len(vec2) {
-			return Integer(1)
-		} else {
-			for i := range vec1 {
-				result := vm.Cmp(vec1[i], vec2[i])
-				if IsError(result) {
-					return result
-				}
-				if result.(Integer) != 0 {
-					return result
-				}
-			}
-			return Integer(0)
+		if len(vec1) != len(vec2) {
+			return false
 		}
-	} else {
-		return vm.RuntimeExceptionf("cannot compare Vector with value of type %T", v2)
+		for i := range vec1 {
+			if !vm.Eq(vec1[i], vec2[i]) {
+				return false
+			}
+		}
+		return true
 	}
+	return false
 }
 
 func (v Vector) Len(vm *VM) int {
@@ -1546,6 +1538,8 @@ func evalMacro(vm *VM, args []Value) Value {
 
 // VM
 
+var symDeref = internSymbol("deref")
+
 var symQuote = internSymbol("quote")
 var symQuasiQuote = internSymbol("quasiquote")
 
@@ -1609,6 +1603,12 @@ func read(src io.ByteScanner) (Value, error) {
 			return readMap(src)
 		case b == ':':
 			return readKeyword(src)
+		case b == '@':
+			form, err := read(src)
+			if err != nil {
+				return nil, err
+			}
+			return List([]Value{symDeref, form}), nil
 		case b == '\'':
 			form, err := read(src)
 			if err != nil {
@@ -1683,6 +1683,14 @@ func (vm *VM) Len(v Value) Value {
 		return Integer(i.Len(vm))
 	} else {
 		return vm.RuntimeExceptionf("value of type %T does not provide length", v)
+	}
+}
+
+func (vm *VM) Deref(v Value) Value {
+	if i, ok := v.(IDeref); ok {
+		return i.Deref(vm)
+	} else {
+		return vm.RuntimeExceptionf("value of type %T does not support dereference", v)
 	}
 }
 
@@ -1821,6 +1829,13 @@ func evalLen(vm *VM, args []Value) Value {
 	return vm.Len(args[0])
 }
 
+func evalDeref(vm *VM, args []Value) Value {
+	if len(args) != 1 {
+		return vm.RuntimeExceptionf("deref expects one argument, got %d", len(args))
+	}
+	return vm.Deref(args[0])
+}
+
 func evalStr(vm *VM, args []Value) Value {
 	var sb strings.Builder
 	for _, v := range args {
@@ -1860,6 +1875,15 @@ func evalEq(vm *VM, args []Value) Value {
 	}
 	if len(args) > 2 {
 		return evalEq(vm, args[1:])
+	} else {
+		return TrueValue
+	}
+}
+
+func evalNotEq(vm *VM, args []Value) Value {
+	eq := evalEq(vm, args)
+	if eq == TrueValue {
+		return FalseValue
 	} else {
 		return TrueValue
 	}
@@ -2166,6 +2190,7 @@ func init() {
 		vm.defineNativeFn("Map", MapType)
 		vm.defineNativeFn("Function", FunctionType)
 		vm.defineNativeFn("=", evalEq)
+		vm.defineNativeFn("!=", evalNotEq)
 		vm.defineNativeFn("+", evalAdd)
 		vm.defineNativeFn("-", evalSub)
 		vm.defineNativeFn("*", evalMul)
@@ -2176,6 +2201,7 @@ func init() {
 		vm.defineNativeFn("eval", evalEval)
 		vm.defineNativeFn("type", evalType)
 		vm.defineNativeFn("len", evalLen)
+		vm.defineNativeFn("deref", evalDeref)
 		vm.defineNativeFn("cons", evalCons)
 		vm.defineNativeFn("car", evalCar)
 		vm.defineNativeFn("cdr", evalCdr)

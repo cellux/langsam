@@ -1,16 +1,73 @@
+;; Nil
+
 (assert (= (type nil) Nil))
 (assert (= (Nil 'foo) nil))
+(assert (= (str nil) "nil"))
+(assert (= (repr nil) "nil"))
 
-(let [c (cons :a :b)]
-  (assert (= (repr c) "(:a . :b)")))
+;; Error
 
 (let [e (error "foo")]
-  (assert (= (type e) Error)))
+  (assert (= (type e) Error))
+  (assert (= (type (Error e)) Error))
+  (assert (= @e "foo")))
+
+(let [e (error "this failed %d times" 5)]
+  (assert (= @e "this failed 5 times"))
+  (assert (= (str e) "this failed 5 times"))
+  (assert (= (repr e) "(error '\"this failed 5 times\")")))
+
+(let [e (error [:special :error])]
+  (assert (= (type e) Error))
+  (assert (= @e [:special :error]))
+  (assert (= (str e) "[:special :error]"))
+  (assert (= (repr e) "(error '[:special :error])")))
+
+(let [e (error '(:not-found . "this is a 404 error"))]
+  (assert (= @e '(:not-found . "this is a 404 error")))
+  (assert (= (str e) "this is a 404 error"))
+  (assert (= (repr e) "(error '(:not-found . \"this is a 404 error\"))")))
+
+;; Boolean
+
+(assert (= true true))
+(assert (= false false))
+
+(assert (!= true false))
+(assert (!= false true))
 
 (assert (= (type true) Boolean))
 (assert (= (type false) Boolean))
+
+(assert (= (eval true) true))
+(assert (= (eval false) false))
+
 (assert (= (Boolean true) true))
 (assert (= (Boolean false) false))
+(assert (= (Boolean nil) false))
+(assert (= (Boolean '()) false))
+(assert (= (Boolean '(:a)) true))
+(assert (= (Boolean []) false))
+(assert (= (Boolean [:a]) true))
+(assert (= (Boolean "") false))
+(assert (= (Boolean "0") true))
+(assert (= (Boolean 0) false))
+(assert (= (Boolean -1) true))
+(assert (= (Boolean 0.0) false))
+(assert (= (Boolean 0.5) true))
+(assert (= (Boolean -1.0) true))
+(assert (= (Boolean 'foo) true))
+(assert (= (Boolean :foo) true))
+(assert (= (Boolean +) true))
+(assert (= (Boolean '(:a . :b)) true))
+
+(assert (= (str true) "true"))
+(assert (= (str false) "false"))
+
+(assert (= (repr true) "true"))
+(assert (= (repr false) "false"))
+
+;; Integer
 
 (assert (= (type 0) Integer))
 (assert (= (type 1) Integer))
@@ -48,6 +105,9 @@
   (assert (= (type c) Cons))
   (assert (= (car c) 'a))
   (assert (= (cdr c) '(b c . d))))
+
+(let [c (cons :a :b)]
+  (assert (= (repr c) "(:a . :b)")))
 
 (assert (= (cons :a :b) (Cons (cons :a :b))))
 (assert (= (cons :a :b) '(:a . :b)))
