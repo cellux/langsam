@@ -1,6 +1,12 @@
 (assert (= (type nil) Nil))
 (assert (= (Nil 'foo) nil))
 
+(let [c (cons :a :b)]
+  (assert (= (repr c) "(:a . :b)")))
+
+(let [e (error "foo")]
+  (assert (= (type e) Error)))
+
 (assert (= (type true) Boolean))
 (assert (= (type false) Boolean))
 (assert (= (Boolean true) true))
@@ -20,8 +26,9 @@
 
 (assert (= (type "foo") String))
 (assert (= (String "foo") "foo"))
-(assert (= (String "foo" "bar") "foobar"))
-(assert (= (String "foo" 523 "bar") "foo523bar"))
+(assert (= (str "foo") "foo"))
+(assert (= (str "foo" "bar") "foobar"))
+(assert (= (str "foo" 523 "bar") "foo523bar"))
 
 (assert (= (type 'foo) Symbol))
 (assert (= (Symbol 'foo) 'foo))
@@ -36,6 +43,21 @@
   (assert (= (type c) Cons))
   (assert (= (car c) :a))
   (assert (= (cdr c) :b)))
+
+(let [c '(a b c . d)]
+  (assert (= (type c) Cons))
+  (assert (= (car c) 'a))
+  (assert (= (cdr c) '(b c . d))))
+
+(assert (= (cons :a :b) (Cons (cons :a :b))))
+(assert (= (cons :a :b) '(:a . :b)))
+
+(assert (= (type '(:a :b)) List))
+(assert (= (type '(1 2 3)) List))
+(assert (= (List [1 2 3]) '(1 2 3)))
+(assert (= (List (cons 1 (cons 2 (cons 3 nil)))) '(1 2 3)))
+(assert (= (List `(1 2 3 . ,nil)) '(1 2 3)))
+(assert (= (type (List '(1 2 . 3))) Error))
 
 (let [f (Function {:param-names '[x] :body '[(+ x 5)]})]
   (assert (= (type f) Function))
