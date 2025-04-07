@@ -23,12 +23,12 @@ func main() {
 				die("Error opening %s: %v\n", arg, err)
 			}
 			defer f.Close()
-			if result := vm.Load(f); langsam.IsRuntimeException(result) {
+			if result := vm.Load(f); langsam.IsException(result) {
 				die("Error while loading %s: %s\n", arg, result)
 			}
 		}
 	} else {
-		if result := vm.Load(os.Stdin); langsam.IsRuntimeException(result) {
+		if result := vm.Load(os.Stdin); langsam.IsException(result) {
 			die("Error while loading from stdin: %s\n", result)
 		}
 	}

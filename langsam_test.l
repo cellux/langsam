@@ -119,7 +119,7 @@
 (assert (= (List `(1 2 3 . ,nil)) '(1 2 3)))
 (assert (= (type (List '(1 2 . 3))) Error))
 
-(let [f (Function {:param-names '[x] :body '[(+ x 5)]})]
+(let [f (Function {:params '[x] :body '[(+ x 5)]})]
   (assert (= (type f) Function))
   (assert (= (f 3) 8)))
 

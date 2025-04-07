@@ -47,7 +47,7 @@ type Map map[Value]Value
 
 type Function struct {
 	Name       *Symbol
-	ParamNames []*Symbol
+	Params     []*Symbol
 	RestName   *Symbol
 	EvalArgs   bool
 	EvalResult bool
@@ -59,7 +59,7 @@ type NativeFn func(vm *VM, args []Value) Value
 // value interfaces
 
 type IType interface {
-	Type(vm *VM) Value
+	Type(vm *VM) *Function
 }
 
 type IEq interface {
@@ -138,6 +138,8 @@ func NilType(vm *VM, args []Value) Value {
 	return nil
 }
 
+var ConstructNil *Function
+
 // Error
 
 var symErrorType = internSymbol("Error")
@@ -160,7 +162,7 @@ func IsError(v Value) bool {
 	return ok
 }
 
-func IsRuntimeException(v Value) bool {
+func IsException(v Value) bool {
 	if e, ok := v.(Error); ok {
 		if c, ok := e.Payload.(*Cons); ok {
 			if sym, ok := c.Car.(*Symbol); ok {
@@ -200,8 +202,10 @@ func evalError(vm *VM, args []Value) Value {
 	}
 }
 
-func (e Error) Type(vm *VM) Value {
-	return vm.rootlet[symErrorType]
+var ConstructError *Function
+
+func (e Error) Type(vm *VM) *Function {
+	return ConstructError
 }
 
 func (e Error) Deref(vm *VM) Value {
@@ -233,35 +237,19 @@ func BooleanType(vm *VM, args []Value) Value {
 		return FalseValue
 	}
 	if coll, ok := arg.(ILen); ok {
-		if coll.Len(vm) == 0 {
-			return FalseValue
-		} else {
-			return TrueValue
-		}
+		return Boolean(coll.Len(vm) > 0)
 	}
 	switch v := arg.(type) {
 	case Boolean:
 		return arg
 	case Integer:
-		if v == 0 {
-			return FalseValue
-		} else {
-			return TrueValue
-		}
+		return Boolean(v != 0)
 	case Float:
-		if v == 0.0 {
-			return FalseValue
-		} else {
-			return TrueValue
-		}
+		return Boolean(v != 0.0)
 	case *Symbol, Keyword, *Function:
 		return TrueValue
 	case *Cons:
-		if v == nil {
-			return FalseValue
-		} else {
-			return TrueValue
-		}
+		return Boolean(v != nil)
 	default:
 		return vm.RuntimeExceptionf("cannot cast value of type %T to Boolean", arg)
 	}
@@ -270,8 +258,10 @@ func BooleanType(vm *VM, args []Value) Value {
 var TrueValue = Boolean(true)
 var FalseValue = Boolean(false)
 
-func (b Boolean) Type(vm *VM) Value {
-	return vm.rootlet[symBooleanType]
+var ConstructBoolean *Function
+
+func (b Boolean) Type(vm *VM) *Function {
+	return ConstructBoolean
 }
 
 func (b Boolean) Eval(vm *VM) Value {
@@ -399,8 +389,10 @@ func IntegerType(vm *VM, args []Value) Value {
 	}
 }
 
-func (i Integer) Type(vm *VM) Value {
-	return vm.rootlet[symIntegerType]
+var ConstructInteger *Function
+
+func (i Integer) Type(vm *VM) *Function {
+	return ConstructInteger
 }
 
 func (i1 Integer) Cmp(vm *VM, v2 Value) Value {
@@ -503,8 +495,10 @@ func FloatType(vm *VM, args []Value) Value {
 	}
 }
 
-func (f Float) Type(vm *VM) Value {
-	return vm.rootlet[symFloatType]
+var ConstructFloat *Function
+
+func (f Float) Type(vm *VM) *Function {
+	return ConstructFloat
 }
 
 func (f1 Float) Cmp(vm *VM, v2 Value) Value {
@@ -609,8 +603,10 @@ func StringType(vm *VM, args []Value) Value {
 	}
 }
 
-func (s String) Type(vm *VM) Value {
-	return vm.rootlet[symStringType]
+var ConstructString *Function
+
+func (s String) Type(vm *VM) *Function {
+	return ConstructString
 }
 
 func (s1 String) Cmp(vm *VM, v2 Value) Value {
@@ -694,8 +690,10 @@ func SymbolType(vm *VM, args []Value) Value {
 	}
 }
 
-func (sym *Symbol) Type(vm *VM) Value {
-	return vm.rootlet[symSymbolType]
+var ConstructSymbol *Function
+
+func (sym *Symbol) Type(vm *VM) *Function {
+	return ConstructSymbol
 }
 
 func (sym1 *Symbol) Eq(vm *VM, v2 Value) bool {
@@ -785,8 +783,10 @@ func KeywordType(vm *VM, args []Value) Value {
 	}
 }
 
-func (kw Keyword) Type(vm *VM) Value {
-	return vm.rootlet[symKeywordType]
+var ConstructKeyword *Function
+
+func (kw Keyword) Type(vm *VM) *Function {
+	return ConstructKeyword
 }
 
 func (kw1 Keyword) Eq(vm *VM, v2 Value) bool {
@@ -832,11 +832,11 @@ func (kw Keyword) String() string {
 
 var symConsType = internSymbol("Cons")
 
-func consFromSlice(slice []Value, lastCdr Value) Value {
+func consFromSlice(slice []Value, lastCdr Value) (result Value) {
 	if len(slice) == 0 {
 		return nil
 	}
-	result := lastCdr
+	result = lastCdr
 	for i := len(slice) - 1; i >= 0; i-- {
 		result = &Cons{
 			Car: slice[i],
@@ -863,8 +863,10 @@ func ConsType(vm *VM, args []Value) Value {
 	}
 }
 
-func (c *Cons) Type(vm *VM) Value {
-	return vm.rootlet[symConsType]
+var ConstructCons *Function
+
+func (c *Cons) Type(vm *VM) *Function {
+	return ConstructCons
 }
 
 func (c1 *Cons) Eq(vm *VM, v2 Value) bool {
@@ -966,8 +968,10 @@ func ListType(vm *VM, args []Value) Value {
 	}
 }
 
-func (l List) Type(vm *VM) Value {
-	return vm.rootlet[symListType]
+var ConstructList *Function
+
+func (l List) Type(vm *VM) *Function {
+	return ConstructList
 }
 
 func readListOrCons(src io.ByteScanner) (Value, error) {
@@ -1084,8 +1088,10 @@ func VectorType(vm *VM, args []Value) Value {
 	}
 }
 
-func (v Vector) Type(vm *VM) Value {
-	return vm.rootlet[symVectorType]
+var ConstructVector *Function
+
+func (v Vector) Type(vm *VM) *Function {
+	return ConstructVector
 }
 
 func readVector(src io.ByteScanner) (Value, error) {
@@ -1136,7 +1142,7 @@ func (v Vector) Len(vm *VM) int {
 func (v Vector) Eval(vm *VM) Value {
 	ev := make(Vector, len(v))
 	for i := range len(v) {
-		if ev[i] = vm.Eval(v[i]); IsRuntimeException(ev[i]) {
+		if ev[i] = vm.Eval(v[i]); IsException(ev[i]) {
 			return ev[i]
 		}
 	}
@@ -1197,8 +1203,10 @@ func MapType(vm *VM, args []Value) Value {
 	}
 }
 
-func (m Map) Type(vm *VM) Value {
-	return vm.rootlet[symMapType]
+var ConstructMap *Function
+
+func (m Map) Type(vm *VM) *Function {
+	return ConstructMap
 }
 
 func readMap(src io.ByteScanner) (Value, error) {
@@ -1239,10 +1247,10 @@ func (m Map) Eval(vm *VM) Value {
 	em := make(Map, len(m))
 	for k, v := range m {
 		var ek, ev Value
-		if ek = vm.Eval(k); IsRuntimeException(ek) {
+		if ek = vm.Eval(k); IsException(ek) {
 			return ek
 		}
-		if ev = vm.Eval(v); IsRuntimeException(ev) {
+		if ev = vm.Eval(v); IsException(ev) {
 			return ev
 		}
 		em[ek] = ev
@@ -1312,19 +1320,19 @@ func FunctionType(vm *VM, args []Value) Value {
 				return vm.RuntimeExceptionf("expected symbol at :name, got %T", v)
 			}
 		}
-		if v, ok := m[internKeyword("param-names")]; ok {
-			if paramNameVector, ok := v.(Vector); ok {
-				paramNames := make([]*Symbol, len(paramNameVector))
-				for i := range len(paramNames) {
-					if paramName, ok := paramNameVector[i].(*Symbol); ok {
-						paramNames[i] = paramName
+		if v, ok := m[internKeyword("params")]; ok {
+			if paramVector, ok := v.(Vector); ok {
+				params := make([]*Symbol, len(paramVector))
+				for i := range len(params) {
+					if param, ok := paramVector[i].(*Symbol); ok {
+						params[i] = param
 					} else {
-						return vm.RuntimeExceptionf("parameter names must be symbols, got %v", paramNameVector[i])
+						return vm.RuntimeExceptionf("parameters must be symbols, got %v", paramVector[i])
 					}
 				}
-				f.ParamNames = paramNames
+				f.Params = params
 			} else {
-				return vm.RuntimeExceptionf("expected vector of symbols at :param-names, got %T", v)
+				return vm.RuntimeExceptionf("expected vector of symbols at :params, got %T", v)
 			}
 		}
 		if v, ok := m[internKeyword("rest-name")]; ok {
@@ -1366,20 +1374,22 @@ func FunctionType(vm *VM, args []Value) Value {
 	}
 }
 
-func (b *Function) Type(vm *VM) Value {
-	return vm.rootlet[symFunctionType]
+var ConstructFunction *Function
+
+func (b *Function) Type(vm *VM) *Function {
+	return ConstructFunction
 }
 
 func (f *Function) Eval(vm *VM) Value {
 	return f
 }
 
-func (f *Function) WithParamNames(names ...string) *Function {
-	syms := make([]*Symbol, len(names))
-	for i := range len(names) {
-		syms[i] = internSymbol(names[i])
+func (f *Function) WithParams(params ...string) *Function {
+	syms := make([]*Symbol, len(params))
+	for i := range len(params) {
+		syms[i] = internSymbol(params[i])
 	}
-	f.ParamNames = syms
+	f.Params = syms
 	return f
 }
 
@@ -1404,7 +1414,7 @@ func (f *Function) Call(vm *VM, args []Value) (result Value) {
 		realArgs = make([]Value, len(args))
 		for i := range len(args) {
 			realArgs[i] = vm.Eval(args[i])
-			if IsRuntimeException(realArgs[i]) {
+			if IsException(realArgs[i]) {
 				return vm.RuntimeExceptionf("%v failed to evaluate arg #%d: %v", f, i, realArgs[i])
 			}
 		}
@@ -1413,7 +1423,7 @@ func (f *Function) Call(vm *VM, args []Value) (result Value) {
 	}
 	switch body := f.Body.(type) {
 	case List:
-		nPosArgs := min(len(realArgs), len(f.ParamNames))
+		nPosArgs := min(len(realArgs), len(f.Params))
 		nBindings := nPosArgs
 		if f.RestName != nil {
 			nBindings++
@@ -1421,13 +1431,13 @@ func (f *Function) Call(vm *VM, args []Value) (result Value) {
 		fenv := vm.Sublet(nBindings)
 		i := 0
 		for i < nPosArgs {
-			paramName := f.ParamNames[i]
-			fenv[paramName] = realArgs[i]
+			param := f.Params[i]
+			fenv[param] = realArgs[i]
 			i++
 		}
-		for i < len(f.ParamNames) {
-			paramName := f.ParamNames[i]
-			fenv[paramName] = nil
+		for i < len(f.Params) {
+			param := f.Params[i]
+			fenv[param] = nil
 			i++
 		}
 		if f.RestName != nil {
@@ -1440,7 +1450,7 @@ func (f *Function) Call(vm *VM, args []Value) (result Value) {
 		result = vm.Inlet(fenv, func() (result Value) {
 			for _, form := range body {
 				result = vm.Eval(form)
-				if IsRuntimeException(result) {
+				if IsException(result) {
 					break
 				}
 			}
@@ -1493,7 +1503,7 @@ func evalFn(vm *VM, args []Value) Value {
 		}
 		args = args[1:]
 	}
-	var paramNames []Value
+	var params []Value
 	var restName Value
 	restMarker := symAmpersand // &
 	seenRestMarker := false
@@ -1507,14 +1517,14 @@ func evalFn(vm *VM, args []Value) Value {
 			} else if paramSym == restMarker {
 				seenRestMarker = true
 			} else {
-				paramNames = append(paramNames, paramSym)
+				params = append(params, paramSym)
 			}
 		} else {
 			return vm.RuntimeExceptionf("parameters must be symbols")
 		}
 	}
-	if paramNames != nil {
-		options[internKeyword("param-names")] = Vector(paramNames)
+	if params != nil {
+		options[internKeyword("params")] = Vector(params)
 	}
 	if restName != nil {
 		options[internKeyword("rest-name")] = restName
@@ -1666,7 +1676,7 @@ func (vm *VM) RuntimeExceptionf(format string, args ...any) Value {
 
 func (vm *VM) Type(v Value) Value {
 	if v == nil {
-		return vm.rootlet[symNilType]
+		return ConstructNil
 	}
 	if i, ok := v.(IType); ok {
 		return i.Type(vm)
@@ -1743,7 +1753,7 @@ func (vm *VM) Load(rdr io.Reader) (result Value) {
 			return vm.RuntimeExceptionf("read failed: %v", err)
 		}
 		result = vm.Eval(form)
-		if IsRuntimeException(result) {
+		if IsException(result) {
 			return vm.RuntimeExceptionf("%v\nevaluation failed: %v", Repr(form), result)
 		}
 	}
@@ -1986,7 +1996,7 @@ func evalDef(vm *VM, args []Value) Value {
 func evalDo(vm *VM, args []Value) (result Value) {
 	for _, form := range args {
 		result = vm.Eval(form)
-		if IsRuntimeException(result) {
+		if IsException(result) {
 			break
 		}
 	}
@@ -2014,7 +2024,7 @@ func evalLet(vm *VM, args []Value) Value {
 		}
 		i++
 		v := vm.Eval(bindings[i])
-		if IsRuntimeException(v) {
+		if IsException(v) {
 			return vm.RuntimeExceptionf("failed to evaluate let binding %v: %v", bindings[i], v)
 		}
 		i++
@@ -2031,17 +2041,17 @@ func evalAssert(vm *VM, args []Value) Value {
 	}
 	expr := args[0]
 	value := vm.Eval(expr)
-	if IsRuntimeException(value) {
+	if IsException(value) {
 		return value
 	}
 	if value != TrueValue {
 		if l, ok := expr.(List); ok && len(l) == 3 && l[0] == internSymbol("=") {
 			actual := vm.Eval(l[1])
-			if IsRuntimeException(actual) {
+			if IsException(actual) {
 				return actual
 			}
 			expected := vm.Eval(l[2])
-			if IsRuntimeException(expected) {
+			if IsException(expected) {
 				return expected
 			}
 			return vm.RuntimeExceptionf("assertion failed: %s: %s != %s", Repr(expr), Repr(actual), Repr(expected))
@@ -2079,11 +2089,11 @@ func qq(vm *VM, arg Value) Value {
 	switch v := arg.(type) {
 	case *Cons:
 		car := qq(vm, v.Car)
-		if IsRuntimeException(car) {
+		if IsException(car) {
 			return car
 		}
 		cdr := qq(vm, v.Cdr)
-		if IsRuntimeException(cdr) {
+		if IsException(cdr) {
 			return cdr
 		}
 		return &Cons{
@@ -2100,11 +2110,11 @@ func qq(vm *VM, arg Value) Value {
 		result := make(List, 0, len(v))
 		for _, item := range v {
 			qqResult := qq(vm, item)
-			if IsRuntimeException(qqResult) {
+			if IsException(qqResult) {
 				return qqResult
 			}
 			if valueToSplice := resolveUnquoteSplicing(vm, qqResult); valueToSplice != nil {
-				if IsRuntimeException(valueToSplice) {
+				if IsException(valueToSplice) {
 					return valueToSplice
 				}
 				for _, v := range valueToSplice.(List) {
@@ -2122,11 +2132,11 @@ func qq(vm *VM, arg Value) Value {
 		result := make(Vector, 0, len(v))
 		for _, item := range v {
 			qqResult := qq(vm, item)
-			if IsRuntimeException(qqResult) {
+			if IsException(qqResult) {
 				return qqResult
 			}
 			if valueToSplice := resolveUnquoteSplicing(vm, qqResult); valueToSplice != nil {
-				if IsRuntimeException(valueToSplice) {
+				if IsException(valueToSplice) {
 					return valueToSplice
 				}
 				for _, v := range valueToSplice.(List) {
@@ -2141,11 +2151,11 @@ func qq(vm *VM, arg Value) Value {
 		result := make(Map, len(v))
 		for k, v := range v {
 			qqk := qq(vm, k)
-			if IsRuntimeException(qqk) {
+			if IsException(qqk) {
 				return qqk
 			}
 			qqv := qq(vm, v)
-			if IsRuntimeException(qqv) {
+			if IsException(qqv) {
 				return qqv
 			}
 			result[qqk] = qqv
@@ -2165,6 +2175,19 @@ func evalQuasiQuote(vm *VM, args []Value) Value {
 
 func init() {
 	RegisterModule("langsam", func(vm *VM) error {
+		ConstructNil = vm.defineNativeFn("Nil", NilType)
+		ConstructError = vm.defineNativeFn("Error", ErrorType)
+		ConstructBoolean = vm.defineNativeFn("Boolean", BooleanType)
+		ConstructInteger = vm.defineNativeFn("Integer", IntegerType)
+		ConstructFloat = vm.defineNativeFn("Float", FloatType)
+		ConstructString = vm.defineNativeFn("String", StringType)
+		ConstructSymbol = vm.defineNativeFn("Symbol", SymbolType)
+		ConstructKeyword = vm.defineNativeFn("Keyword", KeywordType)
+		ConstructCons = vm.defineNativeFn("Cons", ConsType)
+		ConstructList = vm.defineNativeFn("List", ListType)
+		ConstructVector = vm.defineNativeFn("Vector", VectorType)
+		ConstructMap = vm.defineNativeFn("Map", MapType)
+		ConstructFunction = vm.defineNativeFn("Function", FunctionType)
 		vm.defineValue("nil", nil)
 		vm.defineValue("true", TrueValue)
 		vm.defineValue("false", FalseValue)
@@ -2176,19 +2199,6 @@ func init() {
 		vm.defineSpecialForm("def", evalDef)
 		vm.defineSpecialForm("do", evalDo)
 		vm.defineSpecialForm("let", evalLet)
-		vm.defineNativeFn("Nil", NilType)
-		vm.defineNativeFn("Error", ErrorType)
-		vm.defineNativeFn("Boolean", BooleanType)
-		vm.defineNativeFn("Integer", IntegerType)
-		vm.defineNativeFn("Float", FloatType)
-		vm.defineNativeFn("String", StringType)
-		vm.defineNativeFn("Symbol", SymbolType)
-		vm.defineNativeFn("Keyword", KeywordType)
-		vm.defineNativeFn("Cons", ConsType)
-		vm.defineNativeFn("List", ListType)
-		vm.defineNativeFn("Vector", VectorType)
-		vm.defineNativeFn("Map", MapType)
-		vm.defineNativeFn("Function", FunctionType)
 		vm.defineNativeFn("=", evalEq)
 		vm.defineNativeFn("!=", evalNotEq)
 		vm.defineNativeFn("+", evalAdd)
