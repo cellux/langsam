@@ -1,0 +1,5 @@
+(assert (= (type "foo") String))
+(assert (= (String "foo") "foo"))
+(assert (= (str "foo") "foo"))
+(assert (= (str "foo" "bar") "foobar"))
+(assert (= (str "foo" 523 "bar") "foo523bar"))

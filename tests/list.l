@@ -1,0 +1,6 @@
+(assert (= (type '(:a :b)) List))
+(assert (= (type '(1 2 3)) List))
+(assert (= (List [1 2 3]) '(1 2 3)))
+(assert (= (List (cons 1 (cons 2 (cons 3 nil)))) '(1 2 3)))
+(assert (= (List `(1 2 3 . ,nil)) '(1 2 3)))
+(assert (= (type (List '(1 2 . 3))) Error))

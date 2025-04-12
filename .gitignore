@@ -1,1 +1,3 @@
+*.o
+*_l.c
 failures/

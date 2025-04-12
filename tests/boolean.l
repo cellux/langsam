@@ -1,0 +1,36 @@
+(assert (= true true))
+(assert (= false false))
+
+(assert (!= true false))
+(assert (!= false true))
+
+(assert (= (type true) Boolean))
+(assert (= (type false) Boolean))
+
+(assert (= (eval true) true))
+(assert (= (eval false) false))
+
+(assert (= (Boolean true) true))
+(assert (= (Boolean false) false))
+(assert (= (Boolean nil) false))
+(assert (= (Boolean '()) false))
+(assert (= (Boolean '(:a)) true))
+(assert (= (Boolean []) false))
+(assert (= (Boolean [:a]) true))
+(assert (= (Boolean "") false))
+(assert (= (Boolean "0") true))
+(assert (= (Boolean 0) false))
+(assert (= (Boolean -1) true))
+(assert (= (Boolean 0.0) false))
+(assert (= (Boolean 0.5) true))
+(assert (= (Boolean -1.0) true))
+(assert (= (Boolean 'foo) true))
+(assert (= (Boolean :foo) true))
+(assert (= (Boolean +) true))
+(assert (= (Boolean '(:a . :b)) true))
+
+(assert (= (str true) "true"))
+(assert (= (str false) "false"))
+
+(assert (= (repr true) "true"))
+(assert (= (repr false) "false"))
