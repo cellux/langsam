@@ -13,9 +13,8 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
       LV result = langsam_loadfile(&vm, argv[i]);
       if (langsam_exceptionp(result)) {
-        char *error_message = langsam_str(&vm, result);
+        char *error_message = langsam_cstr(&vm, result);
         fprintf(stderr, "Error while loading %s: %s\n", argv[i], error_message);
-        langsam_free(&vm, error_message);
         langsam_close(&vm);
         exit(1);
       }
@@ -23,9 +22,8 @@ int main(int argc, char **argv) {
   } else {
     LangsamValue result = langsam_loadfd(&vm, 0);
     if (langsam_exceptionp(result)) {
-      char *error_message = langsam_str(&vm, result);
+      char *error_message = langsam_cstr(&vm, result);
       fprintf(stderr, "Error while loading <stdin>: %s\n", error_message);
-      langsam_free(&vm, error_message);
       langsam_close(&vm);
       exit(1);
     }

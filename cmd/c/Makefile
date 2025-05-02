@@ -1,7 +1,5 @@
-CFLAGS = -I../../c
-
 langsam: langsam.c
-	$(CC) -I../../c -o langsam langsam.c
+	$(CC) -o langsam langsam.c
 
 .PHONY: clean
 clean:
