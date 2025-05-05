@@ -1,8 +1,11 @@
 (assert (= true true))
 (assert (= false false))
 
-(assert (!= true false))
-(assert (!= false true))
+(assert (= (not true) false))
+(assert (= (not false) true))
+
+(assert (not= true false))
+(assert (not= false true))
 
 (assert (= (type true) Boolean))
 (assert (= (type false) Boolean))

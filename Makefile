@@ -21,9 +21,14 @@ c:
 
 .PHONY: tc
 tc: c
-	./cmd/c/langsam tests/*.l
+	valgrind --leak-check=full --show-leak-kinds=all ./cmd/c/langsam tests/*.l
+
+.PHONY: gdb
+gdb: c
+	gdb -x langsam.gdb --args ./cmd/c/langsam tests/*.l
 
 .PHONY: clean
 clean:
+	$(MAKE) -C c clean
 	$(MAKE) -C cmd/c clean
 	$(MAKE) -C cmd/go clean
