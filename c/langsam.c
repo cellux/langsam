@@ -310,16 +310,19 @@ static LV eval_list(LangsamVM *vm, LV list) {
 
 LV langsam_Type_apply(LangsamVM *vm, LV self, LV args) {
   if (langsam_nilp(args)) {
-    return langsam_cast(vm, self, langsam_nil);
+    return langsam_exceptionf(vm, "syntax", "%s constructor with no arguments",
+                              langsam_cstr(vm, self));
   }
-  args = eval_list(vm, args);
-  LANGSAM_CHECK(args);
-  LV head = langsam_car(args);
   LV tail = langsam_cdr(args);
-  if (langsam_nilp(tail)) {
-    args = head;
+  if (langsam_consp(tail)) {
+    return langsam_exceptionf(vm, "syntax",
+                              "%s constructor requires a single argument",
+                              langsam_cstr(vm, self));
   }
-  return langsam_cast(vm, self, args);
+  LV arg = langsam_car(args);
+  arg = langsam_eval(vm, arg);
+  LANGSAM_CHECK(arg);
+  return langsam_cast(vm, self, arg);
 }
 
 LV langsam_Type_repr(LangsamVM *vm, LV self) {
@@ -351,6 +354,8 @@ uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
   return hash_uint64(prevhash, FNV1A_NIL);
 }
 
+LV langsam_Nil_cast(LangsamVM *vm, LV other) { return langsam_nil; }
+
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
   return langsam_symbol(vm, "nil");
 }
@@ -360,6 +365,7 @@ static struct LangsamT LANGSAM_T_NIL = {
     .gcmanaged = false,
     .truthy = langsam_Nil_truthy,
     .hash = langsam_Nil_hash,
+    .cast = langsam_Nil_cast,
     .repr = langsam_Nil_repr,
 };
 
@@ -703,9 +709,13 @@ LV langsam_String_get(LangsamVM *vm, LV self, LV key) {
   return langsam_integer(s->p[index]);
 }
 
-LV langsam_String_len(LangsamVM *vm, LV self) {
+static size_t string_length(LV self) {
   LangsamString *s = self.p;
-  return langsam_integer(s->len);
+  return s->len;
+}
+
+LV langsam_String_len(LangsamVM *vm, LV self) {
+  return langsam_integer(string_length(self));
 }
 
 static int charreprwidth(char c) {
@@ -1046,7 +1056,6 @@ LV langsam_Cons_cast(LangsamVM *vm, LV other) {
   LV result = langsam_nil;
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
-    LANGSAM_CHECK(item);
     result = langsam_cons(vm, item, result);
     it = langsam_next(vm, it);
   }
@@ -2023,10 +2032,8 @@ static LV collect_rest(LangsamVM *vm, LV it) {
   LV rest = langsam_nil;
   while (langsam_truthy(vm, it)) {
     LV value = langsam_deref(vm, it);
-    LANGSAM_CHECK(value);
     rest = langsam_cons(vm, value, rest);
     it = langsam_next(vm, it);
-    LANGSAM_CHECK(it);
   }
   return langsam_nreverse(rest);
 }
@@ -2044,7 +2051,6 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     bool seen_amp = false;
     while (langsam_truthy(vm, it_lhs)) {
       LV name = langsam_deref(vm, it_lhs);
-      LANGSAM_CHECK(name);
       if (!seen_amp && LVEQ(name, amp_symbol)) {
         seen_amp = true;
       } else if (seen_amp) {
@@ -2057,15 +2063,12 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         LV value = langsam_nil;
         if (langsam_truthy(vm, it_rhs)) {
           value = langsam_deref(vm, it_rhs);
-          LANGSAM_CHECK(value);
           it_rhs = langsam_next(vm, it_rhs);
-          LANGSAM_CHECK(it_rhs);
         }
         LV result = langsam_bind(vm, env, name, value);
         LANGSAM_CHECK(result);
       }
       it_lhs = langsam_next(vm, it_lhs);
-      LANGSAM_CHECK(it_lhs);
     }
   } else if (lhs.type == LT_CONS) {
     LV l = lhs;
@@ -2077,9 +2080,7 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       LV value = langsam_nil;
       if (langsam_truthy(vm, it_rhs)) {
         value = langsam_deref(vm, it_rhs);
-        LANGSAM_CHECK(value);
         it_rhs = langsam_next(vm, it_rhs);
-        LANGSAM_CHECK(it_rhs);
       }
       LV result = langsam_bind(vm, env, name, value);
       LANGSAM_CHECK(result);
@@ -2472,12 +2473,122 @@ static LV eval_repr(LangsamVM *vm, LV args) {
 
 static LV eval_str(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
-  return langsam_str(vm, obj);
+  LV s = langsam_str(vm, obj);
+  LANGSAM_CHECK(s);
+  if (langsam_nilp(args)) {
+    return s;
+  }
+  LV ss = langsam_cons(vm, s, langsam_nil);
+  size_t len = string_length(s);
+  while (langsam_consp(args)) {
+    LANGSAM_ARG(obj, args);
+    LV s = langsam_str(vm, obj);
+    LANGSAM_CHECK(s);
+    ss = langsam_cons(vm, s, ss);
+    len += string_length(s);
+  }
+  ss = langsam_nreverse(ss);
+  char *p0 = langsam_alloc(vm, len + 1);
+  char *p = p0;
+  while (langsam_consp(ss)) {
+    LV s = langsam_car(ss);
+    LangsamString *ls = s.p;
+    memcpy(p, ls->p, ls->len);
+    p += ls->len;
+    ss = langsam_cdr(ss);
+  }
+  *p = 0;
+  return langsam_stringn_wrap(vm, p0, len);
 }
 
 static LV eval_quote(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return obj;
+}
+
+static LV quasiquote(LangsamVM *vm, LV obj);
+
+static LV quasiquote_collect(LangsamVM *vm, LV coll) {
+  LV splice = langsam_opword(vm, "splice");
+  LV result = langsam_nil;
+  LV it = langsam_iter(vm, coll);
+  LANGSAM_CHECK(it);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV qqitem = quasiquote(vm, item);
+    if (langsam_exceptionp(qqitem)) {
+      bool throw = true;
+      LV payload = langsam_deref(vm, qqitem);
+      if (langsam_consp(payload)) {
+        LV head = langsam_car(payload);
+        if (LVEQ(head, splice)) {
+          throw = false;
+          LV items = langsam_cdr(payload);
+          while (langsam_consp(items)) {
+            LV item = langsam_car(items);
+            result = langsam_cons(vm, item, result);
+            items = langsam_cdr(items);
+          }
+        }
+      }
+      if (throw) {
+        return qqitem;
+      }
+    } else {
+      result = langsam_cons(vm, qqitem, result);
+    }
+    it = langsam_next(vm, it);
+  }
+  return langsam_nreverse(result);
+}
+
+static LV quasiquote(LangsamVM *vm, LV obj) {
+  if (obj.type == LT_CONS) {
+    LV head = langsam_car(obj);
+    LV unquote = langsam_symbol(vm, "unquote");
+    LV unquote_splicing = langsam_symbol(vm, "unquote-splicing");
+    if (LVEQ(head, unquote)) {
+      LV tail = langsam_cdr(obj);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "quasiquote", "unquote needs argument");
+      }
+      LV form = langsam_car(tail);
+      return langsam_eval(vm, form);
+    } else if (LVEQ(head, unquote_splicing)) {
+      LV tail = langsam_cdr(obj);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "quasiquote",
+                                  "unquote-splicing needs argument");
+      }
+      LV form = langsam_car(tail);
+      LV evaluated_form = langsam_eval(vm, form);
+      LANGSAM_CHECK(evaluated_form);
+      LV it = langsam_iter(vm, evaluated_form);
+      LANGSAM_CHECK(it);
+      LV result = langsam_nil;
+      while (langsam_truthy(vm, it)) {
+        LV item = langsam_deref(vm, it);
+        result = langsam_cons(vm, item, result);
+        it = langsam_next(vm, it);
+      }
+      result = langsam_nreverse(result);
+      LV splice = langsam_opword(vm, "splice");
+      return langsam_exception(vm, langsam_cons(vm, splice, result));
+    } else {
+      return quasiquote_collect(vm, obj);
+    }
+  } else if (obj.type == LT_VECTOR || obj.type == LT_MAP) {
+    LV items = quasiquote_collect(vm, obj);
+    LANGSAM_CHECK(items);
+    return langsam_cast(vm, langsam_type(obj.type), items);
+  } else {
+    return obj;
+  }
+}
+
+static LV eval_quasiquote(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  return quasiquote(vm, obj);
 }
 
 static LV eval_def(LangsamVM *vm, LV args) {
@@ -2556,6 +2667,10 @@ static LV eval_defmacro(LangsamVM *vm, LV args) {
   return langsam_put(vm, vm->curlet, name, macro);
 }
 
+static LV eval_macro(LangsamVM *vm, LV args) {
+  return make_function(vm, args, false, true);
+}
+
 static LV eval_if(LangsamVM *vm, LV args) {
   LANGSAM_ARG(cond, args);
   LANGSAM_ARG(if_expr, args);
@@ -2574,13 +2689,11 @@ static LV process_bindings(LangsamVM *vm, LV bindings) {
   LANGSAM_CHECK(it);
   while (langsam_truthy(vm, it)) {
     LV k = langsam_deref(vm, it);
-    LANGSAM_CHECK(k);
     it = langsam_next(vm, it);
     if (!langsam_truthy(vm, it)) {
       return langsam_exceptionf(vm, "let", "incomplete bindings");
     }
     LV v = langsam_deref(vm, it);
-    LANGSAM_CHECK(v);
     v = langsam_eval(vm, v);
     LANGSAM_CHECK(v);
     it = langsam_next(vm, it);
@@ -2687,10 +2800,12 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, "repr", eval_repr);
   langsam_defn(vm, "str", eval_str);
   langsam_defspecial(vm, "quote", eval_quote);
+  langsam_defspecial(vm, "quasiquote", eval_quasiquote);
   langsam_defspecial(vm, "def", eval_def);
   langsam_defspecial(vm, "defn", eval_defn);
   langsam_defspecial(vm, "fn", eval_fn);
   langsam_defspecial(vm, "defmacro", eval_defmacro);
+  langsam_defspecial(vm, "macro", eval_macro);
   langsam_defspecial(vm, "if", eval_if);
   langsam_defspecial(vm, "let", eval_let);
   langsam_defspecial(vm, "assert", eval_assert);

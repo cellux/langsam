@@ -182,6 +182,7 @@ char *langsam_typename(LangsamVM *vm, LangsamType t);
 
 bool langsam_Nil_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LV langsam_Nil_cast(LangsamVM *vm, LV other);
 LV langsam_Nil_repr(LangsamVM *vm, LV self);
 
 extern const LV langsam_nil;
