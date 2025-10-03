@@ -1,4 +1,4 @@
-(let [f (Function {:params '[x] :body '[(+ x 5)]})]
+(let [f (Function {:params '[x] :body '((+ x 5))})]
   (assert (= (type f) Function))
   (assert (= (f 3) 8)))
 

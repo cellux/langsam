@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -492,7 +493,7 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
   } else if (other.type == LT_BOOLEAN) {
     return langsam_integer(other.b ? 1 : 0);
   } else if (other.type == LT_FLOAT) {
-    return langsam_integer(other.f);
+    return langsam_integer(round(other.f));
   } else if (other.type == LT_STRING) {
     LangsamString *s = other.p;
     errno = 0;
@@ -950,6 +951,12 @@ LV langsam_Keyword_cast(LangsamVM *vm, LV other) {
     LangsamString *s = other.p;
     return langsam_keyword(vm, s->p);
   }
+  if (other.type == LT_SYMBOL) {
+    return (LV){
+        .type = LT_KEYWORD,
+        .p = other.p,
+    };
+  }
   return langsam_exceptionf(vm, "cast",
                             "Cannot cast value of type %s to Keyword",
                             langsam_typename(vm, other.type));
@@ -982,6 +989,12 @@ LV langsam_Opword_cast(LangsamVM *vm, LV other) {
   if (other.type == LT_STRING) {
     LangsamString *s = other.p;
     return langsam_opword(vm, s->p);
+  }
+  if (other.type == LT_SYMBOL) {
+    return (LV){
+        .type = LT_OPWORD,
+        .p = other.p,
+    };
   }
   return langsam_exceptionf(vm, "cast",
                             "Cannot cast value of type %s to Opword",
@@ -2482,7 +2495,7 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
   LV name = langsam_nil;
   LV params = langsam_nil;
   LV doc = langsam_nil;
-  while (langsam_consp(tail)) {
+  while (langsam_nilp(params) && langsam_consp(tail)) {
     LV head = langsam_car(tail);
     if (head.type == LT_SYMBOL) {
       if (langsam_nilp(name)) {
@@ -2497,11 +2510,7 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
         break;
       }
     } else if (head.type == LT_VECTOR) {
-      if (langsam_nilp(params)) {
-        params = head;
-      } else {
-        break;
-      }
+      params = head;
     } else {
       break;
     }
@@ -2531,6 +2540,10 @@ static LV eval_defn(LangsamVM *vm, LV args) {
     return langsam_exceptionf(vm, "syntax", "missing function name");
   }
   return langsam_put(vm, vm->curlet, name, function);
+}
+
+static LV eval_fn(LangsamVM *vm, LV args) {
+  return make_function(vm, args, true, false);
 }
 
 static LV eval_defmacro(LangsamVM *vm, LV args) {
@@ -2676,6 +2689,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, "quote", eval_quote);
   langsam_defspecial(vm, "def", eval_def);
   langsam_defspecial(vm, "defn", eval_defn);
+  langsam_defspecial(vm, "fn", eval_fn);
   langsam_defspecial(vm, "defmacro", eval_defmacro);
   langsam_defspecial(vm, "if", eval_if);
   langsam_defspecial(vm, "let", eval_let);
