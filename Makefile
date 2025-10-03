@@ -1,34 +1,23 @@
-.PHONY: help
-help:
-	@echo "make go  - build Langsam (Go version)"
-	@echo "make tgo - test Langsam (Go version)"
-	@echo
-	@echo "make c  - build Langsam (C version)"
-	@echo "make tc - test Langsam (C version)"
+CFLAGS = -g -O0 -fno-omit-frame-pointer
+LDFLAGS = -lm
 
-.PHONY: go
-go:
-	$(MAKE) -C cmd/go
+langsam: driver.o langsam.o langsam_l.o os.o
 
-.PHONY: tgo
-tgo: go
-	./cmd/go/langsam tests/*.l
+langsam_l.c: langsam.l
+	python3 bin2c.py $< $@ langsam_l
 
-.PHONY: c
-c:
-	$(MAKE) -C c
-	$(MAKE) -C cmd/c
+langsam.o: langsam.c langsam.h
 
-.PHONY: tc
-tc: c
-	valgrind --leak-check=full --show-leak-kinds=all ./cmd/c/langsam tests/*.l
+os.o: os.c
+
+.PHONY: test
+test: langsam
+	valgrind --leak-check=full --show-leak-kinds=all ./langsam tests/*.l
 
 .PHONY: gdb
-gdb: c
-	gdb -x langsam.gdb --args ./cmd/c/langsam tests/*.l
+gdb: langsam
+	gdb -x langsam.gdb --args ./langsam tests/*.l
 
 .PHONY: clean
 clean:
-	$(MAKE) -C c clean
-	$(MAKE) -C cmd/c clean
-	$(MAKE) -C cmd/go clean
+	rm -fv *.o langsam_l.c langsam
