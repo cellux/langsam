@@ -78,7 +78,6 @@ LV langsam_str(LangsamVM *vm, LV self);
 extern const LangsamType LT_TYPE;
 
 extern const LangsamType LT_NIL;
-extern const LangsamType LT_ERROR;
 extern const LangsamType LT_EXCEPTION;
 extern const LangsamType LT_BOOLEAN;
 extern const LangsamType LT_INTEGER;
@@ -109,10 +108,6 @@ struct LangsamValue {
 
 #define LVCMP(v1, v2) (memcmp(&(v1), &(v2), sizeof(LV)))
 #define LVEQ(v1, v2) (LVCMP(v1, v2) == 0)
-
-typedef struct {
-  LV payload;
-} LangsamError;
 
 typedef struct {
   LV payload;
@@ -193,23 +188,14 @@ extern const LV langsam_nil;
 
 bool langsam_nilp(LV v);
 
-// Error
-
-void langsam_Error_gcmark(LangsamVM *vm, void *p);
-uint64_t langsam_Error_hash(LangsamVM *vm, LV self, uint64_t prevhash);
-LV langsam_Error_cast(LangsamVM *vm, LV other);
-LV langsam_Error_deref(LangsamVM *vm, LV self);
-LV langsam_Error_repr(LangsamVM *vm, LV self);
-LV langsam_Error_str(LangsamVM *vm, LV self);
-
-LV langsam_error(LangsamVM *vm, LV payload);
-LV langsam_errorf(LangsamVM *vm, const char *fmt, ...);
-
-bool langsam_errorp(LV v);
-
 // Exception
 
+void langsam_Exception_gcmark(LangsamVM *vm, void *p);
+uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Exception_cast(LangsamVM *vm, LV other);
+LV langsam_Exception_deref(LangsamVM *vm, LV self);
+LV langsam_Exception_repr(LangsamVM *vm, LV self);
+LV langsam_Exception_str(LangsamVM *vm, LV self);
 
 LV langsam_exception(LangsamVM *vm, LV payload);
 LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...);
@@ -272,7 +258,6 @@ LV langsam_String_cast(LangsamVM *vm, LV other);
 LV langsam_String_cmp(LangsamVM *vm, LV self, LV other);
 LV langsam_String_add(LangsamVM *vm, LV self, LV other);
 LV langsam_String_get(LangsamVM *vm, LV self, LV key);
-LV langsam_String_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_String_len(LangsamVM *vm, LV self);
 LV langsam_String_repr(LangsamVM *vm, LV self);
 LV langsam_String_str(LangsamVM *vm, LV self);

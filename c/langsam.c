@@ -368,71 +368,17 @@ const LV langsam_nil = (LV){.type = LT_NIL, .p = 0};
 
 bool langsam_nilp(LV v) { return v.type == LT_NIL; }
 
-// Error
-
-void langsam_Error_gcmark(LangsamVM *vm, void *p) {
-  LangsamError *err = p;
-  langsam_mark(vm, err->payload);
-}
-
-uint64_t langsam_Error_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  LangsamError *err = self.p;
-  return langsam_hash(vm, err->payload, prevhash);
-}
-
-LV langsam_Error_cast(LangsamVM *vm, LV other) {
-  LangsamError *err = langsam_gcalloc(vm, LT_ERROR, sizeof(LangsamError));
-  err->payload = other;
-  return (LV){
-      .type = LT_ERROR,
-      .p = err,
-  };
-}
-
-LV langsam_Error_deref(LangsamVM *vm, LV self) {
-  LangsamError *err = self.p;
-  return err->payload;
-}
-
-LV langsam_Error_repr(LangsamVM *vm, LV self) {
-  LangsamError *err = self.p;
-  return langsam_repr(vm, err->payload);
-}
-
-LV langsam_Error_str(LangsamVM *vm, LV self) {
-  LangsamError *err = self.p;
-  return langsam_str(vm, err->payload);
-}
-
-LV langsam_error(LangsamVM *vm, LV payload) {
-  return langsam_Error_cast(vm, payload);
-}
-
-LV langsam_errorf(LangsamVM *vm, const char *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  LV error_message = langsam_vformat(vm, fmt, args);
-  va_end(args);
-  LANGSAM_CHECK(error_message);
-  return langsam_error(vm, error_message);
-}
-
-bool langsam_errorp(LV v) { return v.type == LT_ERROR; }
-
-static struct LangsamT LANGSAM_T_ERROR = {
-    .name = "Error",
-    .gcmanaged = true,
-    .gcmark = langsam_Error_gcmark,
-    .hash = langsam_Error_hash,
-    .cast = langsam_Error_cast,
-    .deref = langsam_Error_deref,
-    .repr = langsam_Error_repr,
-    .str = langsam_Error_str,
-};
-
-const LangsamType LT_ERROR = &LANGSAM_T_ERROR;
-
 // Exception
+
+void langsam_Exception_gcmark(LangsamVM *vm, void *p) {
+  LangsamException *ex = p;
+  langsam_mark(vm, ex->payload);
+}
+
+uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+  LangsamException *ex = self.p;
+  return langsam_hash(vm, ex->payload, prevhash);
+}
 
 LV langsam_Exception_cast(LangsamVM *vm, LV other) {
   LangsamException *ex =
@@ -442,6 +388,21 @@ LV langsam_Exception_cast(LangsamVM *vm, LV other) {
       .type = LT_EXCEPTION,
       .p = ex,
   };
+}
+
+LV langsam_Exception_deref(LangsamVM *vm, LV self) {
+  LangsamException *ex = self.p;
+  return ex->payload;
+}
+
+LV langsam_Exception_repr(LangsamVM *vm, LV self) {
+  LangsamException *ex = self.p;
+  return langsam_repr(vm, ex->payload);
+}
+
+LV langsam_Exception_str(LangsamVM *vm, LV self) {
+  LangsamException *ex = self.p;
+  return langsam_str(vm, ex->payload);
 }
 
 LV langsam_exception(LangsamVM *vm, LV payload) {
@@ -454,8 +415,8 @@ LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...) {
   LV error_message = langsam_vformat(vm, fmt, args);
   va_end(args);
   LANGSAM_CHECK(error_message);
-  return langsam_exception(
-      vm, langsam_cons(vm, langsam_symbol(vm, kind), error_message));
+  LV payload = langsam_cons(vm, langsam_symbol(vm, kind), error_message);
+  return langsam_exception(vm, payload);
 }
 
 bool langsam_exceptionp(LV v) { return (v.type == LT_EXCEPTION); }
@@ -463,12 +424,12 @@ bool langsam_exceptionp(LV v) { return (v.type == LT_EXCEPTION); }
 static struct LangsamT LANGSAM_T_EXCEPTION = {
     .name = "Exception",
     .gcmanaged = true,
-    .gcmark = langsam_Error_gcmark,
-    .hash = langsam_Error_hash,
+    .gcmark = langsam_Exception_gcmark,
+    .hash = langsam_Exception_hash,
     .cast = langsam_Exception_cast,
-    .deref = langsam_Error_deref,
-    .repr = langsam_Error_repr,
-    .str = langsam_Error_str,
+    .deref = langsam_Exception_deref,
+    .repr = langsam_Exception_repr,
+    .str = langsam_Exception_str,
 };
 
 const LangsamType LT_EXCEPTION = &LANGSAM_T_EXCEPTION;
@@ -741,30 +702,6 @@ LV langsam_String_get(LangsamVM *vm, LV self, LV key) {
   return langsam_integer(s->p[index]);
 }
 
-LV langsam_String_put(LangsamVM *vm, LV self, LV key, LV value) {
-  if (key.type != LT_INTEGER) {
-    char *key_type_name = langsam_typename(vm, key.type);
-    return langsam_exceptionf(
-        vm, "put", "attempt to index String with non-integer index of type %s",
-        key_type_name);
-  }
-  if (value.type != LT_INTEGER) {
-    char *value_type_name = langsam_typename(vm, value.type);
-    return langsam_exceptionf(vm, "put",
-                              "attempt to store value of type %s into String",
-                              value_type_name);
-  }
-  LangsamInteger index = key.i;
-  LangsamString *s = self.p;
-  if (index >= s->len) {
-    return langsam_exceptionf(vm, "put",
-                              "String index %lld out of range (0..%lld)", index,
-                              s->len - 1);
-  }
-  s->p[index] = value.i;
-  return langsam_nil;
-}
-
 LV langsam_String_len(LangsamVM *vm, LV self) {
   LangsamString *s = self.p;
   return langsam_integer(s->len);
@@ -955,7 +892,6 @@ static struct LangsamT LANGSAM_T_STRING = {
     .cmp = langsam_String_cmp,
     .add = langsam_String_add,
     .get = langsam_String_get,
-    .put = langsam_String_put,
     .len = langsam_String_len,
     .repr = langsam_String_repr,
     .str = langsam_String_str,
@@ -2705,7 +2641,6 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_def(vm, "false", langsam_false);
   langsam_def(vm, "Type", langsam_type(LT_TYPE));
   langsam_def(vm, "Nil", langsam_type(LT_NIL));
-  langsam_def(vm, "Error", langsam_type(LT_ERROR));
   langsam_def(vm, "Exception", langsam_type(LT_EXCEPTION));
   langsam_def(vm, "Boolean", langsam_type(LT_BOOLEAN));
   langsam_def(vm, "Integer", langsam_type(LT_INTEGER));
