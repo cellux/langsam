@@ -413,6 +413,13 @@ LV langsam_next(LangsamVM *vm, LV it);
     args = langsam_cdr(args);                                                  \
   }
 
+#define LANGSAM_ARG_TYPE(name, expected_type)                                  \
+  if (name.type != expected_type) {                                            \
+    return langsam_exceptionf(                                                 \
+        vm, "type", "argument %s has type %s, expected %s", #name,             \
+        langsam_typename(vm, name.type), langsam_typename(vm, expected_type)); \
+  }
+
 // allocator
 
 typedef struct {
@@ -464,9 +471,9 @@ void langsam_register_module(const char *name, LangsamImportFn import);
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts);
 void langsam_close(LangsamVM *vm);
 
-void langsam_def(LangsamVM *vm, char *name, LV value);
-void langsam_defn(LangsamVM *vm, char *name, LangsamNativeFn fn);
-void langsam_defspecial(LangsamVM *vm, char *name, LangsamNativeFn fn);
+void langsam_def(LangsamVM *vm, LV env, char *name, LV value);
+void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
+void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
 
 LV langsam_sublet(LangsamVM *vm, LV proto, size_t len);
 

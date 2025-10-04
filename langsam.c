@@ -327,7 +327,7 @@ LV langsam_Type_apply(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_Type_repr(LangsamVM *vm, LV self) {
   LangsamType t = self.p;
-  return langsam_symbol(vm, t->name);
+  return langsam_format(vm, "<Type:%s>", t->name);
 }
 
 LV langsam_type(LangsamType t) { return (LV){.type = LT_TYPE, .p = t}; }
@@ -2102,7 +2102,7 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         vm, "bind", "expected Symbol, Vector or Cons at left-hand side, got %s",
         langsam_typename(vm, lhs.type));
   }
-  return langsam_nil;
+  return env;
 }
 
 LV langsam_do(LangsamVM *vm, LV forms) {
@@ -2185,7 +2185,7 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
 LV langsam_Function_repr(LangsamVM *vm, LV self) {
   LangsamFunction *f = self.p;
   if (!langsam_nilp(f->name)) {
-    return langsam_format(vm, "<Function %s>", langsam_cstr(vm, f->name));
+    return langsam_format(vm, "<Function:%s>", langsam_cstr(vm, f->name));
   } else {
     return langsam_string(vm, "<Function>");
   }
@@ -2605,7 +2605,11 @@ static LV eval_quasiquote(LangsamVM *vm, LV args) {
 static LV eval_def(LangsamVM *vm, LV args) {
   LANGSAM_ARG(lhs, args);
   LANGSAM_ARG(rhs, args);
-  return langsam_bind(vm, vm->curlet, lhs, rhs);
+  rhs = langsam_eval(vm, rhs);
+  LANGSAM_CHECK(rhs);
+  LV bind_result = langsam_bind(vm, vm->curlet, lhs, rhs);
+  LANGSAM_CHECK(bind_result);
+  return lhs;
 }
 
 static LV make_function(LangsamVM *vm, LV args, bool evalargs,
@@ -2752,20 +2756,21 @@ static LV eval_cons(LangsamVM *vm, LV args) {
 
 static LV eval_car(LangsamVM *vm, LV args) {
   LANGSAM_ARG(arg, args);
-  if (!langsam_consp(arg)) {
-    return langsam_exceptionf(vm, "car", "expected Cons, got %s",
-                              langsam_typename(vm, arg.type));
-  }
+  LANGSAM_ARG_TYPE(arg, LT_CONS);
   return langsam_car(arg);
 }
 
 static LV eval_cdr(LangsamVM *vm, LV args) {
   LANGSAM_ARG(arg, args);
-  if (!langsam_consp(arg)) {
-    return langsam_exceptionf(vm, "cdr", "expected Cons, got %s",
-                              langsam_typename(vm, arg.type));
-  }
+  LANGSAM_ARG_TYPE(arg, LT_CONS);
   return langsam_cdr(arg);
+}
+
+static LV eval_require(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(module_name, args);
+  LANGSAM_ARG_TYPE(module_name, LT_STRING);
+  LangsamString *ls = (LangsamString *)module_name.p;
+  return langsam_require(vm, ls->p);
 }
 
 extern int langsam_l_len;
@@ -2774,57 +2779,59 @@ extern char langsam_l_bytes[];
 static LV import_langsam_core(LangsamVM *vm) {
   fprintf(stderr, "loading core\n");
   intern_string(vm, "proto");
-  langsam_def(vm, "true", langsam_true);
-  langsam_def(vm, "false", langsam_false);
-  langsam_def(vm, "Type", langsam_type(LT_TYPE));
-  langsam_def(vm, "Nil", langsam_type(LT_NIL));
-  langsam_def(vm, "Exception", langsam_type(LT_EXCEPTION));
-  langsam_def(vm, "Boolean", langsam_type(LT_BOOLEAN));
-  langsam_def(vm, "Integer", langsam_type(LT_INTEGER));
-  langsam_def(vm, "Float", langsam_type(LT_FLOAT));
-  langsam_def(vm, "String", langsam_type(LT_STRING));
-  langsam_def(vm, "Symbol", langsam_type(LT_SYMBOL));
-  langsam_def(vm, "Keyword", langsam_type(LT_KEYWORD));
-  langsam_def(vm, "Opword", langsam_type(LT_OPWORD));
-  langsam_def(vm, "Cons", langsam_type(LT_CONS));
-  langsam_def(vm, "Vector", langsam_type(LT_VECTOR));
-  langsam_def(vm, "Map", langsam_type(LT_MAP));
-  langsam_def(vm, "Function", langsam_type(LT_FUNCTION));
-  langsam_def(vm, "NativeFn", langsam_type(LT_NATIVEFN));
-  langsam_def(vm, "ConsIterator", langsam_type(LT_CONSITERATOR));
-  langsam_def(vm, "VectorIterator", langsam_type(LT_VECTORITERATOR));
-  langsam_def(vm, "MapIterator", langsam_type(LT_MAPITERATOR));
-  langsam_defn(vm, "eq", eval_eq);
-  langsam_defn(vm, "=", eval_equal);
-  langsam_defn(vm, "cmp", eval_cmp);
-  langsam_defn(vm, "+", eval_add);
-  langsam_defn(vm, "-", eval_sub);
-  langsam_defn(vm, "*", eval_mul);
-  langsam_defn(vm, "/", eval_div);
-  langsam_defn(vm, "get", eval_get);
-  langsam_defn(vm, "put", eval_put);
-  langsam_defn(vm, "del", eval_del);
-  langsam_defn(vm, "len", eval_len);
-  langsam_defn(vm, "iter", eval_iter);
-  langsam_defn(vm, "deref", eval_deref);
-  langsam_defn(vm, "apply", eval_apply);
-  langsam_defn(vm, "eval", eval_eval);
-  langsam_defn(vm, "repr", eval_repr);
-  langsam_defn(vm, "str", eval_str);
-  langsam_defspecial(vm, "quote", eval_quote);
-  langsam_defspecial(vm, "quasiquote", eval_quasiquote);
-  langsam_defspecial(vm, "def", eval_def);
-  langsam_defspecial(vm, "defn", eval_defn);
-  langsam_defspecial(vm, "fn", eval_fn);
-  langsam_defspecial(vm, "defmacro", eval_defmacro);
-  langsam_defspecial(vm, "macro", eval_macro);
-  langsam_defspecial(vm, "if", eval_if);
-  langsam_defspecial(vm, "let", eval_let);
-  langsam_defspecial(vm, "assert", eval_assert);
-  langsam_defn(vm, "type", eval_type);
-  langsam_defn(vm, "cons", eval_cons);
-  langsam_defn(vm, "car", eval_car);
-  langsam_defn(vm, "cdr", eval_cdr);
+  langsam_def(vm, vm->rootlet, "true", langsam_true);
+  langsam_def(vm, vm->rootlet, "false", langsam_false);
+  langsam_def(vm, vm->rootlet, "Type", langsam_type(LT_TYPE));
+  langsam_def(vm, vm->rootlet, "Nil", langsam_type(LT_NIL));
+  langsam_def(vm, vm->rootlet, "Exception", langsam_type(LT_EXCEPTION));
+  langsam_def(vm, vm->rootlet, "Boolean", langsam_type(LT_BOOLEAN));
+  langsam_def(vm, vm->rootlet, "Integer", langsam_type(LT_INTEGER));
+  langsam_def(vm, vm->rootlet, "Float", langsam_type(LT_FLOAT));
+  langsam_def(vm, vm->rootlet, "String", langsam_type(LT_STRING));
+  langsam_def(vm, vm->rootlet, "Symbol", langsam_type(LT_SYMBOL));
+  langsam_def(vm, vm->rootlet, "Keyword", langsam_type(LT_KEYWORD));
+  langsam_def(vm, vm->rootlet, "Opword", langsam_type(LT_OPWORD));
+  langsam_def(vm, vm->rootlet, "Cons", langsam_type(LT_CONS));
+  langsam_def(vm, vm->rootlet, "Vector", langsam_type(LT_VECTOR));
+  langsam_def(vm, vm->rootlet, "Map", langsam_type(LT_MAP));
+  langsam_def(vm, vm->rootlet, "Function", langsam_type(LT_FUNCTION));
+  langsam_def(vm, vm->rootlet, "NativeFn", langsam_type(LT_NATIVEFN));
+  langsam_def(vm, vm->rootlet, "ConsIterator", langsam_type(LT_CONSITERATOR));
+  langsam_def(vm, vm->rootlet, "VectorIterator",
+              langsam_type(LT_VECTORITERATOR));
+  langsam_def(vm, vm->rootlet, "MapIterator", langsam_type(LT_MAPITERATOR));
+  langsam_defn(vm, vm->rootlet, "eq", eval_eq);
+  langsam_defn(vm, vm->rootlet, "=", eval_equal);
+  langsam_defn(vm, vm->rootlet, "cmp", eval_cmp);
+  langsam_defn(vm, vm->rootlet, "+", eval_add);
+  langsam_defn(vm, vm->rootlet, "-", eval_sub);
+  langsam_defn(vm, vm->rootlet, "*", eval_mul);
+  langsam_defn(vm, vm->rootlet, "/", eval_div);
+  langsam_defn(vm, vm->rootlet, "get", eval_get);
+  langsam_defn(vm, vm->rootlet, "put", eval_put);
+  langsam_defn(vm, vm->rootlet, "del", eval_del);
+  langsam_defn(vm, vm->rootlet, "len", eval_len);
+  langsam_defn(vm, vm->rootlet, "iter", eval_iter);
+  langsam_defn(vm, vm->rootlet, "deref", eval_deref);
+  langsam_defn(vm, vm->rootlet, "apply", eval_apply);
+  langsam_defn(vm, vm->rootlet, "eval", eval_eval);
+  langsam_defn(vm, vm->rootlet, "repr", eval_repr);
+  langsam_defn(vm, vm->rootlet, "str", eval_str);
+  langsam_defspecial(vm, vm->rootlet, "quote", eval_quote);
+  langsam_defspecial(vm, vm->rootlet, "quasiquote", eval_quasiquote);
+  langsam_defspecial(vm, vm->rootlet, "def", eval_def);
+  langsam_defspecial(vm, vm->rootlet, "defn", eval_defn);
+  langsam_defspecial(vm, vm->rootlet, "fn", eval_fn);
+  langsam_defspecial(vm, vm->rootlet, "defmacro", eval_defmacro);
+  langsam_defspecial(vm, vm->rootlet, "macro", eval_macro);
+  langsam_defspecial(vm, vm->rootlet, "if", eval_if);
+  langsam_defspecial(vm, vm->rootlet, "let", eval_let);
+  langsam_defspecial(vm, vm->rootlet, "assert", eval_assert);
+  langsam_defn(vm, vm->rootlet, "type", eval_type);
+  langsam_defn(vm, vm->rootlet, "cons", eval_cons);
+  langsam_defn(vm, vm->rootlet, "car", eval_car);
+  langsam_defn(vm, vm->rootlet, "cdr", eval_cdr);
+  langsam_defn(vm, vm->rootlet, "require", eval_require);
   return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);
 }
 
@@ -2837,6 +2844,28 @@ typedef struct LangsamModule {
 } LangsamModule;
 
 static LangsamModule *registered_modules = NULL;
+
+LV langsam_require(LangsamVM *vm, char *module_name) {
+  LV module_iname = langsam_istring(vm, module_name);
+  LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
+  LV module = langsam_get(vm, modules, module_iname);
+  if (!langsam_nilp(module)) {
+    return module;
+  }
+  LangsamModule *m = registered_modules;
+  while (m) {
+    if (strcmp(m->name, module_name) == 0) {
+      module = m->import(vm);
+      if (!langsam_exceptionp(module)) {
+        langsam_put(vm, modules, module_iname, module);
+      }
+      return module;
+    }
+    m = m->next;
+  }
+  return langsam_exceptionf(vm, "require", "cannot find module: %s",
+                            module_name);
+}
 
 void langsam_register_module(const char *name, LangsamImportFn import) {
   LangsamModule *m = malloc(sizeof(LangsamModule));
@@ -2856,11 +2885,11 @@ static void langsam_unregister_modules() {
   registered_modules = NULL;
 }
 
-void langsam_def(LangsamVM *vm, char *name, LV value) {
-  langsam_put(vm, vm->curlet, langsam_symbol(vm, name), value);
+void langsam_def(LangsamVM *vm, LV env, char *name, LV value) {
+  langsam_put(vm, env, langsam_symbol(vm, name), value);
 }
 
-void define_nativefn(LangsamVM *vm, char *name, LangsamNativeFn fn,
+void define_nativefn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn,
                      bool evalargs, bool evalresult) {
   LV namesym = langsam_symbol(vm, name);
   LV desc = langsam_map(vm, 4);
@@ -2875,15 +2904,15 @@ void define_nativefn(LangsamVM *vm, char *name, LangsamNativeFn fn,
   langsam_put(vm, desc, langsam_keyword(vm, "evalresult"),
               langsam_boolean(evalresult));
   LV function = langsam_Function_cast(vm, desc);
-  langsam_put(vm, vm->curlet, namesym, function);
+  langsam_put(vm, env, namesym, function);
 }
 
-void langsam_defn(LangsamVM *vm, char *name, LangsamNativeFn fn) {
-  define_nativefn(vm, name, fn, true, false);
+void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn) {
+  define_nativefn(vm, env, name, fn, true, false);
 }
 
-void langsam_defspecial(LangsamVM *vm, char *name, LangsamNativeFn fn) {
-  define_nativefn(vm, name, fn, false, false);
+void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn) {
+  define_nativefn(vm, env, name, fn, false, false);
 }
 
 LV langsam_sublet(LangsamVM *vm, LV proto, size_t len) {
@@ -2909,32 +2938,10 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
   LV modules = langsam_map(vm, 64);
-  langsam_def(vm, "modules", modules);
+  langsam_def(vm, vm->rootlet, "modules", modules);
   LV mainlet = langsam_sublet(vm, vm->rootlet, 4096);
   vm->curlet = mainlet;
   return langsam_nil;
-}
-
-LV langsam_require(LangsamVM *vm, char *module_name) {
-  LV module_interned_name = langsam_istring(vm, module_name);
-  LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
-  LV module = langsam_get(vm, modules, module_interned_name);
-  if (!langsam_nilp(module)) {
-    return module;
-  }
-  LangsamModule *m = registered_modules;
-  while (m) {
-    if (strcmp(m->name, module_name) == 0) {
-      module = m->import(vm);
-      if (!langsam_exceptionp(module)) {
-        langsam_put(vm, modules, module_interned_name, module);
-      }
-      return module;
-    }
-    m = m->next;
-  }
-  return langsam_exceptionf(vm, "require", "cannot find module: %s",
-                            module_name);
 }
 
 typedef struct {
@@ -3038,6 +3045,8 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
   StringBuilder sb;
   StringBuilder_init(&sb, r->vm);
   StringBuilder_write_byte(&sb, first);
+  LV lhs = langsam_nil;
+  bool seen_slash = 0;
   while (1) {
     LV result = Reader_readbyte(r);
     if (langsam_exceptionp(result)) {
@@ -3051,9 +3060,29 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
       Reader_unreadbyte(r, c);
       break;
     }
-    StringBuilder_write_byte(&sb, c);
+    if (c == '/') {
+      if (seen_slash) {
+        return langsam_exceptionf(r->vm, "read",
+                                  "symbol contains multiple / characters");
+      }
+      seen_slash = true;
+      lhs = StringBuilder_result_as_symbol(&sb);
+    } else {
+      StringBuilder_write_byte(&sb, c);
+    }
   }
-  return StringBuilder_result_as_symbol(&sb);
+  if (seen_slash) {
+    LV rhs = StringBuilder_result_as_symbol(&sb);
+    LV quoted_rhs = langsam_cons(r->vm, rhs, langsam_nil);
+    quoted_rhs =
+        langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), quoted_rhs);
+    LV get_expr = langsam_cons(r->vm, quoted_rhs, langsam_nil);
+    get_expr = langsam_cons(r->vm, lhs, get_expr);
+    get_expr = langsam_cons(r->vm, langsam_symbol(r->vm, "get"), get_expr);
+    return get_expr;
+  } else {
+    return StringBuilder_result_as_symbol(&sb);
+  }
 }
 
 static LV Reader_read_keyword(Reader *r) {
