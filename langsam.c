@@ -2332,6 +2332,17 @@ void langsam_gc(LangsamVM *vm) {
 
 // core
 
+static LV eval_eq(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  while (langsam_consp(args)) {
+    LANGSAM_ARG(rhs, args);
+    if (!LVEQ(lhs, rhs)) {
+      return langsam_false;
+    }
+  }
+  return langsam_true;
+}
+
 static LV eval_equal(LangsamVM *vm, LV args) {
   LANGSAM_ARG(lhs, args);
   while (langsam_consp(args)) {
@@ -2783,6 +2794,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_def(vm, "ConsIterator", langsam_type(LT_CONSITERATOR));
   langsam_def(vm, "VectorIterator", langsam_type(LT_VECTORITERATOR));
   langsam_def(vm, "MapIterator", langsam_type(LT_MAPITERATOR));
+  langsam_defn(vm, "eq", eval_eq);
   langsam_defn(vm, "=", eval_equal);
   langsam_defn(vm, "cmp", eval_cmp);
   langsam_defn(vm, "+", eval_add);
