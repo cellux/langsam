@@ -3,6 +3,8 @@ LDFLAGS = -lm
 
 langsam: driver.o langsam.o langsam_l.o os.o
 
+%.c: %.l
+
 langsam_l.c: langsam.l
 	python3 bin2c.py $< $@ langsam_l
 

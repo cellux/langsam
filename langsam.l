@@ -12,3 +12,6 @@
 
 (defn not= [x & rest]
   (not (apply = x rest)))
+
+(defmacro import [name]
+  `(def ,name (require ,(str name))))
