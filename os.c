@@ -136,6 +136,18 @@ static LV os_close(LangsamVM *vm, LV args) {
   return langsam_nil;
 }
 
+static LV os_unlink(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(path, args);
+  LANGSAM_ARG_TYPE(path, LT_STRING);
+  LangsamString *ls = (LangsamString *)path.p;
+  int result = unlink(ls->p);
+  if (result < 0) {
+    return langsam_exceptionf(vm, "unlink", "cannot unlink %s: %s", ls->p,
+                              strerror(errno));
+  }
+  return langsam_nil;
+}
+
 LV langsam_os_module(LangsamVM *vm) {
   LV module = langsam_map(vm, 64);
   langsam_def(vm, module, "File", langsam_type(&os_File_T));
@@ -158,5 +170,6 @@ LV langsam_os_module(LangsamVM *vm) {
   langsam_defn(vm, module, "read", os_read);
   langsam_defn(vm, module, "write", os_write);
   langsam_defn(vm, module, "close", os_close);
+  langsam_defn(vm, module, "unlink", os_unlink);
   return module;
 }
