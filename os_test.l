@@ -1,5 +1,8 @@
 (import os)
 
+(assert (= (type os) Map))
+(assert (= (type os/open) Function))
+
 (def test-path "/tmp/opentest.txt")
 (def test-string "Hello, rumble\n")
 

@@ -1,1 +1,1 @@
-(assert (= 'os/open '(get os 'open)))
+(assert (= 'os/open '(os 'open)))

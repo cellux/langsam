@@ -1412,7 +1412,11 @@ LV langsam_Vector_iter(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args) {
-  return langsam_Vector_get(vm, self, langsam_car(args));
+  LANGSAM_ARG(index, args);
+  index = langsam_eval(vm, index);
+  LANGSAM_CHECK(index);
+  LANGSAM_ARG_TYPE(index, LT_INTEGER);
+  return langsam_Vector_get(vm, self, index);
 }
 
 LV langsam_Vector_eval(LangsamVM *vm, LV self) {
@@ -1775,7 +1779,10 @@ LV langsam_Map_iter(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Map_apply(LangsamVM *vm, LV self, LV args) {
-  return langsam_Map_get(vm, self, langsam_car(args));
+  LANGSAM_ARG(key, args);
+  key = langsam_eval(vm, key);
+  LANGSAM_CHECK(key);
+  return langsam_Map_get(vm, self, key);
 }
 
 LV langsam_Map_eval(LangsamVM *vm, LV self) {
@@ -2457,7 +2464,7 @@ static LV eval_apply(LangsamVM *vm, LV args) {
     tail = langsam_cdr(tail);
   }
   if (!langsam_nilp(tail)) {
-    return langsam_exceptionf(vm, "apply", "invoked with dotted list: %s",
+    return langsam_exceptionf(vm, "apply", "invoked with improper list: %s",
                               args);
   }
   if (langsam_consp(patch_source)) {
@@ -3073,13 +3080,11 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
   }
   if (seen_slash) {
     LV rhs = StringBuilder_result_as_symbol(&sb);
-    LV quoted_rhs = langsam_cons(r->vm, rhs, langsam_nil);
-    quoted_rhs =
-        langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), quoted_rhs);
-    LV get_expr = langsam_cons(r->vm, quoted_rhs, langsam_nil);
-    get_expr = langsam_cons(r->vm, lhs, get_expr);
-    get_expr = langsam_cons(r->vm, langsam_symbol(r->vm, "get"), get_expr);
-    return get_expr;
+    LV result = langsam_cons(r->vm, rhs, langsam_nil);
+    result = langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), result);
+    result = langsam_cons(r->vm, result, langsam_nil);
+    result = langsam_cons(r->vm, lhs, result);
+    return result;
   } else {
     return StringBuilder_result_as_symbol(&sb);
   }
