@@ -15,3 +15,8 @@
 
 (defmacro import [name]
   `(def ,name (require ,(str name))))
+
+(defn update [x k f & rest]
+  (let [oldv (get x k)
+        newv (apply f oldv rest)]
+    (put x k newv)))
