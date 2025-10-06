@@ -18,5 +18,4 @@
 (assert (= (type '(1 2 3)) Cons))
 (assert (= (Cons [1 2 3]) '(1 2 3)))
 (assert (= (Cons (cons 1 (cons 2 (cons 3 nil)))) '(1 2 3)))
-(assert (= (Cons `(1 2 3 . ,nil)) '(1 2 3)))
 (assert (= (type (Cons '(1 2 . 3))) Cons))

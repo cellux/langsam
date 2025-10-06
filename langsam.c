@@ -206,10 +206,12 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
 }
 
 LV langsam_eval(LangsamVM *vm, LV self) {
+  vm->roots = langsam_cons(vm, self, vm->roots);
   LangsamType t = self.type;
   LV result = t->eval ? t->eval(vm, self) : self;
   fprintf(stderr, "EVAL: %s -> %s\n", langsam_cstr(vm, self),
           langsam_cstr(vm, result));
+  vm->roots = langsam_cdr(vm->roots);
   return result;
 }
 
@@ -367,9 +369,9 @@ bool langsam_nilp(LV v) { return v.type == LT_NIL; }
 
 // Exception
 
-void langsam_Exception_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_Exception_gcmark(LangsamVM *vm, void *p) {
   LangsamException *ex = p;
-  langsam_mark(vm, ex->payload);
+  return langsam_mark(vm, ex->payload);
 }
 
 uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
@@ -641,9 +643,15 @@ const LangsamType LT_FLOAT = &LANGSAM_T_FLOAT;
 
 // String
 
-void langsam_String_gcfree(LangsamVM *vm, void *p) {
+size_t langsam_String_gcmark(LangsamVM *vm, void *p) {
+  LangsamString *s = p;
+  return s->len + 1;
+}
+
+size_t langsam_String_gcfree(LangsamVM *vm, void *p) {
   LangsamString *s = p;
   langsam_free(vm, s->p);
+  return s->len + 1;
 }
 
 bool langsam_String_truthy(LangsamVM *vm, LV self) {
@@ -888,6 +896,7 @@ char *langsam_cstr(LangsamVM *vm, LV v) {
 static struct LangsamT LANGSAM_T_STRING = {
     .name = "String",
     .gcmanaged = true,
+    .gcmark = langsam_String_gcmark,
     .gcfree = langsam_String_gcfree,
     .truthy = langsam_String_truthy,
     .hash = langsam_String_hash,
@@ -1035,10 +1044,12 @@ const LangsamType LT_OPWORD = &LANGSAM_T_OPWORD;
 
 // Cons
 
-void langsam_Cons_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_Cons_gcmark(LangsamVM *vm, void *p) {
   LangsamCons *cons = p;
-  langsam_mark(vm, cons->car);
-  langsam_mark(vm, cons->cdr);
+  size_t total = 0;
+  total += langsam_mark(vm, cons->car);
+  total += langsam_mark(vm, cons->cdr);
+  return total;
 }
 
 bool langsam_Cons_truthy(LangsamVM *vm, LV self) { return !langsam_nilp(self); }
@@ -1259,9 +1270,9 @@ LV langsam_next(LangsamVM *vm, LV it) {
 
 // ConsIterator
 
-void langsam_ConsIterator_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_ConsIterator_gcmark(LangsamVM *vm, void *p) {
   LangsamConsIterator *it = p;
-  langsam_mark(vm, it->cur);
+  return langsam_mark(vm, it->cur);
 }
 
 bool langsam_ConsIterator_truthy(LangsamVM *vm, LV self) {
@@ -1301,16 +1312,19 @@ const LangsamType LT_CONSITERATOR = &LANGSAM_T_CONSITERATOR;
 
 // Vector
 
-void langsam_Vector_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_Vector_gcmark(LangsamVM *vm, void *p) {
   LangsamVector *v = p;
+  size_t total = v->len * sizeof(LV);
   for (int i = 0; i < v->len; i++) {
-    langsam_mark(vm, v->items[i]);
+    total += langsam_mark(vm, v->items[i]);
   }
+  return total;
 }
 
-void langsam_Vector_gcfree(LangsamVM *vm, void *p) {
+size_t langsam_Vector_gcfree(LangsamVM *vm, void *p) {
   LangsamVector *v = p;
   langsam_free(vm, v->items);
+  return v->len * sizeof(LV);
 }
 
 bool langsam_Vector_truthy(LangsamVM *vm, LV self) {
@@ -1522,9 +1536,9 @@ const LangsamType LT_VECTOR = &LANGSAM_T_VECTOR;
 
 // VectorIterator
 
-void langsam_VectorIterator_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_VectorIterator_gcmark(LangsamVM *vm, void *p) {
   LangsamVectorIterator *it = p;
-  langsam_mark(vm, it->v);
+  return langsam_mark(vm, it->v);
 }
 
 bool langsam_VectorIterator_truthy(LangsamVM *vm, LV self) {
@@ -1567,16 +1581,19 @@ const LangsamType LT_VECTORITERATOR = &LANGSAM_T_VECTORITERATOR;
 
 // Map
 
-void langsam_Map_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_Map_gcmark(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
+  size_t total = m->nbuckets * sizeof(LV);
   for (int i = 0; i < m->nbuckets; i++) {
-    langsam_mark(vm, m->buckets[i]);
+    total += langsam_mark(vm, m->buckets[i]);
   }
+  return total;
 }
 
-void langsam_Map_gcfree(LangsamVM *vm, void *p) {
+size_t langsam_Map_gcfree(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
   langsam_free(vm, m->buckets);
+  return m->nbuckets * sizeof(LV);
 }
 
 bool langsam_Map_truthy(LangsamVM *vm, LV self) {
@@ -1953,10 +1970,12 @@ const LangsamType LT_MAP = &LANGSAM_T_MAP;
 
 // MapIterator
 
-void langsam_MapIterator_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_MapIterator_gcmark(LangsamVM *vm, void *p) {
   LangsamMapIterator *it = p;
-  langsam_mark(vm, it->m);
-  langsam_mark(vm, it->items);
+  size_t total = 0;
+  total += langsam_mark(vm, it->m);
+  total += langsam_mark(vm, it->items);
+  return total;
 }
 
 bool langsam_MapIterator_truthy(LangsamVM *vm, LV self) {
@@ -1996,13 +2015,15 @@ const LangsamType LT_MAPITERATOR = &LANGSAM_T_MAPITERATOR;
 
 // Function
 
-void langsam_Function_gcmark(LangsamVM *vm, void *p) {
+size_t langsam_Function_gcmark(LangsamVM *vm, void *p) {
   LangsamFunction *f = p;
-  langsam_mark(vm, f->name);
-  langsam_mark(vm, f->params);
-  langsam_mark(vm, f->doc);
-  langsam_mark(vm, f->funclet);
-  langsam_mark(vm, f->body);
+  size_t total = 0;
+  total += langsam_mark(vm, f->name);
+  total += langsam_mark(vm, f->params);
+  total += langsam_mark(vm, f->doc);
+  total += langsam_mark(vm, f->funclet);
+  total += langsam_mark(vm, f->body);
+  return total;
 }
 
 uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
@@ -2297,6 +2318,7 @@ static LangsamGCColor langsam_gcaltcolor(LangsamVM *vm) {
 
 void *langsam_gcalloc(LangsamVM *vm, LangsamType type, size_t size) {
   LangsamGCHeader *gch = langsam_alloc(vm, sizeof(LangsamGCHeader) + size);
+  gch->size = sizeof(LangsamGCHeader) + size;
   gch->type = type;
   gch->gccolor = langsam_gcaltcolor(vm);
   gch->next = vm->gcobjects;
@@ -2305,44 +2327,49 @@ void *langsam_gcalloc(LangsamVM *vm, LangsamType type, size_t size) {
   return p;
 }
 
-void langsam_mark(LangsamVM *vm, LV self) {
+size_t langsam_mark(LangsamVM *vm, LV self) {
   LangsamType t = self.type;
   if (!t->gcmanaged) {
-    return;
+    return 0;
   }
   LangsamGCHeader *gch = langsam_gcheader(self.p);
   if (gch->gccolor == vm->gcmarkcolor) {
-    return;
+    return 0;
   }
   gch->gccolor = vm->gcmarkcolor;
-  if (t->gcmark != NULL) {
-    t->gcmark(vm, self.p);
-  }
+  return gch->size + (t->gcmark ? t->gcmark(vm, self.p) : 0);
 }
 
-static void langsam_gcfree(LangsamVM *vm, LangsamGCHeader *gch) {
+static size_t langsam_gcfree(LangsamVM *vm, LangsamGCHeader *gch) {
   LangsamType t = gch->type;
+  size_t size = gch->size;
   if (t->gcfree) {
-    t->gcfree(vm, gch + 1);
+    size += t->gcfree(vm, gch + 1);
   }
   langsam_free(vm, gch);
+  return size;
 }
 
-static void langsam_gcfree_all(LangsamVM *vm) {
+static size_t langsam_gcfree_all(LangsamVM *vm) {
   LangsamGCHeader *gch = vm->gcobjects;
+  size_t total = 0;
   while (gch) {
     LangsamGCHeader *next = gch->next;
-    langsam_gcfree(vm, gch);
+    total += langsam_gcfree(vm, gch);
     gch = next;
   }
   vm->gcobjects = NULL;
+  return total;
 }
 
-void langsam_gc(LangsamVM *vm) {
-  langsam_mark(vm, vm->strings);
-  langsam_mark(vm, vm->curlet);
+LV langsam_gc(LangsamVM *vm) {
+  size_t mark_total = 0;
+  mark_total += langsam_mark(vm, vm->roots);
+  mark_total += langsam_mark(vm, vm->strings);
+  mark_total += langsam_mark(vm, vm->curlet);
   LangsamGCHeader *prevgch = NULL;
   LangsamGCHeader *gch = vm->gcobjects;
+  size_t free_total = 0;
   while (gch) {
     LangsamGCHeader *next = gch->next;
     if (gch->gccolor == vm->gcmarkcolor) {
@@ -2351,7 +2378,7 @@ void langsam_gc(LangsamVM *vm) {
       gch = next;
     } else {
       // !marked: sweep
-      langsam_gcfree(vm, gch);
+      free_total += langsam_gcfree(vm, gch);
       if (prevgch == NULL) {
         vm->gcobjects = next;
       } else {
@@ -2361,6 +2388,12 @@ void langsam_gc(LangsamVM *vm) {
     }
   }
   vm->gcmarkcolor = langsam_gcaltcolor(vm);
+  LV result = langsam_map(vm, 2);
+  langsam_put(vm, result, langsam_keyword(vm, "marked"),
+              langsam_integer(mark_total));
+  langsam_put(vm, result, langsam_keyword(vm, "swept"),
+              langsam_integer(free_total));
+  return result;
 }
 
 // core
@@ -2808,6 +2841,8 @@ static LV eval_require(LangsamVM *vm, LV args) {
   return langsam_require(vm, ls->p);
 }
 
+static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
+
 extern int langsam_l_len;
 extern char langsam_l_bytes[];
 
@@ -2868,6 +2903,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "car", eval_car);
   langsam_defn(vm, env, "cdr", eval_cdr);
   langsam_defn(vm, env, "require", eval_require);
+  langsam_defn(vm, env, "gc", eval_gc);
   return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);
 }
 
@@ -2969,6 +3005,7 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->gcobjects = NULL;
   vm->gcmarkcolor = LANGSAM_GC_BLACK;
   vm->strings = langsam_map(vm, 4096);
+  vm->roots = langsam_nil;
   vm->rootlet = langsam_map(vm, 4096);
   vm->curlet = vm->rootlet;
   LV result = import_langsam_core(vm);
