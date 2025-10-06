@@ -2719,6 +2719,8 @@ static LV eval_macro(LangsamVM *vm, LV args) {
   return make_function(vm, args, false, true);
 }
 
+static LV eval_do(LangsamVM *vm, LV args) { return langsam_do(vm, args); }
+
 static LV eval_if(LangsamVM *vm, LV args) {
   LANGSAM_ARG(cond, args);
   LANGSAM_ARG(if_expr, args);
@@ -2857,6 +2859,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "fn", eval_fn);
   langsam_defspecial(vm, env, "defmacro", eval_defmacro);
   langsam_defspecial(vm, env, "macro", eval_macro);
+  langsam_defspecial(vm, env, "do", eval_do);
   langsam_defspecial(vm, env, "if", eval_if);
   langsam_defspecial(vm, env, "let", eval_let);
   langsam_defspecial(vm, env, "assert", eval_assert);
