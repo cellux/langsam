@@ -5,12 +5,14 @@ langsam: driver.o langsam.o langsam_l.o os.o
 
 %.c: %.l
 
-langsam_l.c: langsam.l
+langsam_l.o: langsam_l.c
+langsam_l.c: langsam.l bin2c.py
 	python3 bin2c.py $< $@ langsam_l
 
+driver.o: driver.c langsam.h
 langsam.o: langsam.c langsam.h
 
-os.o: os.c
+os.o: os.c langsam.h
 
 .PHONY: test
 test: langsam
