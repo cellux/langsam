@@ -2846,7 +2846,7 @@ static LV eval_require(LangsamVM *vm, LV args) {
 static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 
 extern int langsam_l_len;
-extern char langsam_l_bytes[];
+extern unsigned char langsam_l_bytes[];
 
 static LV import_langsam_core(LangsamVM *vm) {
   langsam_debug(vm, "loading core");
