@@ -149,7 +149,7 @@ static LV os_unlink(LangsamVM *vm, LV args) {
 }
 
 LV langsam_os_module(LangsamVM *vm) {
-  LV module = langsam_map(vm, 64);
+  LV module = langsam_map(vm, langsam_nil, 64);
   langsam_def(vm, module, "File", langsam_type(&os_File_T));
   langsam_defn(vm, module, "open", os_open);
   langsam_def(vm, module, "O_APPEND", langsam_integer(O_APPEND));

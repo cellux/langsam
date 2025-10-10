@@ -138,6 +138,7 @@ typedef struct {
 } LangsamVectorIterator;
 
 typedef struct {
+  LV proto;
   LV *buckets;
   size_t nbuckets;
   size_t nitems;
@@ -378,7 +379,10 @@ LV langsam_Map_items(LangsamVM *vm, LV self);
 LV langsam_Map_keys(LangsamVM *vm, LV self);
 LV langsam_Map_values(LangsamVM *vm, LV self);
 
-LV langsam_map(LangsamVM *vm, size_t len);
+LV langsam_getproto(LangsamVM *vm, LV self);
+LV langsam_setproto(LangsamVM *vm, LV self, LV proto);
+
+LV langsam_map(LangsamVM *vm, LV proto, size_t len);
 
 size_t langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
 bool Langsam_MapIterator_truthy(LangsamVM *vm, LV self);
@@ -516,8 +520,6 @@ void langsam_close(LangsamVM *vm);
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value);
 void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
 void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
-
-LV langsam_sublet(LangsamVM *vm, LV proto, size_t len);
 
 // returned string is managed by GC, no need to free
 char *langsam_cstr(LangsamVM *vm, LV v);

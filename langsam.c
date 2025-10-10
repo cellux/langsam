@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -1587,6 +1588,7 @@ size_t langsam_Map_gcmark(LangsamVM *vm, void *p) {
   for (int i = 0; i < m->nbuckets; i++) {
     total += langsam_mark(vm, m->buckets[i]);
   }
+  total += langsam_mark(vm, m->proto);
   return total;
 }
 
@@ -1620,7 +1622,7 @@ uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
 
 LV langsam_Map_cast(LangsamVM *vm, LV other) {
   if (other.type == LT_INTEGER) {
-    return langsam_map(vm, other.i);
+    return langsam_map(vm, langsam_nil, other.i);
   }
   LV it = langsam_iter(vm, other);
   LANGSAM_CHECK(it);
@@ -1631,7 +1633,7 @@ LV langsam_Map_cast(LangsamVM *vm, LV other) {
     it = langsam_next(vm, it);
     nitems++;
   }
-  LV self = langsam_map(vm, nitems);
+  LV self = langsam_map(vm, langsam_nil, nitems);
   for (int i = 0; i < nitems; i++) {
     LV item = langsam_car(l);
     LV key = langsam_get(vm, item, langsam_integer(0));
@@ -1666,7 +1668,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
   LangsamMap *m1 = self.p;
   LangsamMap *m2 = other.p;
   size_t nitems = m1->nitems + m2->nitems;
-  LV result = langsam_map(vm, nitems);
+  LV result = langsam_map(vm, m1->proto, nitems);
   LV items = langsam_Map_items(vm, self);
   while (!langsam_nilp(items)) {
     LV item = langsam_car(items);
@@ -1709,7 +1711,7 @@ LV langsam_Map_get(LangsamVM *vm, LV self, LV key) {
   if (!langsam_nilp(result)) {
     return result;
   }
-  LV proto = langsam_Map_rawget(vm, self, langsam_opword(vm, "proto"));
+  LV proto = langsam_getproto(vm, self);
   if (!langsam_nilp(proto)) {
     return langsam_get(vm, proto, key);
   }
@@ -1822,7 +1824,7 @@ LV langsam_Map_apply(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_Map_eval(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
-  LV result = langsam_map(vm, m->nitems);
+  LV result = langsam_map(vm, m->proto, m->nitems);
   LV items = langsam_Map_items(vm, self);
   while (!langsam_nilp(items)) {
     LV item = langsam_car(items);
@@ -1922,6 +1924,32 @@ LV langsam_Map_values(LangsamVM *vm, LV self) {
   return result;
 }
 
+LV langsam_getproto(LangsamVM *vm, LV self) {
+  if (self.type != LT_MAP) {
+    return langsam_exceptionf(vm, "getproto",
+                              "values of type `%s` do not have a prototype",
+                              langsam_typename(vm, self.type));
+  }
+  LangsamMap *m = self.p;
+  return m->proto;
+}
+
+LV langsam_setproto(LangsamVM *vm, LV self, LV proto) {
+  if (self.type != LT_MAP) {
+    return langsam_exceptionf(vm, "setproto",
+                              "values of type `%s` do not have a prototype",
+                              langsam_typename(vm, self.type));
+  }
+  if (proto.type != LT_MAP) {
+    return langsam_exceptionf(vm, "setproto",
+                              "prototype must be a Map, got `%s`",
+                              langsam_typename(vm, proto.type));
+  }
+  LangsamMap *m = self.p;
+  m->proto = proto;
+  return proto;
+}
+
 static uint32_t next_power_of_two(uint32_t n) {
   uint32_t p = 1;
   while (p < n) {
@@ -1930,9 +1958,10 @@ static uint32_t next_power_of_two(uint32_t n) {
   return p;
 }
 
-LV langsam_map(LangsamVM *vm, size_t nitems) {
+LV langsam_map(LangsamVM *vm, LV proto, size_t nitems) {
   size_t nbuckets = next_power_of_two(nitems);
   LangsamMap *m = langsam_gcalloc(vm, LT_MAP, sizeof(LangsamMap));
+  m->proto = proto;
   m->buckets = langsam_alloc(vm, sizeof(LV) * nbuckets);
   for (int i = 0; i < nbuckets; i++) {
     m->buckets[i] = langsam_nil;
@@ -2217,7 +2246,7 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
   } else {
     LV body = f->body;
     LV oldlet = vm->curlet;
-    vm->curlet = langsam_sublet(vm, f->funclet, 64);
+    vm->curlet = langsam_map(vm, f->funclet, 64);
     LV bind_result = langsam_bind(vm, vm->curlet, f->params, args);
     if (langsam_exceptionp(bind_result)) {
       vm->curlet = oldlet;
@@ -2388,7 +2417,7 @@ LV langsam_gc(LangsamVM *vm) {
     }
   }
   vm->gcmarkcolor = langsam_gcaltcolor(vm);
-  LV result = langsam_map(vm, 2);
+  LV result = langsam_map(vm, langsam_nil, 2);
   langsam_put(vm, result, langsam_keyword(vm, "marked"),
               langsam_integer(mark_total));
   langsam_put(vm, result, langsam_keyword(vm, "swept"),
@@ -2712,7 +2741,7 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
     return langsam_exceptionf(vm, "syntax", "missing function params");
   }
   LV body = tail;
-  LV desc = langsam_map(vm, 6);
+  LV desc = langsam_map(vm, langsam_nil, 6);
   langsam_put(vm, desc, langsam_keyword(vm, "name"), name);
   langsam_put(vm, desc, langsam_keyword(vm, "params"), params);
   langsam_put(vm, desc, langsam_keyword(vm, "doc"), doc);
@@ -2791,7 +2820,7 @@ static LV process_bindings(LangsamVM *vm, LV bindings) {
 static LV eval_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LV oldlet = vm->curlet;
-  vm->curlet = langsam_sublet(vm, vm->curlet, 64);
+  vm->curlet = langsam_map(vm, vm->curlet, 64);
   LV bind_result = process_bindings(vm, bindings);
   if (langsam_exceptionp(bind_result)) {
     vm->curlet = oldlet;
@@ -2811,6 +2840,39 @@ static LV eval_assert(LangsamVM *vm, LV args) {
                               langsam_cstr(vm, expr));
   }
   return result;
+}
+
+static LV eval_int3(LangsamVM *vm, LV args) {
+  LANGSAM_ARG_OPT(arg, args);
+  raise(SIGTRAP);
+  return langsam_eval(vm, arg);
+}
+
+static LV eval_curlet(LangsamVM *vm, LV args) { return vm->curlet; }
+
+static LV eval_destructure(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(pattern, args);
+  LANGSAM_ARG(value, args);
+  LV bindlet = langsam_map(vm, vm->curlet, 64);
+  if (pattern.type == LT_SYMBOL) {
+    langsam_put(vm, bindlet, pattern, value);
+  } else {
+    return langsam_exceptionf(vm, "destructure",
+                              "cannot bind pattern of type %s",
+                              langsam_typename(vm, pattern.type));
+  }
+  return bindlet;
+}
+
+static LV eval_getproto(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  return langsam_getproto(vm, obj);
+}
+
+static LV eval_setproto(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  LANGSAM_ARG(proto, args);
+  return langsam_setproto(vm, obj, proto);
 }
 
 static LV eval_type(LangsamVM *vm, LV args) {
@@ -2846,11 +2908,10 @@ static LV eval_require(LangsamVM *vm, LV args) {
 static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 
 extern int langsam_l_len;
-extern unsigned char langsam_l_bytes[];
+extern char langsam_l_bytes[];
 
 static LV import_langsam_core(LangsamVM *vm) {
   langsam_debug(vm, "loading core");
-  intern_string(vm, "proto");
   LV env = vm->rootlet;
   langsam_def(vm, env, "true", langsam_true);
   langsam_def(vm, env, "false", langsam_false);
@@ -2889,6 +2950,8 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "eval", eval_eval);
   langsam_defn(vm, env, "repr", eval_repr);
   langsam_defn(vm, env, "str", eval_str);
+  langsam_defn(vm, env, "getproto", eval_getproto);
+  langsam_defn(vm, env, "setproto", eval_setproto);
   langsam_defspecial(vm, env, "quote", eval_quote);
   langsam_defspecial(vm, env, "quasiquote", eval_quasiquote);
   langsam_defspecial(vm, env, "def", eval_def);
@@ -2900,6 +2963,9 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "if", eval_if);
   langsam_defspecial(vm, env, "let", eval_let);
   langsam_defspecial(vm, env, "assert", eval_assert);
+  langsam_defspecial(vm, env, "int3", eval_int3);
+  langsam_defn(vm, env, "curlet", eval_curlet);
+  langsam_defn(vm, env, "destructure", eval_destructure);
   langsam_defn(vm, env, "type", eval_type);
   langsam_defn(vm, env, "cons", eval_cons);
   langsam_defn(vm, env, "car", eval_car);
@@ -2966,7 +3032,7 @@ void langsam_def(LangsamVM *vm, LV env, char *name, LV value) {
 void define_nativefn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn,
                      bool evalargs, bool evalresult) {
   LV namesym = langsam_symbol(vm, name);
-  LV desc = langsam_map(vm, 4);
+  LV desc = langsam_map(vm, langsam_nil, 4);
   langsam_put(vm, desc, langsam_keyword(vm, "name"), namesym);
   langsam_put(vm, desc, langsam_keyword(vm, "body"),
               (LV){
@@ -2987,12 +3053,6 @@ void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn) {
 
 void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn) {
   define_nativefn(vm, env, name, fn, false, false);
-}
-
-LV langsam_sublet(LangsamVM *vm, LV proto, size_t len) {
-  LV sublet = langsam_map(vm, len);
-  langsam_put(vm, sublet, langsam_opword(vm, "proto"), proto);
-  return sublet;
 }
 
 // logging
@@ -3027,17 +3087,17 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   }
   vm->gcobjects = NULL;
   vm->gcmarkcolor = LANGSAM_GC_BLACK;
-  vm->strings = langsam_map(vm, 4096);
+  vm->strings = langsam_map(vm, langsam_nil, 4096);
   vm->roots = langsam_nil;
-  vm->rootlet = langsam_map(vm, 4096);
+  vm->rootlet = langsam_map(vm, langsam_nil, 4096);
   vm->curlet = vm->rootlet;
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
-  LV modules = langsam_map(vm, 64);
+  LV modules = langsam_map(vm, langsam_nil, 64);
   langsam_def(vm, vm->rootlet, "modules", modules);
-  LV mainlet = langsam_sublet(vm, vm->rootlet, 4096);
+  LV mainlet = langsam_map(vm, vm->rootlet, 4096);
   vm->curlet = mainlet;
   return langsam_nil;
 }
@@ -3498,7 +3558,7 @@ static LV Reader_read_map(Reader *r) {
         return langsam_exceptionf(r->vm, "read",
                                   "map literal with odd number of elements");
       }
-      LV map = langsam_map(r->vm, len / 2);
+      LV map = langsam_map(r->vm, langsam_nil, len / 2);
       for (LV list = items; !langsam_nilp(list);) {
         LV v = langsam_car(list);
         list = langsam_cdr(list);
