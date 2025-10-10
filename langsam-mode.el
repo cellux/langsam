@@ -23,7 +23,8 @@
 
 ;;;; User options --------------------------------------------------------------
 
-(defcustom langsam-repl-executable "langsam"
+(defcustom langsam-repl-executable
+  (if (file-executable-p "./langsam" ) "./langsam" "langsam")
   "Executable used to start the Langsam REPL."
   :type 'string :group 'langsam)
 
@@ -126,30 +127,106 @@
 
 (defvar langsam-repl-buffer "*Langsam REPL*")
 
+(defcustom langsam-repl-prompt-regexp "^@L\\(:[^>\n]+\\)?> *"
+  "Regexp that matches the Langsam REPL prompt."
+  :type 'regexp :group 'langsam)
+
 (define-derived-mode langsam-repl-mode comint-mode "Langsam-REPL"
-  "Mode for interacting with a Langsam REPL.")
+  "Mode for interacting with a Langsam REPL."
+  (setq-local comint-prompt-regexp langsam-repl-prompt-regexp)
+  (setq-local comint-use-prompt-regexp t)
+  (setq-local comint-prompt-read-only t)
+  (when (fboundp 'ansi-color-for-comint-mode-on)
+    (ansi-color-for-comint-mode-on)))
+
+(defun langsam--repl-process ()
+  "Return the Langsam REPL process or signal a user error."
+  (or (get-buffer-process langsam-repl-buffer)
+      (user-error "No Langsam REPL process found")))
 
 (defun langsam-repl ()
   "Start or switch to the Langsam REPL."
   (interactive)
-  (unless (comint-check-proc langsam-repl-buffer)
-    (apply #'make-comint-in-buffer "Langsam" langsam-repl-buffer
+  (unless (get-buffer-process langsam-repl-buffer)
+    (apply #'make-comint-in-buffer "langsam" langsam-repl-buffer
            langsam-repl-executable nil nil))
-  (pop-to-buffer-same-window langsam-repl-buffer)
+  (pop-to-buffer langsam-repl-buffer)
   (langsam-repl-mode))
+
+(defun langsam--skip-trivia-backward ()
+  "Move point backward over trailing whitespace/comments."
+  (skip-chars-backward " \t\n\r")
+  ;; If point is inside a comment or string, jump to its start and keep going.
+  (let (moved)
+    (while
+        (let* ((ppss (syntax-ppss))
+               (in-str (nth 3 ppss))
+               (in-com (nth 4 ppss)))
+          (cond
+           (in-str  (goto-char (nth 8 ppss)) (setq moved t))
+           (in-com  (goto-char (nth 8 ppss)) (setq moved t))
+           (t nil)))
+      (skip-chars-backward " \t\n\r"))
+    moved))
+
+;;;; ---- langsam-eval-capture.el ----
+
+(defun langsam--send-and-capture (code)
+  "Send CODE to Langsam REPL and capture output until the next prompt.
+Returns the response as a string."
+  (with-temp-buffer
+    (let* ((redir (current-buffer))
+           (proc (langsam--repl-process)))
+      (comint-redirect-send-command-to-process code redir proc t t)
+      ;; Wait until comint signals completion.
+      (with-current-buffer (process-buffer proc)
+        (let ((inhibit-redisplay t))
+          (while (null comint-redirect-completed)
+            (accept-process-output proc 0.05))))
+      ;; Grab the text and clean it up.
+      (goto-char (point-min))
+      (string-trim (buffer-substring-no-properties (point-min) (point-max))))))
+
+(defun langsam--bounds-of-last-sexp ()
+  "Return (BEG . END) of the last complete sexp before point, or nil."
+  (save-excursion
+    (langsam--skip-trivia-backward)
+    (let* ((end (point))
+           (beg (ignore-errors (scan-sexps end -1))))
+      (when beg (cons beg end)))))
+
+(defun langsam-send-last-sexp-and-show ()
+  "Send last sexp, capture its output, and show it.
+Displays a one-line preview in the minibuffer and an overlay at point."
+  (interactive)
+  (let* ((bounds (or (langsam--bounds-of-last-sexp)
+                     (user-error "No complete sexp found before point")))
+         (code (buffer-substring-no-properties (car bounds) (cdr bounds)))
+         ;; Append newline to actually trigger eval in most REPLs:
+         (resp (langsam--send-and-capture (concat code "\n"))))
+    (message "%s" resp)
+    ;; Optional: inline overlay result after the sexp
+    (let* ((ov (make-overlay (cdr bounds) (cdr bounds)))
+           (text (concat " ⇒ " resp)))
+      (overlay-put ov 'after-string (propertize text 'face 'shadow))
+      (redisplay)
+      (let ((evt (read-event)))
+        (when (overlayp ov) (delete-overlay ov))
+        (push evt unread-command-events)))))
 
 (defun langsam-send-region (beg end)
   "Send region between BEG and END to REPL."
   (interactive "r")
-  (langsam-repl)
-  (comint-send-region langsam-repl-buffer beg end)
-  (comint-send-string langsam-repl-buffer "\n"))
+  (let ((proc (langsam--repl-process)))
+    (comint-send-region proc beg end)
+    (comint-send-string proc "\n")))
 
 (defun langsam-send-defun ()
   "Send top-level form to REPL."
   (interactive)
-  (save-excursion
-    (mark-defun)
+  (save-mark-and-excursion
+    (let ((inhibit-message t))
+      (mark-defun))
     (langsam-send-region (region-beginning) (region-end))))
 
 ;;;; Mode definition -----------------------------------------------------------
@@ -159,6 +236,7 @@
     (define-key m (kbd "C-c C-z") #'langsam-repl)
     (define-key m (kbd "C-c C-c") #'langsam-send-defun)
     (define-key m (kbd "C-c C-r") #'langsam-send-region)
+    (define-key m (kbd "C-x C-e") #'langsam-send-last-sexp-and-show)
     m))
 
 (defvar langsam-indent-specs

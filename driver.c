@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "langsam.h"
 
@@ -14,6 +15,10 @@ int main(int argc, char **argv) {
     langsam_close(&vm);
     return 1;
   }
+  const char *debug = getenv("DEBUG");
+  if (debug && *debug) {
+    langsam_loglevel(&vm, LANGSAM_DEBUG);
+  }
   if (argc > 1) {
     for (int i = 1; i < argc; i++) {
       LV result = langsam_loadfile(&vm, argv[i]);
@@ -25,6 +30,7 @@ int main(int argc, char **argv) {
       }
     }
   } else {
+    langsam_enable_repl_mode(&vm);
     LV result = langsam_loadfd(&vm, 0);
     if (langsam_exceptionp(result)) {
       char *error_message = langsam_cstr(&vm, result);

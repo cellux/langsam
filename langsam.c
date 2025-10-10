@@ -209,8 +209,8 @@ LV langsam_eval(LangsamVM *vm, LV self) {
   vm->roots = langsam_cons(vm, self, vm->roots);
   LangsamType t = self.type;
   LV result = t->eval ? t->eval(vm, self) : self;
-  fprintf(stderr, "EVAL: %s -> %s\n", langsam_cstr(vm, self),
-          langsam_cstr(vm, result));
+  langsam_debug(vm, "EVAL: %s -> %s", langsam_cstr(vm, self),
+                langsam_cstr(vm, result));
   vm->roots = langsam_cdr(vm->roots);
   return result;
 }
@@ -2731,7 +2731,8 @@ static LV eval_defn(LangsamVM *vm, LV args) {
   if (langsam_nilp(name)) {
     return langsam_exceptionf(vm, "syntax", "missing function name");
   }
-  return langsam_put(vm, vm->curlet, name, function);
+  langsam_put(vm, vm->curlet, name, function);
+  return function;
 }
 
 static LV eval_fn(LangsamVM *vm, LV args) {
@@ -2745,7 +2746,8 @@ static LV eval_defmacro(LangsamVM *vm, LV args) {
   if (langsam_nilp(name)) {
     return langsam_exceptionf(vm, "syntax", "missing macro name");
   }
-  return langsam_put(vm, vm->curlet, name, macro);
+  langsam_put(vm, vm->curlet, name, macro);
+  return macro;
 }
 
 static LV eval_macro(LangsamVM *vm, LV args) {
@@ -2847,7 +2849,7 @@ extern int langsam_l_len;
 extern char langsam_l_bytes[];
 
 static LV import_langsam_core(LangsamVM *vm) {
-  fprintf(stderr, "loading core\n");
+  langsam_debug(vm, "loading core");
   intern_string(vm, "proto");
   LV env = vm->rootlet;
   langsam_def(vm, env, "true", langsam_true);
@@ -2993,6 +2995,27 @@ LV langsam_sublet(LangsamVM *vm, LV proto, size_t len) {
   return sublet;
 }
 
+// logging
+
+void langsam_loglevel(LangsamVM *vm, LangsamLogLevel level) {
+  vm->loglevel = level;
+}
+
+void langsam_log(LangsamVM *vm, LangsamLogLevel level, const char *fmt, ...) {
+  if (vm->loglevel < level) {
+    return;
+  }
+  va_list args;
+  va_start(args, fmt);
+  char *result;
+  int len = vasprintf(&result, fmt, args);
+  if (len >= 0) {
+    fprintf(stderr, "%s\n", result);
+    free(result);
+  }
+  va_end(args);
+}
+
 // VM
 
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
@@ -3008,6 +3031,8 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->roots = langsam_nil;
   vm->rootlet = langsam_map(vm, 4096);
   vm->curlet = vm->rootlet;
+  vm->repl = false;
+  vm->loglevel = LANGSAM_INFO;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
   LV modules = langsam_map(vm, 64);
@@ -3016,6 +3041,8 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->curlet = mainlet;
   return langsam_nil;
 }
+
+void langsam_enable_repl_mode(LangsamVM *vm) { vm->repl = true; }
 
 typedef struct {
   LangsamVM *vm;
@@ -3586,14 +3613,21 @@ static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
   Reader_init(&r, vm, readbyte, readbyte_data);
   LV result = langsam_nil;
   while (1) {
+    if (vm->repl) {
+      fprintf(stdout, "@L> ");
+      fflush(stdout);
+    }
     LV form = Reader_read(&r);
     LANGSAM_CHECK(form);
     if (langsam_nilp(form)) {
       break;
     }
-    fprintf(stderr, "> %s\n", langsam_cstr(vm, form));
+    langsam_debug(vm, "> %s", langsam_cstr(vm, form));
     result = langsam_eval(vm, form);
     LANGSAM_CHECK(result);
+    if (vm->repl) {
+      fprintf(stdout, "%s\n", langsam_cstr(vm, result));
+    }
   }
   return result;
 }
@@ -3616,7 +3650,7 @@ LV langsam_loadfd(LangsamVM *vm, int fd) {
 }
 
 LV langsam_loadfile(LangsamVM *vm, const char *path) {
-  fprintf(stderr, "loading %s\n", path);
+  langsam_debug(vm, "loading %s", path);
   int fd = open(path, O_RDONLY);
   if (fd == -1) {
     return langsam_exceptionf(vm, "io", "cannot open %s: %s", path,

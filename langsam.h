@@ -453,6 +453,40 @@ void *langsam_gcalloc(LangsamVM *vm, LangsamType type, size_t size);
 size_t langsam_mark(LangsamVM *vm, LV self);
 LV langsam_gc(LangsamVM *vm);
 
+// logger
+
+typedef enum {
+  LANGSAM_EMERGENCY = 0,
+  LANGSAM_ALERT = 1,
+  LANGSAM_CRITICAL = 2,
+  LANGSAM_ERROR = 3,
+  LANGSAM_WARNING = 4,
+  LANGSAM_NOTICE = 5,
+  LANGSAM_INFO = 6,
+  LANGSAM_DEBUG = 7,
+} LangsamLogLevel;
+
+void langsam_loglevel(LangsamVM *vm, LangsamLogLevel level);
+
+void langsam_log(LangsamVM *vm, LangsamLogLevel level, const char *fmt, ...);
+
+#define langsam_emergency(vm, fmt, ...)                                        \
+  langsam_log(vm, LANGSAM_EMERGENCY, fmt, ##__VA_ARGS__)
+#define langsam_alert(vm, fmt, ...)                                            \
+  langsam_log(vm, LANGSAM_ALERT, fmt, ##__VA_ARGS__)
+#define langsam_critical(vm, fmt, ...)                                         \
+  langsam_log(vm, LANGSAM_CRITICAL, fmt, ##__VA_ARGS__)
+#define langsam_error(vm, fmt, ...)                                            \
+  langsam_log(vm, LANGSAM_ERROR, fmt, ##__VA_ARGS__)
+#define langsam_warning(vm, fmt, ...)                                          \
+  langsam_log(vm, LANGSAM_WARNING, fmt, ##__VA_ARGS__)
+#define langsam_notice(vm, fmt, ...)                                           \
+  langsam_log(vm, LANGSAM_NOTICE, fmt, ##__VA_ARGS__)
+#define langsam_info(vm, fmt, ...)                                             \
+  langsam_log(vm, LANGSAM_INFO, fmt, ##__VA_ARGS__)
+#define langsam_debug(vm, fmt, ...)                                            \
+  langsam_log(vm, LANGSAM_DEBUG, fmt, ##__VA_ARGS__)
+
 // VM
 
 typedef struct {
@@ -467,6 +501,8 @@ struct LangsamVM {
   LangsamGCColor gcmarkcolor;
   LV rootlet;
   LV curlet;
+  bool repl;
+  int loglevel;
 };
 
 typedef LV (*LangsamImportFn)(LangsamVM *vm);
@@ -474,6 +510,7 @@ typedef LV (*LangsamImportFn)(LangsamVM *vm);
 void langsam_register_module(const char *name, LangsamImportFn import);
 
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts);
+void langsam_enable_repl_mode(LangsamVM *vm);
 void langsam_close(LangsamVM *vm);
 
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value);
