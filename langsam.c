@@ -3125,6 +3125,34 @@ static void Reader_unreadbyte(Reader *r, uint8_t c) {
 
 static bool is_whitespace(uint8_t c) { return c <= 0x20; }
 
+static LV Reader_readbyte_skipws(Reader *r) {
+  uint8_t c;
+  LV result;
+start:
+  result = Reader_readbyte(r);
+  if (result.type == LT_INTEGER) {
+    c = result.i;
+  } else {
+    return result;
+  }
+  if (is_whitespace(c)) {
+    goto start;
+  } else if (c == ';') {
+    while (1) {
+      LV result = Reader_readbyte(r);
+      if (result.type == LT_INTEGER) {
+        if (result.i == '\n') {
+          goto start;
+        }
+      } else {
+        return result;
+      }
+    }
+  } else {
+    return result;
+  }
+}
+
 static bool is_symbol_char(uint8_t c) {
   if (is_whitespace(c)) {
     return false;
@@ -3389,16 +3417,13 @@ static LV Reader_read_cons(Reader *r) {
   LV value = langsam_nil;
   int len = 0;
   while (1) {
-    LV result = Reader_readbyte(r);
+    LV result = Reader_readbyte_skipws(r);
     if (langsam_exceptionp(result)) {
       return result;
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete list");
     }
     uint8_t c = result.i;
-    if (is_whitespace(c)) {
-      continue;
-    }
     if (c == ')') {
       if (len >= 3) {
         LV second = langsam_car(langsam_cdr(value));
@@ -3428,16 +3453,13 @@ static LV Reader_read_vector(Reader *r) {
   LV items = langsam_nil;
   int len = 0;
   while (1) {
-    LV result = Reader_readbyte(r);
+    LV result = Reader_readbyte_skipws(r);
     if (langsam_exceptionp(result)) {
       return result;
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete vector");
     }
     uint8_t c = result.i;
-    if (is_whitespace(c)) {
-      continue;
-    }
     if (c == ']') {
       LV vec = langsam_vector(r->vm, len);
       LV index = langsam_integer(len - 1);
@@ -3464,16 +3486,13 @@ static LV Reader_read_map(Reader *r) {
   LV items = langsam_nil;
   int len = 0;
   while (1) {
-    LV result = Reader_readbyte(r);
+    LV result = Reader_readbyte_skipws(r);
     if (langsam_exceptionp(result)) {
       return result;
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete map");
     }
     uint8_t c = result.i;
-    if (is_whitespace(c)) {
-      continue;
-    }
     if (c == '}') {
       if (len % 2 != 0) {
         return langsam_exceptionf(r->vm, "read",
@@ -3503,29 +3522,12 @@ static LV Reader_read_map(Reader *r) {
 }
 
 static LV Reader_read(Reader *r) {
-  uint8_t c;
-  LV result;
-start:
-  result = Reader_readbyte(r);
-  if (result.type == LT_INTEGER) {
-    c = result.i;
-  } else {
+  LV result = Reader_readbyte_skipws(r);
+  if (result.type != LT_INTEGER) {
     return result;
   }
-  if (is_whitespace(c)) {
-    goto start;
-  } else if (c == ';') {
-    while (1) {
-      LV result = Reader_readbyte(r);
-      if (result.type == LT_INTEGER) {
-        if (result.i == '\n') {
-          goto start;
-        }
-      } else {
-        return result;
-      }
-    }
-  } else if (c == '-') {
+  uint8_t c = result.i;
+  if (c == '-') {
     LV first = Reader_readbyte(r);
     if (first.type == LT_INTEGER && first.i >= '0' && first.i <= '9') {
       LV result = Reader_read_number(r, first.i);
