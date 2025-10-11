@@ -2121,6 +2121,11 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
     }
   }
   f->params = langsam_get(vm, other, langsam_keyword(vm, "params"));
+  if (f->params.type != LT_VECTOR && f->params.type != LT_NIL) {
+    return langsam_exceptionf(
+        vm, "syntax", "Function parameters should be Vector or Nil, got %s",
+        langsam_typename(vm, f->params.type));
+  }
   f->doc = langsam_get(vm, other, langsam_keyword(vm, "doc"));
   f->funclet = vm->curlet;
   f->body = langsam_get(vm, other, langsam_keyword(vm, "body"));
@@ -2230,73 +2235,6 @@ static LV langsam_destructure(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   return env;
 }
 
-static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
-  if (lhs.type == LT_SYMBOL) {
-    LV result = langsam_put(vm, env, lhs, rhs);
-    LANGSAM_CHECK(result);
-  } else if (lhs.type == LT_VECTOR) {
-    LV it_lhs = langsam_iter(vm, lhs);
-    LANGSAM_CHECK(it_lhs);
-    LV it_rhs = langsam_iter(vm, rhs);
-    LANGSAM_CHECK(it_rhs);
-    LV amp_symbol = langsam_symbol(vm, "&");
-    bool seen_amp = false;
-    while (langsam_truthy(vm, it_lhs)) {
-      LV name = langsam_deref(vm, it_lhs);
-      if (!seen_amp && LVEQ(name, amp_symbol)) {
-        seen_amp = true;
-      } else if (seen_amp) {
-        LV rest = collect_rest(vm, it_rhs);
-        LANGSAM_CHECK(rest);
-        LV result = langsam_bind(vm, env, name, rest);
-        LANGSAM_CHECK(result);
-        break;
-      } else {
-        LV value = langsam_nil;
-        if (langsam_truthy(vm, it_rhs)) {
-          value = langsam_deref(vm, it_rhs);
-          it_rhs = langsam_next(vm, it_rhs);
-        }
-        LV result = langsam_bind(vm, env, name, value);
-        LANGSAM_CHECK(result);
-      }
-      it_lhs = langsam_next(vm, it_lhs);
-    }
-  } else if (lhs.type == LT_CONS) {
-    LV l = lhs;
-    LV it_rhs = langsam_iter(vm, rhs);
-    LANGSAM_CHECK(it_rhs);
-    while (langsam_consp(l)) {
-      LV name = langsam_car(l);
-      LANGSAM_CHECK(name);
-      LV value = langsam_nil;
-      if (langsam_truthy(vm, it_rhs)) {
-        value = langsam_deref(vm, it_rhs);
-        it_rhs = langsam_next(vm, it_rhs);
-      }
-      LV result = langsam_bind(vm, env, name, value);
-      LANGSAM_CHECK(result);
-      l = langsam_cdr(l);
-    }
-    if (l.type == LT_SYMBOL) {
-      LV name = l;
-      LV rest = collect_rest(vm, it_rhs);
-      LANGSAM_CHECK(rest);
-      LV result = langsam_bind(vm, env, name, rest);
-      LANGSAM_CHECK(result);
-    } else {
-      return langsam_exceptionf(vm, "bind",
-                                "expected Symbol at cons tail, got %s",
-                                langsam_typename(vm, l.type));
-    }
-  } else {
-    return langsam_exceptionf(
-        vm, "bind", "expected Symbol, Vector or Cons at left-hand side, got %s",
-        langsam_typename(vm, lhs.type));
-  }
-  return env;
-}
-
 LV langsam_quote(LangsamVM *vm, LV arg) {
   LV quote = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "quote"));
   LV result = langsam_nil;
@@ -2363,10 +2301,11 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
     LV body = f->body;
     LV oldlet = vm->curlet;
     vm->curlet = langsam_map(vm, f->funclet, 64);
-    LV bind_result = langsam_bind(vm, vm->curlet, f->params, args);
-    if (langsam_exceptionp(bind_result)) {
+    LV destructure_result =
+        langsam_destructure(vm, vm->curlet, f->params, args);
+    if (langsam_exceptionp(destructure_result)) {
       vm->curlet = oldlet;
-      return bind_result;
+      return destructure_result;
     }
     result = langsam_do(vm, body);
     if (langsam_exceptionp(result)) {
@@ -2812,8 +2751,8 @@ static LV eval_def(LangsamVM *vm, LV args) {
   LANGSAM_ARG(rhs, args);
   rhs = langsam_eval(vm, rhs);
   LANGSAM_CHECK(rhs);
-  LV bind_result = langsam_bind(vm, vm->curlet, lhs, rhs);
-  LANGSAM_CHECK(bind_result);
+  LV destructure_result = langsam_destructure(vm, vm->curlet, lhs, rhs);
+  LANGSAM_CHECK(destructure_result);
   return lhs;
 }
 
@@ -2921,8 +2860,8 @@ static LV process_bindings(LangsamVM *vm, LV bindings) {
     v = langsam_eval(vm, v);
     LANGSAM_CHECK(v);
     it = langsam_next(vm, it);
-    LV result = langsam_bind(vm, vm->curlet, k, v);
-    LANGSAM_CHECK(result);
+    LV destructure_result = langsam_destructure(vm, vm->curlet, k, v);
+    LANGSAM_CHECK(destructure_result);
   }
   return langsam_nil;
 }
