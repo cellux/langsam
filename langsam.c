@@ -1747,7 +1747,7 @@ LV langsam_Map_get(LangsamVM *vm, LV self, LV key) {
   if (!langsam_nilp(result)) {
     return result;
   }
-  LV proto = langsam_getproto(vm, self);
+  LV proto = langsam_Map_getproto(vm, self);
   if (!langsam_nilp(proto)) {
     return langsam_get(vm, proto, key);
   }
@@ -1961,7 +1961,7 @@ LV langsam_Map_values(LangsamVM *vm, LV self) {
   return result;
 }
 
-LV langsam_getproto(LangsamVM *vm, LV self) {
+LV langsam_Map_getproto(LangsamVM *vm, LV self) {
   if (self.type != LT_MAP) {
     return langsam_exceptionf(vm, "getproto",
                               "values of type `%s` do not have a prototype",
@@ -1971,7 +1971,7 @@ LV langsam_getproto(LangsamVM *vm, LV self) {
   return m->proto;
 }
 
-LV langsam_setproto(LangsamVM *vm, LV self, LV proto) {
+LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
   if (self.type != LT_MAP) {
     return langsam_exceptionf(vm, "setproto",
                               "values of type `%s` do not have a prototype",
@@ -2969,13 +2969,16 @@ static LV eval_destructure(LangsamVM *vm, LV args) {
 
 static LV eval_getproto(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
-  return langsam_getproto(vm, obj);
+  LANGSAM_ARG_TYPE(obj, LT_MAP);
+  return langsam_Map_getproto(vm, obj);
 }
 
 static LV eval_setproto(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
+  LANGSAM_ARG_TYPE(obj, LT_MAP);
   LANGSAM_ARG(proto, args);
-  return langsam_setproto(vm, obj, proto);
+  LANGSAM_ARG_TYPE(proto, LT_MAP);
+  return langsam_Map_setproto(vm, obj, proto);
 }
 
 static LV eval_type(LangsamVM *vm, LV args) {

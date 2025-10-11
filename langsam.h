@@ -395,8 +395,8 @@ LV langsam_Map_items(LangsamVM *vm, LV self);
 LV langsam_Map_keys(LangsamVM *vm, LV self);
 LV langsam_Map_values(LangsamVM *vm, LV self);
 
-LV langsam_getproto(LangsamVM *vm, LV self);
-LV langsam_setproto(LangsamVM *vm, LV self, LV proto);
+LV langsam_Map_getproto(LangsamVM *vm, LV self);
+LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto);
 
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems);
 
