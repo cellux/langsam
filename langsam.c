@@ -2244,13 +2244,19 @@ LV langsam_quote(LangsamVM *vm, LV arg) {
 }
 
 LV langsam_do(LangsamVM *vm, LV forms) {
+  LV oldlet = vm->curlet;
+  vm->curlet = langsam_map(vm, vm->curlet, 64);
   LV result = langsam_nil;
   while (langsam_consp(forms)) {
     LV form = langsam_car(forms);
     result = langsam_eval(vm, form);
-    LANGSAM_CHECK(result);
+    if (langsam_exceptionp(result)) {
+      vm->curlet = oldlet;
+      return result;
+    }
     forms = langsam_cdr(forms);
   }
+  vm->curlet = oldlet;
   return result;
 }
 
