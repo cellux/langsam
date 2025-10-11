@@ -23,8 +23,7 @@
 
 ;;;; User options --------------------------------------------------------------
 
-(defcustom langsam-repl-executable
-  (if (file-executable-p "./langsam" ) "./langsam" "langsam")
+(defcustom langsam-repl-executable "langsam"
   "Executable used to start the Langsam REPL."
   :type 'string :group 'langsam)
 
