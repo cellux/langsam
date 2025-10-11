@@ -74,7 +74,6 @@ static LV os_open(LangsamVM *vm, LV args) {
   if (fd < 0) {
     return langsam_exceptionf(vm, "open", "%s", strerror(errno));
   }
-  fprintf(stderr, "open: fd=%d\n", fd);
   return os_File_cast(vm, langsam_integer(fd));
 }
 
@@ -85,8 +84,8 @@ static LV os_read(LangsamVM *vm, LV args) {
   LANGSAM_ARG(size, args);
   LANGSAM_ARG_TYPE(size, LT_INTEGER);
   char *buf = langsam_alloc(vm, size.i + 1);
-  size_t remaining = size.i;
-  size_t index = 0;
+  LangsamSize remaining = size.i;
+  LangsamIndex index = 0;
   while (remaining > 0) {
     ssize_t bytes_read = read(f->fd.i, buf + index, remaining);
     if (bytes_read == 0) {
@@ -107,12 +106,11 @@ static LV os_write(LangsamVM *vm, LV args) {
   LANGSAM_ARG(file, args);
   LANGSAM_ARG_TYPE(file, &os_File_T);
   os_File *f = (os_File *)file.p;
-  fprintf(stderr, "write: fd=%zd\n", f->fd.i);
   LANGSAM_ARG(buf, args);
   LANGSAM_ARG_TYPE(buf, LT_STRING);
   LangsamString *ls = (LangsamString *)buf.p;
-  size_t remaining = ls->len;
-  size_t index = 0;
+  LangsamSize remaining = ls->len;
+  LangsamIndex index = 0;
   while (remaining > 0) {
     ssize_t bytes_written = write(f->fd.i, ls->p + index, remaining);
     if (bytes_written < 0) {

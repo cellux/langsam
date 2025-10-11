@@ -2,26 +2,40 @@
 #define LANGSAM_H
 
 #include <assert.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct LangsamVM LangsamVM;
 
-typedef bool LangsamBoolean;
-typedef intptr_t LangsamInteger;
+#if SSIZE_MAX == INTPTR_MAX
+typedef ssize_t LangsamSize;
+#elif LLONG_MAX == INTPTR_MAX
+typedef long long LangsamSize;
+#elif LONG_MAX == INTPTR_MAX
+typedef long LangsamSize;
+#elif INT_MAX == INTPTR_MAX
+typedef int LangsamSize;
+#else
+#error "Cannot find a suitable type for LangsamSize"
+#endif
+
+typedef LangsamSize LangsamIndex;
+
+typedef LangsamSize LangsamBoolean;
+typedef LangsamSize LangsamInteger;
+
+#if UINTPTR_MAX == 0xffffffffu
+typedef float LangsamFloat;
+#elif UINTPTR_MAX == 0xffffffffffffffffull
 typedef double LangsamFloat;
-
-static_assert(sizeof(void *) >= sizeof(LangsamBoolean),
-              "ERROR: sizeof(void*) < sizeof(LangsamBoolean)");
-
-static_assert(sizeof(void *) >= sizeof(LangsamInteger),
-              "ERROR: sizeof(void*) < sizeof(LangsamInteger)");
-
-static_assert(sizeof(void *) >= sizeof(LangsamFloat),
-              "ERROR: sizeof(void*) < sizeof(LangsamFloat)");
+#else
+#error "Cannot find a suitable type for LangsamFloat"
+#endif
 
 typedef struct LangsamValue LangsamValue;
 
@@ -30,8 +44,8 @@ typedef struct LangsamValue LangsamValue;
 struct LangsamT {
   char *name;
   bool gcmanaged;
-  size_t (*gcmark)(LangsamVM *vm, void *p);
-  size_t (*gcfree)(LangsamVM *vm, void *p);
+  LangsamSize (*gcmark)(LangsamVM *vm, void *p);
+  LangsamSize (*gcfree)(LangsamVM *vm, void *p);
   bool (*truthy)(LangsamVM *vm, LV self);
   uint64_t (*hash)(LangsamVM *vm, LV self, uint64_t prevhash);
   LV (*cast)(LangsamVM *vm, LV other);
@@ -115,7 +129,7 @@ typedef struct {
 
 typedef struct {
   char *p;
-  size_t len;
+  LangsamSize len;
 } LangsamString;
 
 typedef struct {
@@ -129,20 +143,20 @@ typedef struct {
 
 typedef struct {
   LV *items;
-  size_t len;
+  LangsamSize len;
 } LangsamVector;
 
 typedef struct {
   LV v;
-  size_t i;
+  LangsamIndex i;
 } LangsamVectorIterator;
 
 typedef struct {
   LV proto;
   LV *buckets;
-  size_t nbuckets;
-  size_t nitems;
-  float load_factor;
+  LangsamSize nbuckets;
+  LangsamSize nitems;
+  LangsamFloat load_factor;
 } LangsamMap;
 
 typedef struct {
@@ -168,7 +182,7 @@ static uint64_t hash_ptr(uint64_t hash, void *p);
 static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b);
 static uint64_t hash_integer(uint64_t hash, LangsamInteger i);
 static uint64_t hash_float(uint64_t hash, LangsamFloat f);
-static uint64_t hash_string(uint64_t hash, char *s, size_t len);
+static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len);
 
 // Type
 
@@ -192,7 +206,7 @@ bool langsam_nilp(LV v);
 
 // Exception
 
-size_t langsam_Exception_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Exception_gcmark(LangsamVM *vm, void *p);
 uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Exception_cast(LangsamVM *vm, LV other);
 LV langsam_Exception_deref(LangsamVM *vm, LV self);
@@ -257,8 +271,8 @@ LV langsam_float(LangsamFloat f);
 
 // String
 
-size_t langsam_String_gcmark(LangsamVM *vm, void *p);
-size_t langsam_String_gcfree(LangsamVM *vm, void *p);
+LangsamSize langsam_String_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_String_gcfree(LangsamVM *vm, void *p);
 bool langsam_String_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_String_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_String_cast(LangsamVM *vm, LV other);
@@ -270,13 +284,13 @@ LV langsam_String_repr(LangsamVM *vm, LV self);
 LV langsam_String_str(LangsamVM *vm, LV self);
 
 LV langsam_string(LangsamVM *vm, const char *s);
-LV langsam_stringn(LangsamVM *vm, const char *s, size_t len);
+LV langsam_stringn(LangsamVM *vm, const char *s, LangsamSize len);
 
 LV langsam_string_wrap(LangsamVM *vm, char *s);
-LV langsam_stringn_wrap(LangsamVM *vm, char *s, size_t len);
+LV langsam_stringn_wrap(LangsamVM *vm, char *s, LangsamSize len);
 
 LV langsam_istring(LangsamVM *vm, char *s);
-LV langsam_istringn(LangsamVM *vm, char *s, size_t len);
+LV langsam_istringn(LangsamVM *vm, char *s, LangsamSize len);
 
 LV langsam_vformat(LangsamVM *vm, const char *fmt, va_list args);
 LV langsam_format(LangsamVM *vm, const char *fmt, ...);
@@ -288,7 +302,7 @@ LV langsam_Symbol_eval(LangsamVM *vm, LV self);
 LV langsam_Symbol_repr(LangsamVM *vm, LV self);
 
 LV langsam_symbol(LangsamVM *vm, char *name);
-LV langsam_symboln(LangsamVM *vm, char *name, size_t len);
+LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len);
 
 // Keyword
 
@@ -306,7 +320,7 @@ LV langsam_opword(LangsamVM *vm, char *name);
 
 // Cons
 
-size_t langsam_Cons_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p);
 bool langsam_Cons_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Cons_cast(LangsamVM *vm, LV other);
@@ -331,15 +345,15 @@ LV langsam_setcdr(LV cons, LV value);
 LV langsam_nreverse(LV cons);
 LV langsam_nreverse_with_last(LV cons, LV last);
 
-size_t langsam_ConsIterator_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p);
 bool Langsam_ConsIterator_truthy(LangsamVM *vm, LV self);
 LV Langsam_ConsIterator_deref(LangsamVM *vm, LV self);
 LV Langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Vector
 
-size_t langsam_Vector_gcmark(LangsamVM *vm, void *p);
-size_t langsam_Vector_gcfree(LangsamVM *vm, void *p);
+LangsamSize langsam_Vector_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Vector_gcfree(LangsamVM *vm, void *p);
 bool langsam_Vector_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_Vector_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Vector_cast(LangsamVM *vm, LV other);
@@ -353,18 +367,18 @@ LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Vector_eval(LangsamVM *vm, LV self);
 LV langsam_Vector_repr(LangsamVM *vm, LV self);
 
-LV langsam_vector0(LangsamVM *vm, size_t len);
-LV langsam_vector(LangsamVM *vm, size_t len);
+LV langsam_vector0(LangsamVM *vm, LangsamSize len);
+LV langsam_vector(LangsamVM *vm, LangsamSize len);
 
-size_t langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
 bool Langsam_VectorIterator_truthy(LangsamVM *vm, LV self);
 LV Langsam_VectorIterator_deref(LangsamVM *vm, LV self);
 LV Langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Map
 
-size_t langsam_Map_gcmark(LangsamVM *vm, void *p);
-size_t langsam_Map_gcfree(LangsamVM *vm, void *p);
+LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p);
 bool langsam_Map_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Map_cast(LangsamVM *vm, LV other);
@@ -386,16 +400,16 @@ LV langsam_Map_values(LangsamVM *vm, LV self);
 LV langsam_getproto(LangsamVM *vm, LV self);
 LV langsam_setproto(LangsamVM *vm, LV self, LV proto);
 
-LV langsam_map(LangsamVM *vm, LV proto, size_t len);
+LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems);
 
-size_t langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
 bool Langsam_MapIterator_truthy(LangsamVM *vm, LV self);
 LV Langsam_MapIterator_deref(LangsamVM *vm, LV self);
 LV Langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Function
 
-size_t langsam_Function_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p);
 uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Function_cast(LangsamVM *vm, LV other);
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key);
@@ -435,12 +449,12 @@ LV langsam_next(LangsamVM *vm, LV it);
 
 typedef struct {
   void *self;
-  void *(*realloc)(void *self, void *ptr, size_t size);
+  void *(*realloc)(void *self, void *ptr, LangsamSize size);
 } LangsamAllocator;
 
-void *langsam_alloc(LangsamVM *vm, size_t size);
-void *langsam_calloc(LangsamVM *vm, size_t size);
-void *langsam_realloc(LangsamVM *vm, void *ptr, size_t size);
+void *langsam_alloc(LangsamVM *vm, LangsamSize size);
+void *langsam_calloc(LangsamVM *vm, LangsamSize size);
+void *langsam_realloc(LangsamVM *vm, void *ptr, LangsamSize size);
 void langsam_free(LangsamVM *vm, void *ptr);
 
 // GC
@@ -451,14 +465,14 @@ typedef enum {
 } LangsamGCColor;
 
 typedef struct {
-  size_t size;
+  LangsamSize size;
   LangsamType type;
   LangsamGCColor gccolor;
   void *next;
 } LangsamGCHeader;
 
-void *langsam_gcalloc(LangsamVM *vm, LangsamType type, size_t size);
-size_t langsam_mark(LangsamVM *vm, LV self);
+void *langsam_gcalloc(LangsamVM *vm, LangsamType type, LangsamSize size);
+LangsamSize langsam_mark(LangsamVM *vm, LV self);
 LV langsam_gc(LangsamVM *vm);
 
 // logger
@@ -538,6 +552,6 @@ LV langsam_loadfile(LangsamVM *vm, const char *path);
 LV langsam_loadfd(LangsamVM *vm, int fd);
 
 LV langsam_loadstring(LangsamVM *vm, char *s);
-LV langsam_loadstringn(LangsamVM *vm, char *s, size_t len);
+LV langsam_loadstringn(LangsamVM *vm, char *s, LangsamSize len);
 
 #endif // LANGSAM_H
