@@ -2,6 +2,7 @@
 #define LANGSAM_H
 
 #include <assert.h>
+#include <float.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -12,14 +13,14 @@
 
 typedef struct LangsamVM LangsamVM;
 
-#if SSIZE_MAX == INTPTR_MAX
-typedef ssize_t LangsamSize;
-#elif LLONG_MAX == INTPTR_MAX
+#if INTPTR_MAX == LLONG_MAX
 typedef long long LangsamSize;
-#elif LONG_MAX == INTPTR_MAX
+#define LANGSAM_INTEGER_MIN LLONG_MIN
+#define LANGSAM_INTEGER_MAX LLONG_MAX
+#elif INTPTR_MAX == LONG_MAX
 typedef long LangsamSize;
-#elif INT_MAX == INTPTR_MAX
-typedef int LangsamSize;
+#define LANGSAM_INTEGER_MIN LONG_MIN
+#define LANGSAM_INTEGER_MAX LONG_MAX
 #else
 #error "Cannot find a suitable type for LangsamSize"
 #endif
@@ -31,11 +32,15 @@ typedef LangsamSize LangsamInteger;
 
 #if UINTPTR_MAX == 0xffffffffu
 typedef float LangsamFloat;
+#define LANGSAM_FLOAT_MANT_DIG FLT_MANT_DIG
 #elif UINTPTR_MAX == 0xffffffffffffffffull
 typedef double LangsamFloat;
+#define LANGSAM_FLOAT_MANT_DIG DBL_MANT_DIG
 #else
 #error "Cannot find a suitable type for LangsamFloat"
 #endif
+
+#define LANGSAM_SIZEOF(x) ((LangsamSize)(sizeof(x)))
 
 typedef struct LangsamValue LangsamValue;
 
@@ -104,7 +109,6 @@ extern const LangsamType LT_CONS;
 extern const LangsamType LT_VECTOR;
 extern const LangsamType LT_MAP;
 extern const LangsamType LT_FUNCTION;
-extern const LangsamType LT_NATIVEFN;
 
 extern const LangsamType LT_CONSITERATOR;
 extern const LangsamType LT_VECTORITERATOR;
@@ -164,25 +168,18 @@ typedef struct {
   LV items;
 } LangsamMapIterator;
 
+typedef LV (*LangsamNativeFn)(LangsamVM *vm, LV args);
+
 typedef struct {
   LV name;
   LV params;
   LV doc;
   LV funclet;
   LV body;
+  LangsamNativeFn fn;
   bool evalargs;
   bool evalresult;
 } LangsamFunction;
-
-typedef LV (*LangsamNativeFn)(LangsamVM *vm, LV args);
-
-// hash functions
-
-static uint64_t hash_ptr(uint64_t hash, void *p);
-static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b);
-static uint64_t hash_integer(uint64_t hash, LangsamInteger i);
-static uint64_t hash_float(uint64_t hash, LangsamFloat f);
-static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len);
 
 // Type
 
@@ -307,6 +304,7 @@ LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len);
 // Keyword
 
 LV langsam_Keyword_cast(LangsamVM *vm, LV other);
+LV langsam_Keyword_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Keyword_repr(LangsamVM *vm, LV self);
 
 LV langsam_keyword(LangsamVM *vm, char *name);
@@ -346,9 +344,9 @@ LV langsam_nreverse(LV cons);
 LV langsam_nreverse_with_last(LV cons, LV last);
 
 LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p);
-bool Langsam_ConsIterator_truthy(LangsamVM *vm, LV self);
-LV Langsam_ConsIterator_deref(LangsamVM *vm, LV self);
-LV Langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args);
+bool langsam_ConsIterator_truthy(LangsamVM *vm, LV self);
+LV langsam_ConsIterator_deref(LangsamVM *vm, LV self);
+LV langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Vector
 
@@ -371,9 +369,9 @@ LV langsam_vector0(LangsamVM *vm, LangsamSize len);
 LV langsam_vector(LangsamVM *vm, LangsamSize len);
 
 LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
-bool Langsam_VectorIterator_truthy(LangsamVM *vm, LV self);
-LV Langsam_VectorIterator_deref(LangsamVM *vm, LV self);
-LV Langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args);
+bool langsam_VectorIterator_truthy(LangsamVM *vm, LV self);
+LV langsam_VectorIterator_deref(LangsamVM *vm, LV self);
+LV langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Map
 
@@ -403,9 +401,9 @@ LV langsam_setproto(LangsamVM *vm, LV self, LV proto);
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems);
 
 LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
-bool Langsam_MapIterator_truthy(LangsamVM *vm, LV self);
-LV Langsam_MapIterator_deref(LangsamVM *vm, LV self);
-LV Langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args);
+bool langsam_MapIterator_truthy(LangsamVM *vm, LV self);
+LV langsam_MapIterator_deref(LangsamVM *vm, LV self);
+LV langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args);
 
 // Function
 
@@ -525,7 +523,7 @@ struct LangsamVM {
   LV rootlet;
   LV curlet;
   bool repl;
-  int loglevel;
+  LangsamLogLevel loglevel;
 };
 
 typedef LV (*LangsamImportFn)(LangsamVM *vm);

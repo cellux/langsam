@@ -1,4 +1,10 @@
-CFLAGS = -g -O0 -fno-omit-frame-pointer
+CFLAGS = -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
+CFLAGS += -g -O0 -fno-omit-frame-pointer
+CFLAGS += -Wall -Wextra -Wpedantic
+CFLAGS += -Wno-unused-parameter
+CFLAGS += -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
+CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
+
 LDFLAGS = -lm
 
 langsam: driver.o langsam.o langsam_l.o os.o

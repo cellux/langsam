@@ -8,9 +8,9 @@ LV langsam_os_module(LangsamVM *vm);
 int main(int argc, char **argv) {
   langsam_register_module("os", langsam_os_module);
   LangsamVM vm;
-  LV result = langsam_init(&vm, NULL);
-  if (langsam_exceptionp(result)) {
-    char *error_message = langsam_cstr(&vm, result);
+  LV init_result = langsam_init(&vm, NULL);
+  if (langsam_exceptionp(init_result)) {
+    char *error_message = langsam_cstr(&vm, init_result);
     fprintf(stderr, "VM creation failed: %s\n", error_message);
     langsam_close(&vm);
     return 1;

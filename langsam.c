@@ -10,6 +10,48 @@
 
 #define LANGSAM_MAX_ROOTS 4096
 
+// hash functions
+
+#define FNV1A_OFFSET_BASIS 0xcbf29ce484222325
+#define FNV1A_PRIME 0x00000100000001b3
+
+static uint64_t fnv1a_64_mix(uint64_t hash, uint8_t *p, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    hash = hash ^ *p++;
+    hash = hash * FNV1A_PRIME;
+  }
+  return hash;
+}
+
+#define HASH_SEED FNV1A_OFFSET_BASIS
+
+#define FNV1A_NIL 0x2146ba19257dc6ac
+#define FNV1A_TRUE 0x5b5c98ef514dbfa5
+#define FNV1A_FALSE 0xb5fae2c14238b978
+
+static uint64_t hash_ptr(uint64_t hash, void *p) {
+  return fnv1a_64_mix(hash, p, sizeof(void *));
+}
+static uint64_t hash_uint64(uint64_t hash, uint64_t u) {
+  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(uint64_t));
+}
+
+static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b) {
+  uint64_t bhash = b ? FNV1A_TRUE : FNV1A_FALSE;
+  return fnv1a_64_mix(hash, (uint8_t *)&bhash, sizeof(LangsamBoolean));
+}
+static uint64_t hash_integer(uint64_t hash, LangsamInteger i) {
+  return fnv1a_64_mix(hash, (uint8_t *)&i, sizeof(LangsamInteger));
+}
+static uint64_t hash_float(uint64_t hash, LangsamFloat f) {
+  return fnv1a_64_mix(hash, (uint8_t *)&f, sizeof(LangsamFloat));
+}
+static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len) {
+  return fnv1a_64_mix(hash, (uint8_t *)s, (size_t)len);
+}
+
+// core API
+
 LV langsam_cast(LangsamVM *vm, LV type, LV other) {
   LangsamType t = type.p;
   if (t == other.type) {
@@ -245,46 +287,6 @@ uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
   return hash;
 }
 
-// hash functions
-
-#define FNV1A_OFFSET_BASIS 0xcbf29ce484222325
-#define FNV1A_PRIME 0x00000100000001b3
-
-static uint64_t fnv1a_64_mix(uint64_t hash, uint8_t *p, LangsamSize len) {
-  for (LangsamIndex i = 0; i < len; i++) {
-    hash = hash ^ *p++;
-    hash = hash * FNV1A_PRIME;
-  }
-  return hash;
-}
-
-#define HASH_SEED FNV1A_OFFSET_BASIS
-
-#define FNV1A_NIL 0x2146ba19257dc6ac
-#define FNV1A_TRUE 0x5b5c98ef514dbfa5
-#define FNV1A_FALSE 0xb5fae2c14238b978
-
-static uint64_t hash_ptr(uint64_t hash, void *p) {
-  return fnv1a_64_mix(hash, p, sizeof(void *));
-}
-static uint64_t hash_uint64(uint64_t hash, uint64_t u) {
-  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(uint64_t));
-}
-
-static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b) {
-  uint64_t bhash = b ? FNV1A_TRUE : FNV1A_FALSE;
-  return fnv1a_64_mix(hash, (uint8_t *)&bhash, sizeof(LangsamBoolean));
-}
-static uint64_t hash_integer(uint64_t hash, LangsamInteger i) {
-  return fnv1a_64_mix(hash, (uint8_t *)&i, sizeof(LangsamInteger));
-}
-static uint64_t hash_float(uint64_t hash, LangsamFloat f) {
-  return fnv1a_64_mix(hash, (uint8_t *)&f, sizeof(LangsamFloat));
-}
-static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len) {
-  return fnv1a_64_mix(hash, (uint8_t *)s, len);
-}
-
 // Type
 
 uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
@@ -366,7 +368,7 @@ static struct LangsamT LANGSAM_T_NIL = {
 
 const LangsamType LT_NIL = &LANGSAM_T_NIL;
 
-const LV langsam_nil = (LV){.type = LT_NIL, .p = 0};
+const LV langsam_nil = {.type = LT_NIL, .p = NULL};
 
 bool langsam_nilp(LV v) { return v.type == LT_NIL; }
 
@@ -384,7 +386,7 @@ uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
 
 LV langsam_Exception_cast(LangsamVM *vm, LV other) {
   LangsamException *ex =
-      langsam_gcalloc(vm, LT_EXCEPTION, sizeof(LangsamException));
+      langsam_gcalloc(vm, LT_EXCEPTION, LANGSAM_SIZEOF(LangsamException));
   ex->payload = other;
   return (LV){
       .type = LT_EXCEPTION,
@@ -471,8 +473,8 @@ static struct LangsamT LANGSAM_T_BOOLEAN = {
 
 const LangsamType LT_BOOLEAN = &LANGSAM_T_BOOLEAN;
 
-const LV langsam_true = (LV){.type = LT_BOOLEAN, .b = true};
-const LV langsam_false = (LV){.type = LT_BOOLEAN, .b = false};
+const LV langsam_true = {.type = LT_BOOLEAN, .b = true};
+const LV langsam_false = {.type = LT_BOOLEAN, .b = false};
 
 bool langsam_truep(LV v) { return v.type == LT_BOOLEAN && v.b; }
 bool langsam_falsep(LV v) { return v.type == LT_BOOLEAN && !v.b; }
@@ -491,16 +493,35 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
   } else if (other.type == LT_BOOLEAN) {
     return langsam_integer(other.b ? 1 : 0);
   } else if (other.type == LT_FLOAT) {
-    return langsam_integer(round(other.f));
+    LangsamFloat f = other.f;
+    if (isnan(f) || isinf(f) || (f < (LangsamFloat)LANGSAM_INTEGER_MIN) ||
+        (f > (LangsamFloat)LANGSAM_INTEGER_MAX)) {
+      return langsam_exceptionf(vm, "cast", "Float->Integer conversion failed");
+    }
+#if INTPTR_MAX == LLONG_MAX
+    long long result = llround(f);
+#elif INTPTR_MAX == LONG_MAX
+    long result = lround(f);
+#else
+#error "Cannot find a suitable implementation for Float->Integer conversion"
+#endif
+    return langsam_integer(result);
   } else if (other.type == LT_STRING) {
     LangsamString *s = other.p;
+    LangsamInteger i;
     errno = 0;
-    long long l = strtoll(s->p, NULL, 0);
+#if INTPTR_MAX == LLONG_MAX
+    i = strtoll(s->p, NULL, 0);
+#elif INTPTR_MAX == LONG_MAX
+    i = strtol(s->p, NULL, 0);
+#else
+#error "Cannot find a suitable implementation for String->Integer conversion"
+#endif
     if (errno) {
       return langsam_exceptionf(
           vm, "cast", "String->Integer conversion failed for: %s", s->p);
     }
-    return langsam_integer(l);
+    return langsam_integer(i);
   }
   return langsam_exceptionf(vm, "cast",
                             "Cannot cast value of type `%s` to Integer",
@@ -574,16 +595,29 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
   } else if (other.type == LT_BOOLEAN) {
     return langsam_float(other.b ? 1 : 0);
   } else if (other.type == LT_INTEGER) {
-    return langsam_float(other.i);
+    const LangsamFloat limit = (LangsamFloat)(1ULL << LANGSAM_FLOAT_MANT_DIG);
+    LangsamInteger i = other.i;
+    LangsamFloat f = (LangsamFloat)i;
+    if (f > limit || f < -limit) {
+      return langsam_exceptionf(vm, "cast", "Integer->Float conversion failed");
+    }
+    return langsam_float(f);
   } else if (other.type == LT_STRING) {
     LangsamString *s = other.p;
+    LangsamFloat f;
     errno = 0;
-    double d = strtod(s->p, NULL);
+#if LANGSAM_FLOAT_MANT_DIG == FLT_MANT_DIG
+    f = strtof(s->p, NULL);
+#elif LANGSAM_FLOAT_MANT_DIG == DBL_MANT_DIG
+    f = strtod(s->p, NULL);
+#else
+#error "Cannot find a suitable implementation for String->Float conversion"
+#endif
     if (errno) {
       return langsam_exceptionf(
           vm, "cast", "String->Float conversion failed for: %s", s->p);
     }
-    return langsam_float(d);
+    return langsam_float(f);
   }
   return langsam_exceptionf(vm, "cast",
                             "Cannot cast value of type `%s` to Float",
@@ -677,7 +711,8 @@ LV langsam_String_cmp(LangsamVM *vm, LV self, LV other) {
   if (s1->len > s2->len) {
     return langsam_integer(1);
   }
-  return langsam_integer(memcmp(s1->p, s2->p, s1->len));
+  size_t cmplen = (size_t)s1->len;
+  return langsam_integer(memcmp(s1->p, s2->p, cmplen));
 }
 
 LV langsam_String_add(LangsamVM *vm, LV self, LV other) {
@@ -685,8 +720,8 @@ LV langsam_String_add(LangsamVM *vm, LV self, LV other) {
   LangsamString *s2 = other.p;
   LangsamSize len = s1->len + s2->len;
   char *p = langsam_alloc(vm, len + 1);
-  memcpy(p, s1->p, s1->len);
-  memcpy(p + s1->len, s2->p, s2->len);
+  memcpy(p, s1->p, (size_t)s1->len);
+  memcpy(p + s1->len, s2->p, (size_t)s2->len);
   p[len] = 0;
   return langsam_stringn_wrap(vm, p, len);
 }
@@ -744,7 +779,7 @@ static int charreprwidth(char c) {
   return 4;
 }
 
-static char hexdigit(int nybble) {
+static int hexdigit(int nybble) {
   if (nybble < 10) {
     return '0' + nybble;
   } else {
@@ -759,8 +794,8 @@ static char *writecharrepr(char *p, char c) {
   } else if (c >= 0x7f) {
     *p++ = '\\';
     *p++ = 'x';
-    *p++ = hexdigit(c >> 4);
-    *p++ = hexdigit(c & 0x0f);
+    *p++ = (char)(hexdigit(c >> 4));
+    *p++ = (char)(hexdigit(c & 0x0f));
   } else if (c >= 0x20) {
     *p++ = c;
   } else if (c == '\a') {
@@ -787,8 +822,8 @@ static char *writecharrepr(char *p, char c) {
   } else {
     *p++ = '\\';
     *p++ = 'x';
-    *p++ = hexdigit(c >> 4);
-    *p++ = hexdigit(c & 0x0f);
+    *p++ = (char)(hexdigit(c >> 4));
+    *p++ = (char)(hexdigit(c & 0x0f));
   }
   return p;
 }
@@ -813,22 +848,25 @@ LV langsam_String_repr(LangsamVM *vm, LV self) {
 LV langsam_String_str(LangsamVM *vm, LV self) { return self; }
 
 LV langsam_string(LangsamVM *vm, const char *s) {
-  return langsam_stringn(vm, s, strlen(s));
+  LangsamSize len = (LangsamSize)strlen(s);
+  return langsam_stringn(vm, s, len);
 }
 
 LV langsam_stringn(LangsamVM *vm, const char *s, LangsamSize len) {
   char *p = langsam_alloc(vm, len + 1);
-  memcpy(p, s, len);
+  memcpy(p, s, (size_t)len);
   p[len] = 0;
   return langsam_stringn_wrap(vm, p, len);
 }
 
 LV langsam_string_wrap(LangsamVM *vm, char *p) {
-  return langsam_stringn_wrap(vm, p, strlen(p));
+  LangsamSize len = (LangsamSize)strlen(p);
+  return langsam_stringn_wrap(vm, p, len);
 }
 
 LV langsam_stringn_wrap(LangsamVM *vm, char *p, LangsamSize len) {
-  LangsamString *s = langsam_gcalloc(vm, LT_STRING, sizeof(LangsamString));
+  LangsamString *s =
+      langsam_gcalloc(vm, LT_STRING, LANGSAM_SIZEOF(LangsamString));
   s->p = p;
   s->len = len;
   return (LV){
@@ -843,12 +881,9 @@ static LV intern_stringn(LangsamVM *vm, char *s, LangsamSize len) {
   return vs;
 }
 
-static LV intern_string(LangsamVM *vm, char *s) {
-  return intern_stringn(vm, s, strlen(s));
-}
-
 LV langsam_istring(LangsamVM *vm, char *s) {
-  return langsam_istringn(vm, s, strlen(s));
+  LangsamSize len = (LangsamSize)strlen(s);
+  return langsam_istringn(vm, s, len);
 }
 
 LV langsam_istringn(LangsamVM *vm, char *s, LangsamSize len) {
@@ -935,7 +970,8 @@ LV langsam_Symbol_repr(LangsamVM *vm, LV self) {
 }
 
 LV langsam_symbol(LangsamVM *vm, char *name) {
-  return langsam_symboln(vm, name, strlen(name));
+  LangsamSize len = (LangsamSize)strlen(name);
+  return langsam_symboln(vm, name, len);
 }
 
 LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len) {
@@ -1125,7 +1161,7 @@ LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value) {
 
 LV langsam_Cons_iter(LangsamVM *vm, LV self) {
   LangsamConsIterator *p =
-      langsam_gcalloc(vm, LT_CONSITERATOR, sizeof(LangsamConsIterator));
+      langsam_gcalloc(vm, LT_CONSITERATOR, LANGSAM_SIZEOF(LangsamConsIterator));
   p->cur = self;
   return (LV){
       .type = LT_CONSITERATOR,
@@ -1194,7 +1230,7 @@ LV langsam_Cons_repr(LangsamVM *vm, LV self) {
     LV repr = langsam_car(r);
     LangsamString *reprstr = (LangsamString *)repr.p;
     index -= reprstr->len;
-    strncpy(result + index, reprstr->p, reprstr->len);
+    strncpy(result + index, reprstr->p, (size_t)reprstr->len);
     if (index > 1) {
       result[--index] = ' ';
     }
@@ -1220,7 +1256,7 @@ LV langsam_nreverse(LV cons) {
 }
 
 LV langsam_cons(LangsamVM *vm, LV car, LV cdr) {
-  LangsamCons *cons = langsam_gcalloc(vm, LT_CONS, sizeof(LangsamCons));
+  LangsamCons *cons = langsam_gcalloc(vm, LT_CONS, LANGSAM_SIZEOF(LangsamCons));
   cons->car = car;
   cons->cdr = cdr;
   return (LV){
@@ -1314,7 +1350,7 @@ const LangsamType LT_CONSITERATOR = &LANGSAM_T_CONSITERATOR;
 
 LangsamSize langsam_Vector_gcmark(LangsamVM *vm, void *p) {
   LangsamVector *v = p;
-  LangsamSize total = v->len * sizeof(LV);
+  LangsamSize total = v->len * LANGSAM_SIZEOF(LV);
   for (LangsamIndex i = 0; i < v->len; i++) {
     total += langsam_mark(vm, v->items[i]);
   }
@@ -1324,7 +1360,7 @@ LangsamSize langsam_Vector_gcmark(LangsamVM *vm, void *p) {
 LangsamSize langsam_Vector_gcfree(LangsamVM *vm, void *p) {
   LangsamVector *v = p;
   langsam_free(vm, v->items);
-  return v->len * sizeof(LV);
+  return v->len * LANGSAM_SIZEOF(LV);
 }
 
 bool langsam_Vector_truthy(LangsamVM *vm, LV self) {
@@ -1433,8 +1469,8 @@ LV langsam_Vector_len(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Vector_iter(LangsamVM *vm, LV self) {
-  LangsamVectorIterator *p =
-      langsam_gcalloc(vm, LT_VECTORITERATOR, sizeof(LangsamVectorIterator));
+  LangsamVectorIterator *p = langsam_gcalloc(
+      vm, LT_VECTORITERATOR, LANGSAM_SIZEOF(LangsamVectorIterator));
   p->v = self;
   p->i = 0;
   return (LV){
@@ -1485,7 +1521,7 @@ LV langsam_Vector_repr(LangsamVM *vm, LV self) {
     char *repr_p = ((LangsamString *)repr.p)->p;
     LangsamSize repr_len = ((LangsamString *)repr.p)->len;
     index -= repr_len;
-    strncpy(result + index, repr_p, repr_len);
+    strncpy(result + index, repr_p, (size_t)repr_len);
     if (index > 1) {
       result[--index] = ' ';
     }
@@ -1495,8 +1531,9 @@ LV langsam_Vector_repr(LangsamVM *vm, LV self) {
 }
 
 LV langsam_vector0(LangsamVM *vm, LangsamSize len) {
-  LangsamVector *v = langsam_gcalloc(vm, LT_VECTOR, sizeof(LangsamVector));
-  v->items = langsam_alloc(vm, sizeof(LV) * len);
+  LangsamVector *v =
+      langsam_gcalloc(vm, LT_VECTOR, LANGSAM_SIZEOF(LangsamVector));
+  v->items = langsam_alloc(vm, LANGSAM_SIZEOF(LV) * len);
   v->len = len;
   return (LV){
       .type = LT_VECTOR,
@@ -1583,7 +1620,7 @@ const LangsamType LT_VECTORITERATOR = &LANGSAM_T_VECTORITERATOR;
 
 LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
-  LangsamSize total = m->nbuckets * sizeof(LV);
+  LangsamSize total = m->nbuckets * LANGSAM_SIZEOF(LV);
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     total += langsam_mark(vm, m->buckets[i]);
   }
@@ -1594,7 +1631,7 @@ LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p) {
 LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
   langsam_free(vm, m->buckets);
-  return m->nbuckets * sizeof(LV);
+  return m->nbuckets * LANGSAM_SIZEOF(LV);
 }
 
 bool langsam_Map_truthy(LangsamVM *vm, LV self) {
@@ -1690,7 +1727,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
 static LV langsam_Map_rawget(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
   uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = hash % m->nbuckets;
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   while (!langsam_nilp(bucket)) {
     LV item = langsam_car(bucket);
@@ -1725,10 +1762,11 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
     return langsam_Map_del(vm, self, key);
   }
   LangsamMap *m = self.p;
-  if (m->nitems + 1 > m->load_factor * m->nbuckets) {
+  if (m->nitems + 1 >
+      (LangsamSize)(m->load_factor * (LangsamFloat)m->nbuckets)) {
     LangsamMap tmp;
     tmp.nbuckets = m->nbuckets * 2;
-    tmp.buckets = langsam_alloc(vm, sizeof(LV) * tmp.nbuckets);
+    tmp.buckets = langsam_alloc(vm, LANGSAM_SIZEOF(LV) * tmp.nbuckets);
     for (LangsamIndex i = 0; i < tmp.nbuckets; i++) {
       tmp.buckets[i] = langsam_nil;
     }
@@ -1742,9 +1780,9 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
     LANGSAM_CHECK(it);
     while (langsam_truthy(vm, it)) {
       LV item = langsam_deref(vm, it);
-      LV key = langsam_car(item);
-      LV val = langsam_cdr(item);
-      langsam_put(vm, newm, key, val);
+      LV k = langsam_car(item);
+      LV v = langsam_cdr(item);
+      langsam_put(vm, newm, k, v);
       it = langsam_next(vm, it);
     }
     langsam_free(vm, m->buckets);
@@ -1753,7 +1791,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
     m->nitems = tmp.nitems;
   }
   uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = hash % m->nbuckets;
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   while (!langsam_nilp(bucket)) {
     LV item = langsam_car(bucket);
@@ -1775,7 +1813,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
   uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = hash % m->nbuckets;
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   LV prev = langsam_nil;
   while (!langsam_nilp(bucket)) {
@@ -1805,7 +1843,7 @@ LV langsam_Map_len(LangsamVM *vm, LV self) {
 
 LV langsam_Map_iter(LangsamVM *vm, LV self) {
   LangsamMapIterator *p =
-      langsam_gcalloc(vm, LT_MAPITERATOR, sizeof(LangsamMapIterator));
+      langsam_gcalloc(vm, LT_MAPITERATOR, LANGSAM_SIZEOF(LangsamMapIterator));
   p->m = self;
   p->items = langsam_Map_items(vm, self);
   return (LV){
@@ -1872,7 +1910,7 @@ LV langsam_Map_repr(LangsamVM *vm, LV self) {
     char *repr_p = ((LangsamString *)repr.p)->p;
     LangsamSize repr_len = ((LangsamString *)repr.p)->len;
     index -= repr_len;
-    strncpy(result + index, repr_p, repr_len);
+    strncpy(result + index, repr_p, (size_t)repr_len);
     if (index > 1) {
       result[--index] = ' ';
     }
@@ -1959,9 +1997,9 @@ static LangsamInteger next_power_of_two(LangsamInteger n) {
 
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {
   LangsamSize nbuckets = next_power_of_two(nitems);
-  LangsamMap *m = langsam_gcalloc(vm, LT_MAP, sizeof(LangsamMap));
+  LangsamMap *m = langsam_gcalloc(vm, LT_MAP, LANGSAM_SIZEOF(LangsamMap));
   m->proto = proto;
-  m->buckets = langsam_alloc(vm, sizeof(LV) * nbuckets);
+  m->buckets = langsam_alloc(vm, LANGSAM_SIZEOF(LV) * nbuckets);
   for (LangsamIndex i = 0; i < nbuckets; i++) {
     m->buckets[i] = langsam_nil;
   }
@@ -2073,7 +2111,7 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
                               langsam_typename(vm, other.type));
   }
   LangsamFunction *f =
-      langsam_gcalloc(vm, LT_FUNCTION, sizeof(LangsamFunction));
+      langsam_gcalloc(vm, LT_FUNCTION, LANGSAM_SIZEOF(LangsamFunction));
   f->name = langsam_get(vm, other, langsam_keyword(vm, "name"));
   if (!langsam_nilp(f->name)) {
     if (f->name.type != LT_SYMBOL) {
@@ -2086,12 +2124,12 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
   f->doc = langsam_get(vm, other, langsam_keyword(vm, "doc"));
   f->funclet = vm->curlet;
   f->body = langsam_get(vm, other, langsam_keyword(vm, "body"));
-  if (f->body.type != LT_CONS && f->body.type != LT_NATIVEFN &&
-      f->body.type != LT_NIL) {
-    return langsam_exceptionf(
-        vm, "syntax", "Function body should be Cons, NativeFn or Nil, got %s",
-        langsam_typename(vm, f->body.type));
+  if (f->body.type != LT_CONS && f->body.type != LT_NIL) {
+    return langsam_exceptionf(vm, "syntax",
+                              "Function body should be Cons or Nil, got %s",
+                              langsam_typename(vm, f->body.type));
   }
+  f->fn = NULL;
   f->evalargs = langsam_truthy(
       vm, langsam_get(vm, other, langsam_keyword(vm, "evalargs")));
   f->evalresult = langsam_truthy(
@@ -2166,9 +2204,9 @@ static LV langsam_destructure(LangsamVM *vm, LV env, LV lhs, LV rhs) {
                   "found value of type `%s` in iterable passed to :keys",
                   langsam_typename(vm, sym.type));
             }
-            LV key = langsam_Keyword_cast(vm, sym);
-            LV value = langsam_get(vm, rhs, key);
-            LV result = langsam_destructure(vm, env, sym, value);
+            LV k = langsam_Keyword_cast(vm, sym);
+            LV v = langsam_get(vm, rhs, k);
+            LV result = langsam_destructure(vm, env, sym, v);
             LANGSAM_CHECK(result);
             it_key = langsam_next(vm, it_key);
           }
@@ -2318,9 +2356,8 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
     args = eval_list(vm, args);
     LANGSAM_CHECK(args);
   }
-  if (f->body.type == LT_NATIVEFN) {
-    LangsamNativeFn fn = f->body.p;
-    result = fn(vm, args);
+  if (f->fn != NULL) {
+    result = f->fn(vm, args);
     LANGSAM_CHECK(result);
   } else {
     LV body = f->body;
@@ -2366,23 +2403,14 @@ static struct LangsamT LANGSAM_T_FUNCTION = {
 
 const LangsamType LT_FUNCTION = &LANGSAM_T_FUNCTION;
 
-// NativeFn
-
-static struct LangsamT LANGSAM_T_NATIVEFN = {
-    .name = "NativeFn",
-    .gcmanaged = false,
-};
-
-const LangsamType LT_NATIVEFN = &LANGSAM_T_NATIVEFN;
-
 // allocator
 
 static void *langsam_default_realloc(void *self, void *ptr, LangsamSize size) {
   if (size) {
     if (ptr) {
-      return realloc(ptr, size);
+      return realloc(ptr, (size_t)size);
     } else {
-      return malloc(size);
+      return malloc((size_t)size);
     }
   } else {
     free(ptr);
@@ -2401,7 +2429,7 @@ void *langsam_alloc(LangsamVM *vm, LangsamSize size) {
 
 void *langsam_calloc(LangsamVM *vm, LangsamSize size) {
   void *p = langsam_alloc(vm, size);
-  return memset(p, 0, size);
+  return memset(p, 0, (size_t)size);
 }
 
 void *langsam_realloc(LangsamVM *vm, void *ptr, LangsamSize size) {
@@ -2425,8 +2453,9 @@ static LangsamGCColor langsam_gcaltcolor(LangsamVM *vm) {
 }
 
 void *langsam_gcalloc(LangsamVM *vm, LangsamType type, LangsamSize size) {
-  LangsamGCHeader *gch = langsam_alloc(vm, sizeof(LangsamGCHeader) + size);
-  gch->size = sizeof(LangsamGCHeader) + size;
+  LangsamSize object_size = LANGSAM_SIZEOF(LangsamGCHeader) + size;
+  LangsamGCHeader *gch = langsam_alloc(vm, object_size);
+  gch->size = object_size;
   gch->type = type;
   gch->gccolor = langsam_gcaltcolor(vm);
   gch->next = vm->gcobjects;
@@ -2659,20 +2688,20 @@ static LV eval_repr(LangsamVM *vm, LV args) {
 }
 
 static LV eval_str(LangsamVM *vm, LV args) {
-  LANGSAM_ARG(obj, args);
-  LV s = langsam_str(vm, obj);
-  LANGSAM_CHECK(s);
+  LANGSAM_ARG(head, args);
+  LV head_str = langsam_str(vm, head);
+  LANGSAM_CHECK(head_str);
   if (langsam_nilp(args)) {
-    return s;
+    return head_str;
   }
-  LV ss = langsam_cons(vm, s, langsam_nil);
-  LangsamSize len = string_length(s);
+  LV ss = langsam_cons(vm, head_str, langsam_nil);
+  LangsamSize len = string_length(head_str);
   while (langsam_consp(args)) {
-    LANGSAM_ARG(obj, args);
-    LV s = langsam_str(vm, obj);
-    LANGSAM_CHECK(s);
-    ss = langsam_cons(vm, s, ss);
-    len += string_length(s);
+    LANGSAM_ARG(item, args);
+    LV item_str = langsam_str(vm, item);
+    LANGSAM_CHECK(item_str);
+    ss = langsam_cons(vm, item_str, ss);
+    len += string_length(item_str);
   }
   ss = langsam_nreverse(ss);
   char *p0 = langsam_alloc(vm, len + 1);
@@ -2680,7 +2709,7 @@ static LV eval_str(LangsamVM *vm, LV args) {
   while (langsam_consp(ss)) {
     LV s = langsam_car(ss);
     LangsamString *ls = s.p;
-    memcpy(p, ls->p, ls->len);
+    memcpy(p, ls->p, (size_t)ls->len);
     p += ls->len;
     ss = langsam_cdr(ss);
   }
@@ -2710,11 +2739,11 @@ static LV quasiquote_collect(LangsamVM *vm, LV coll) {
         LV head = langsam_car(payload);
         if (LVEQ(head, splice)) {
           throw = false;
-          LV items = langsam_cdr(payload);
-          while (langsam_consp(items)) {
-            LV item = langsam_car(items);
-            result = langsam_cons(vm, item, result);
-            items = langsam_cdr(items);
+          LV splice_items = langsam_cdr(payload);
+          while (langsam_consp(splice_items)) {
+            LV splice_item = langsam_car(splice_items);
+            result = langsam_cons(vm, splice_item, result);
+            splice_items = langsam_cdr(splice_items);
           }
         }
       }
@@ -2985,7 +3014,6 @@ extern int langsam_l_len;
 extern char langsam_l_bytes[];
 
 static LV import_langsam_core(LangsamVM *vm) {
-  langsam_debug(vm, "loading core");
   LV env = vm->rootlet;
   langsam_def(vm, env, "true", langsam_true);
   langsam_def(vm, env, "false", langsam_false);
@@ -3003,7 +3031,6 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_def(vm, env, "Vector", langsam_type(LT_VECTOR));
   langsam_def(vm, env, "Map", langsam_type(LT_MAP));
   langsam_def(vm, env, "Function", langsam_type(LT_FUNCTION));
-  langsam_def(vm, env, "NativeFn", langsam_type(LT_NATIVEFN));
   langsam_def(vm, env, "ConsIterator", langsam_type(LT_CONSITERATOR));
   langsam_def(vm, env, "VectorIterator", langsam_type(LT_VECTORITERATOR));
   langsam_def(vm, env, "MapIterator", langsam_type(LT_MAPITERATOR));
@@ -3089,7 +3116,7 @@ void langsam_register_module(const char *name, LangsamImportFn import) {
   registered_modules = m;
 }
 
-static void langsam_unregister_modules() {
+static void langsam_unregister_modules(void) {
   LangsamModule *m = registered_modules;
   while (m) {
     LangsamModule *p = m;
@@ -3121,21 +3148,19 @@ void langsam_def(LangsamVM *vm, LV env, char *name, LV value) {
   langsam_put(vm, env, langsam_symbol(vm, name), value);
 }
 
-void define_nativefn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn,
-                     bool evalargs, bool evalresult) {
+static void define_nativefn(LangsamVM *vm, LV env, char *name,
+                            LangsamNativeFn fn, bool evalargs,
+                            bool evalresult) {
   LV namesym = langsam_symbol(vm, name);
   LV desc = langsam_map(vm, langsam_nil, 4);
   langsam_put(vm, desc, langsam_keyword(vm, "name"), namesym);
-  langsam_put(vm, desc, langsam_keyword(vm, "body"),
-              (LV){
-                  .type = LT_NATIVEFN,
-                  .p = fn,
-              });
   langsam_put(vm, desc, langsam_keyword(vm, "evalargs"),
               langsam_boolean(evalargs));
   langsam_put(vm, desc, langsam_keyword(vm, "evalresult"),
               langsam_boolean(evalresult));
   LV function = langsam_Function_cast(vm, desc);
+  LangsamFunction *f = function.p;
+  f->fn = fn;
   langsam_put(vm, env, namesym, function);
 }
 
@@ -3284,7 +3309,7 @@ static LV Reader_readbyte_skipws(Reader *r) {
 start:
   result = Reader_readbyte(r);
   if (result.type == LT_INTEGER) {
-    c = result.i;
+    c = (uint8_t)result.i;
   } else {
     return result;
   }
@@ -3292,13 +3317,13 @@ start:
     goto start;
   } else if (c == ';') {
     while (1) {
-      LV result = Reader_readbyte(r);
-      if (result.type == LT_INTEGER) {
-        if (result.i == '\n') {
+      LV comment_result = Reader_readbyte(r);
+      if (comment_result.type == LT_INTEGER) {
+        if (comment_result.i == '\n') {
           goto start;
         }
       } else {
-        return result;
+        return comment_result;
       }
     }
   } else {
@@ -3336,7 +3361,7 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
     } else if (langsam_nilp(result)) {
       break;
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (!is_symbol_char(c)) {
       Reader_unreadbyte(r, c);
       break;
@@ -3389,7 +3414,7 @@ static LV Reader_read_keyword(Reader *r) {
     } else if (langsam_nilp(result)) {
       break;
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (!is_symbol_char(c)) {
       Reader_unreadbyte(r, c);
       break;
@@ -3414,7 +3439,7 @@ static LV Reader_read_opword(Reader *r) {
     } else if (langsam_nilp(result)) {
       break;
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (!is_symbol_char(c)) {
       Reader_unreadbyte(r, c);
       break;
@@ -3442,7 +3467,7 @@ static LV Reader_read_integer_in_radix(Reader *r, int radix) {
         return langsam_exceptionf(r->vm, "read", "incomplete integer constant");
       }
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c >= 'a') {
       c = c - ('a' - 'A');
     }
@@ -3468,7 +3493,7 @@ static LV Reader_read_float(Reader *r, LangsamInteger integer_part) {
     } else if (langsam_nilp(result)) {
       return langsam_float(value);
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c < '0' || c > '9') {
       Reader_unreadbyte(r, c);
       return langsam_float(value / divisor);
@@ -3487,7 +3512,7 @@ static LV Reader_read_number(Reader *r, uint8_t first) {
     if (result.type != LT_INTEGER) {
       return result;
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (check_prefix && value == 0) {
       switch (c) {
       case 'b':
@@ -3522,20 +3547,20 @@ static LV Reader_read_string(Reader *r) {
     } else if (langsam_nilp(result)) {
       return StringBuilder_result_as_string(&sb);
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c == '"') {
       return StringBuilder_result_as_string(&sb);
     }
     if (c == '\\') {
-      LV result = Reader_readbyte(r);
-      if (langsam_exceptionp(result)) {
+      LV escape_result = Reader_readbyte(r);
+      if (langsam_exceptionp(escape_result)) {
         StringBuilder_reset(&sb);
-        return result;
-      } else if (langsam_nilp(result)) {
+        return escape_result;
+      } else if (langsam_nilp(escape_result)) {
         return langsam_exceptionf(r->vm, "read",
                                   "incomplete character escape sequence");
       }
-      c = result.i;
+      c = (uint8_t)escape_result.i;
       switch (c) {
       case 'a':
         c = 0x07;
@@ -3576,7 +3601,7 @@ static LV Reader_read_cons(Reader *r) {
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete list");
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c == ')') {
       if (len >= 3) {
         LV second = langsam_car(langsam_cdr(value));
@@ -3612,7 +3637,7 @@ static LV Reader_read_vector(Reader *r) {
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete vector");
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c == ']') {
       LV vec = langsam_vector(r->vm, len);
       LV index = langsam_integer(len - 1);
@@ -3645,7 +3670,7 @@ static LV Reader_read_map(Reader *r) {
     } else if (langsam_nilp(result)) {
       return langsam_exceptionf(r->vm, "read", "incomplete map");
     }
-    uint8_t c = result.i;
+    uint8_t c = (uint8_t)result.i;
     if (c == '}') {
       if (len % 2 != 0) {
         return langsam_exceptionf(r->vm, "read",
@@ -3679,20 +3704,20 @@ static LV Reader_read(Reader *r) {
   if (result.type != LT_INTEGER) {
     return result;
   }
-  uint8_t c = result.i;
+  uint8_t c = (uint8_t)result.i;
   if (c == '-') {
     LV first = Reader_readbyte(r);
     if (first.type == LT_INTEGER && first.i >= '0' && first.i <= '9') {
-      LV result = Reader_read_number(r, first.i);
-      if (result.type == LT_INTEGER) {
-        return langsam_integer(-1 * result.i);
-      } else if (result.type == LT_FLOAT) {
-        return langsam_float(-1 * result.f);
+      LV number_result = Reader_read_number(r, (uint8_t)first.i);
+      if (number_result.type == LT_INTEGER) {
+        return langsam_integer(-1 * number_result.i);
+      } else if (number_result.type == LT_FLOAT) {
+        return langsam_float(-1 * number_result.f);
       } else {
-        return result;
+        return number_result;
       }
     } else {
-      Reader_unreadbyte(r, first.i);
+      Reader_unreadbyte(r, (uint8_t)first.i);
       return Reader_read_symbol(r, '-');
     }
   } else if (c >= '0' && c <= '9') {
@@ -3733,15 +3758,15 @@ static LV Reader_read(Reader *r) {
     LV tail = langsam_cons(r->vm, form, langsam_nil);
     return langsam_cons(r->vm, langsam_symbol(r->vm, "quasiquote"), tail);
   } else if (c == ',') {
-    LV result = Reader_readbyte(r);
-    if (langsam_exceptionp(result)) {
-      return result;
-    } else if (langsam_nilp(result)) {
+    LV unquote_result = Reader_readbyte(r);
+    if (langsam_exceptionp(unquote_result)) {
+      return unquote_result;
+    } else if (langsam_nilp(unquote_result)) {
       return langsam_exceptionf(r->vm, "read",
                                 "missing argument to , (unquote) operator");
     }
-    uint8_t c = result.i;
-    if (c == '@') {
+    uint8_t uc = (uint8_t)unquote_result.i;
+    if (uc == '@') {
       LV form = Reader_read(r);
       if (langsam_exceptionp(form)) {
         return form;
@@ -3750,7 +3775,7 @@ static LV Reader_read(Reader *r) {
       return langsam_cons(r->vm, langsam_symbol(r->vm, "unquote-splicing"),
                           tail);
     } else {
-      Reader_unreadbyte(r, c);
+      Reader_unreadbyte(r, uc);
       LV form = Reader_read(r);
       if (langsam_exceptionp(form))
         return form;
@@ -3788,9 +3813,9 @@ static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
 }
 
 static LV readbyte_fd(LangsamVM *vm, void *data) {
-  int fd = (intptr_t)data;
+  int fd = (int)(intptr_t)data;
   uint8_t c;
-  int bytes_read = read(fd, &c, 1);
+  ssize_t bytes_read = read(fd, &c, 1);
   if (bytes_read < 0) {
     return langsam_exceptionf(vm, "io", "%s", strerror(errno));
   }
@@ -3831,7 +3856,8 @@ static LV readbyte_string(LangsamVM *vm, void *data) {
 }
 
 LV langsam_loadstring(LangsamVM *vm, char *s) {
-  return langsam_loadstringn(vm, s, strlen(s));
+  LangsamSize len = (LangsamSize)strlen(s);
+  return langsam_loadstringn(vm, s, len);
 }
 
 LV langsam_loadstringn(LangsamVM *vm, char *s, LangsamSize len) {

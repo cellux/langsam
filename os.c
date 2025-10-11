@@ -6,6 +6,8 @@
 
 #include "langsam.h"
 
+LV langsam_os_module(LangsamVM *vm);
+
 static struct LangsamT os_File_T;
 
 typedef struct {
@@ -25,7 +27,7 @@ static LV os_File_cast(LangsamVM *vm, LV other) {
                               "File expects an integer file descriptor, got %s",
                               langsam_typename(vm, other.type));
   }
-  os_File *f = langsam_gcalloc(vm, &os_File_T, sizeof(os_File));
+  os_File *f = langsam_gcalloc(vm, &os_File_T, LANGSAM_SIZEOF(os_File));
   f->fd = other;
   return (LV){
       .type = &os_File_T,
@@ -36,7 +38,7 @@ static LV os_File_cast(LangsamVM *vm, LV other) {
 static LV os_File_len(LangsamVM *vm, LV self) {
   os_File *f = self.p;
   struct stat st;
-  int stat_result = fstat(f->fd.i, &st);
+  int stat_result = fstat((int)f->fd.i, &st);
   if (stat_result != 0) {
     return langsam_exceptionf(vm, "len", "cannot determine file size: %s",
                               strerror(errno));
@@ -67,9 +69,9 @@ static LV os_open(LangsamVM *vm, LV args) {
   }
   int fd;
   if (langsam_nilp(mode)) {
-    fd = open(langsam_cstr(vm, path), flags.i);
+    fd = open(langsam_cstr(vm, path), (int)flags.i);
   } else {
-    fd = open(langsam_cstr(vm, path), flags.i, mode.i);
+    fd = open(langsam_cstr(vm, path), (int)flags.i, mode.i);
   }
   if (fd < 0) {
     return langsam_exceptionf(vm, "open", "%s", strerror(errno));
@@ -87,7 +89,7 @@ static LV os_read(LangsamVM *vm, LV args) {
   LangsamSize remaining = size.i;
   LangsamIndex index = 0;
   while (remaining > 0) {
-    ssize_t bytes_read = read(f->fd.i, buf + index, remaining);
+    ssize_t bytes_read = read((int)f->fd.i, buf + index, (size_t)remaining);
     if (bytes_read == 0) {
       langsam_free(vm, buf);
       return langsam_nil;
@@ -112,7 +114,8 @@ static LV os_write(LangsamVM *vm, LV args) {
   LangsamSize remaining = ls->len;
   LangsamIndex index = 0;
   while (remaining > 0) {
-    ssize_t bytes_written = write(f->fd.i, ls->p + index, remaining);
+    ssize_t bytes_written =
+        write((int)f->fd.i, ls->p + index, (size_t)remaining);
     if (bytes_written < 0) {
       return langsam_exceptionf(vm, "write", "%s", strerror(errno));
     }
@@ -126,7 +129,7 @@ static LV os_close(LangsamVM *vm, LV args) {
   LANGSAM_ARG(file, args);
   LANGSAM_ARG_TYPE(file, &os_File_T);
   os_File *f = (os_File *)file.p;
-  int result = close(f->fd.i);
+  int result = close((int)f->fd.i);
   if (result < 0) {
     return langsam_exceptionf(vm, "close", "cannot close file: %s",
                               strerror(errno));
