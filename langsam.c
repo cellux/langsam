@@ -2149,6 +2149,44 @@ static LV langsam_destructure(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       }
       it_lhs = langsam_next(vm, it_lhs);
     }
+  } else if (lhs.type == LT_MAP) {
+    LV it_lhs = langsam_iter(vm, lhs);
+    LANGSAM_CHECK(it_lhs);
+    while (langsam_truthy(vm, it_lhs)) {
+      LV item = langsam_deref(vm, it_lhs);
+      LV pat = langsam_car(item);
+      LV key = langsam_cdr(item);
+      if (pat.type == LT_KEYWORD) {
+        LV keys = langsam_keyword(vm, "keys");
+        if (LVEQ(pat, keys)) {
+          LV it_key = langsam_iter(vm, key);
+          LANGSAM_CHECK(it_key);
+          while (langsam_truthy(vm, it_key)) {
+            LV sym = langsam_deref(vm, it_key);
+            if (sym.type != LT_SYMBOL) {
+              return langsam_exceptionf(
+                  vm, "destructure",
+                  "found value of type `%s` in iterable passed to :keys",
+                  langsam_typename(vm, sym.type));
+            }
+            LV key = langsam_Keyword_cast(vm, sym);
+            LV value = langsam_get(vm, rhs, key);
+            LV result = langsam_destructure(vm, env, sym, value);
+            LANGSAM_CHECK(result);
+            it_key = langsam_next(vm, it_key);
+          }
+        } else {
+          return langsam_exceptionf(vm, "destructure",
+                                    "invalid key in map pattern: %s",
+                                    langsam_cstr(vm, pat));
+        }
+      } else {
+        LV value = langsam_get(vm, rhs, key);
+        LV result = langsam_destructure(vm, env, pat, value);
+        LANGSAM_CHECK(result);
+      }
+      it_lhs = langsam_next(vm, it_lhs);
+    }
   } else {
     return langsam_exceptionf(vm, "destructure",
                               "cannot bind pattern of type %s",
