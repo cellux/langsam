@@ -205,8 +205,12 @@ LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...);
 bool langsam_exceptionp(LV v);
 
 #define LANGSAM_CHECK(result)                                                  \
-  if (langsam_exceptionp(result))                                              \
-    return result;
+  {                                                                            \
+    LV checked_value = result;                                                 \
+    if (langsam_exceptionp(checked_value)) {                                   \
+      return checked_value;                                                    \
+    }                                                                          \
+  }
 
 // Boolean
 
@@ -500,7 +504,8 @@ typedef struct {
 struct LangsamVM {
   LangsamAllocator *allocator;
   LV strings;
-  LV roots;
+  LV *roots;
+  int numroots;
   LangsamGCHeader *gcobjects;
   LangsamGCColor gcmarkcolor;
   LV rootlet;
@@ -516,6 +521,9 @@ void langsam_register_module(const char *name, LangsamImportFn import);
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts);
 void langsam_enable_repl_mode(LangsamVM *vm);
 void langsam_close(LangsamVM *vm);
+
+LV langsam_pushroot(LangsamVM *vm, LV root);
+LV langsam_poproot(LangsamVM *vm);
 
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value);
 void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);

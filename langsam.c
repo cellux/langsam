@@ -8,6 +8,8 @@
 
 #include "langsam.h"
 
+#define LANGSAM_MAX_ROOTS 4096
+
 LV langsam_cast(LangsamVM *vm, LV type, LV other) {
   LangsamType t = type.p;
   if (t == other.type) {
@@ -207,12 +209,12 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
 }
 
 LV langsam_eval(LangsamVM *vm, LV self) {
-  vm->roots = langsam_cons(vm, self, vm->roots);
+  LANGSAM_CHECK(langsam_pushroot(vm, self));
   LangsamType t = self.type;
   LV result = t->eval ? t->eval(vm, self) : self;
   langsam_debug(vm, "EVAL: %s -> %s", langsam_cstr(vm, self),
                 langsam_cstr(vm, result));
-  vm->roots = langsam_cdr(vm->roots);
+  langsam_poproot(vm);
   return result;
 }
 
@@ -2393,7 +2395,9 @@ static size_t langsam_gcfree_all(LangsamVM *vm) {
 
 LV langsam_gc(LangsamVM *vm) {
   size_t mark_total = 0;
-  mark_total += langsam_mark(vm, vm->roots);
+  for (int i = 0; i < vm->numroots; i++) {
+    mark_total += langsam_mark(vm, vm->roots[i]);
+  }
   mark_total += langsam_mark(vm, vm->strings);
   mark_total += langsam_mark(vm, vm->curlet);
   LangsamGCHeader *prevgch = NULL;
@@ -3025,6 +3029,24 @@ static void langsam_unregister_modules() {
   registered_modules = NULL;
 }
 
+LV langsam_pushroot(LangsamVM *vm, LV root) {
+  if (vm->numroots == LANGSAM_MAX_ROOTS) {
+    return langsam_exceptionf(vm, "pushroot",
+                              "number of roots reached maximum of %d",
+                              LANGSAM_MAX_ROOTS);
+  }
+  vm->roots[vm->numroots++] = root;
+  return langsam_nil;
+}
+
+LV langsam_poproot(LangsamVM *vm) {
+  if (vm->numroots == 0) {
+    return langsam_exceptionf(vm, "poproot", "root stack underflow");
+  }
+  vm->numroots--;
+  return langsam_nil;
+}
+
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value) {
   langsam_put(vm, env, langsam_symbol(vm, name), value);
 }
@@ -3087,8 +3109,9 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   }
   vm->gcobjects = NULL;
   vm->gcmarkcolor = LANGSAM_GC_BLACK;
+  vm->roots = langsam_alloc(vm, LANGSAM_MAX_ROOTS * sizeof(LV));
+  vm->numroots = 0;
   vm->strings = langsam_map(vm, langsam_nil, 4096);
-  vm->roots = langsam_nil;
   vm->rootlet = langsam_map(vm, langsam_nil, 4096);
   vm->curlet = vm->rootlet;
   vm->repl = false;
@@ -3756,4 +3779,5 @@ void langsam_close(LangsamVM *vm) {
   vm->curlet = langsam_nil;
   langsam_gcfree_all(vm);
   langsam_unregister_modules();
+  langsam_free(vm, vm->roots);
 }
