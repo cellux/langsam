@@ -2115,6 +2115,48 @@ static LV collect_rest(LangsamVM *vm, LV it) {
   return langsam_nreverse(rest);
 }
 
+static LV langsam_destructure(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  if (lhs.type == LT_SYMBOL) {
+    langsam_put(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_VECTOR) {
+    LV it_lhs = langsam_iter(vm, lhs);
+    LANGSAM_CHECK(it_lhs);
+    LV it_rhs = langsam_iter(vm, rhs);
+    LANGSAM_CHECK(it_rhs);
+    LV amp_symbol = langsam_symbol(vm, "&");
+    bool seen_amp = false;
+    while (langsam_truthy(vm, it_lhs)) {
+      LV pat = langsam_deref(vm, it_lhs);
+      if (!seen_amp && LVEQ(pat, amp_symbol)) {
+        seen_amp = true;
+      } else if (seen_amp) {
+        LV rest = collect_rest(vm, it_rhs);
+        LANGSAM_CHECK(rest);
+        LV result = langsam_destructure(vm, env, pat, rest);
+        LANGSAM_CHECK(result);
+        break;
+      } else {
+        if (!langsam_truthy(vm, it_rhs)) {
+          return langsam_exceptionf(
+              vm, "destructure",
+              "not enough values on the right side: lhs=%s rhs=%s",
+              langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+        }
+        LV value = langsam_deref(vm, it_rhs);
+        LV result = langsam_destructure(vm, env, pat, value);
+        LANGSAM_CHECK(result);
+        it_rhs = langsam_next(vm, it_rhs);
+      }
+      it_lhs = langsam_next(vm, it_lhs);
+    }
+  } else {
+    return langsam_exceptionf(vm, "destructure",
+                              "cannot bind pattern of type %s",
+                              langsam_typename(vm, lhs.type));
+  }
+  return env;
+}
+
 static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (lhs.type == LT_SYMBOL) {
     LV result = langsam_put(vm, env, lhs, rhs);
@@ -2858,14 +2900,7 @@ static LV eval_destructure(LangsamVM *vm, LV args) {
   LANGSAM_ARG(pattern, args);
   LANGSAM_ARG(value, args);
   LV bindlet = langsam_map(vm, vm->curlet, 64);
-  if (pattern.type == LT_SYMBOL) {
-    langsam_put(vm, bindlet, pattern, value);
-  } else {
-    return langsam_exceptionf(vm, "destructure",
-                              "cannot bind pattern of type %s",
-                              langsam_typename(vm, pattern.type));
-  }
-  return bindlet;
+  return langsam_destructure(vm, bindlet, pattern, value);
 }
 
 static LV eval_getproto(LangsamVM *vm, LV args) {
