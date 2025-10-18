@@ -1,3 +1,5 @@
 *.o
-*_l.c
+*.a
+*.lo
+*.lc
 langsam

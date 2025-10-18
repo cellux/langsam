@@ -7,18 +7,18 @@ CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
 LDFLAGS = -lm
 
-langsam: driver.o langsam.o langsam_l.o os.o
+langsam: langsam.a os.o driver.o
 
-%.c: %.l
+%.o: %.c langsam.h
 
-langsam_l.o: langsam_l.c
-langsam_l.c: langsam.l bin2c.py
-	python3 bin2c.py $< $@ langsam_l
+%.lc: %.l bin2c.py
+	python3 bin2c.py $< $@ $(basename $<)_l
 
-driver.o: driver.c langsam.h
-langsam.o: langsam.c langsam.h
+%.lo: %.lc
+	$(CC) -c -o $@ -x c $<
 
-os.o: os.c langsam.h
+%.a: %.o %.lo
+	$(AR) r -o $@ $^
 
 .PHONY: test
 test: langsam
@@ -30,4 +30,4 @@ gdb: langsam
 
 .PHONY: clean
 clean:
-	rm -fv *.o langsam_l.c langsam
+	rm -fv *.a *.o *.lo *.lc langsam
