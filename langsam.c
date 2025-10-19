@@ -2868,6 +2868,21 @@ static LV eval_assert(LangsamVM *vm, LV args) {
   LV result = langsam_eval(vm, expr);
   LANGSAM_CHECK(result);
   if (!langsam_truthy(vm, result)) {
+    if (langsam_consp(expr)) {
+      LV head = langsam_car(expr);
+      LV symeq = langsam_symbol(vm, "=");
+      if (LVEQ(head, symeq)) {
+        LV tail = langsam_cdr(expr);
+        LANGSAM_ARG(actual_form, tail);
+        LV actual = langsam_eval(vm, actual_form);
+        LANGSAM_ARG(expected_form, tail);
+        LV expected = langsam_eval(vm, expected_form);
+        return langsam_exceptionf(
+            vm, "assert", "assertion failed: %s: expected %s, got %s",
+            langsam_cstr(vm, expr), langsam_cstr(vm, expected),
+            langsam_cstr(vm, actual));
+      }
+    }
     return langsam_exceptionf(vm, "assert", "assertion failed: %s",
                               langsam_cstr(vm, expr));
   }
