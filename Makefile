@@ -9,6 +9,8 @@ LDFLAGS = -lm
 
 langsam: langsam.a os.o driver.o
 
+%.c: %.l
+
 %.o: %.c langsam.h
 
 %.lc: %.l bin2c.py
