@@ -7,11 +7,15 @@ CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
 LDFLAGS = -lm
 
-langsam: langsam.a os.o driver.o
+LIBS := langsam.a
+OBJS := os.o driver.o
+
+langsam: $(LIBS) $(OBJS)
+
+$(LIBS:.a=.o): langsam.h
+$(OBJS): langsam.h
 
 %.c: %.l
-
-%.o: %.c langsam.h
 
 %.lc: %.l bin2c.py
 	python3 bin2c.py $< $@ $(basename $<)_l
