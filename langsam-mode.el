@@ -256,15 +256,18 @@ Respects `langsam-indent-specs` and otherwise falls back to `lisp-indent-functio
     (let* ((normal-indent (current-column))
            (delim-pos (elt state 1))
            (delim (char-after delim-pos))
-           (head (save-excursion
-                   (goto-char delim-pos)
-                   (when (eq delim ?\()
-                     (forward-char 1)
-                     (intern-soft (thing-at-point 'symbol t)))))
+           (call? (eq delim ?\())
+           (head (and call? (save-excursion
+                              (goto-char (1+ delim-pos))
+                              (intern-soft (thing-at-point 'symbol t)))))
+           (last-char (and call? (save-excursion
+                                   (goto-char delim-pos)
+                                   (end-of-line)
+                                   (char-before (point)))))
            (spec (cdr (assoc head langsam-indent-specs))))
       (cond
        ;; defun-style (name + arglist get special treatment)
-       ((eq spec 'defun)
+       ((or (eq spec 'defun) (eq last-char ?\]))
         (lisp-indent-defform state indent-point))
 
        ;; first N arguments are “special” (e.g., let: 1 = bindings)
