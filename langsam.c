@@ -52,6 +52,17 @@ static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len) {
 
 // core API
 
+bool langsam_truthy(LangsamVM *vm, LV self) {
+  LangsamType t = self.type;
+  return t->truthy ? t->truthy(vm, self) : true;
+}
+
+uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+  LangsamType t = self.type;
+  uint64_t hash = hash_ptr(prevhash, t);
+  return t->hash ? t->hash(vm, self, hash) : hash_ptr(hash, self.p);
+}
+
 LV langsam_cast(LangsamVM *vm, LV type, LV other) {
   LangsamType t = type.p;
   if (t == other.type) {
@@ -66,11 +77,6 @@ LV langsam_cast(LangsamVM *vm, LV type, LV other) {
                               other_type_name, type_name, type_name);
   }
   return t->cast(vm, other);
-}
-
-bool langsam_truthy(LangsamVM *vm, LV self) {
-  LangsamType t = self.type;
-  return t->truthy ? t->truthy(vm, self) : true;
 }
 
 LV langsam_equal(LangsamVM *vm, LV self, LV other) {
@@ -277,32 +283,10 @@ LV langsam_str(LangsamVM *vm, LV self) {
   return langsam_repr(vm, self);
 }
 
-uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  LangsamType t = self.type;
-  if (t->hash == NULL) {
-    return prevhash;
-  }
-  uint64_t hash = t->hash(vm, self, prevhash);
-  hash = hash_ptr(hash, self.type);
-  return hash;
-}
-
 // Type
 
 uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
   return hash_ptr(prevhash, self.p);
-}
-
-static LV eval_list(LangsamVM *vm, LV list) {
-  LV result = langsam_nil;
-  while (langsam_consp(list)) {
-    LV item = langsam_car(list);
-    LV evaluated_item = langsam_eval(vm, item);
-    LANGSAM_CHECK(evaluated_item);
-    result = langsam_cons(vm, evaluated_item, result);
-    list = langsam_cdr(list);
-  }
-  return langsam_nreverse(result);
 }
 
 LV langsam_Type_apply(LangsamVM *vm, LV self, LV args) {
@@ -351,8 +335,6 @@ uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
   return hash_uint64(prevhash, FNV1A_NIL);
 }
 
-LV langsam_Nil_cast(LangsamVM *vm, LV other) { return langsam_nil; }
-
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
   return langsam_symbol(vm, "nil");
 }
@@ -362,7 +344,6 @@ static struct LangsamT LANGSAM_T_NIL = {
     .gcmanaged = false,
     .truthy = langsam_Nil_truthy,
     .hash = langsam_Nil_hash,
-    .cast = langsam_Nil_cast,
     .repr = langsam_Nil_repr,
 };
 
@@ -2289,6 +2270,18 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
     return langsam_boolean(f->evalresult);
   }
   return langsam_nil;
+}
+
+static LV eval_list(LangsamVM *vm, LV list) {
+  LV result = langsam_nil;
+  while (langsam_consp(list)) {
+    LV item = langsam_car(list);
+    LV evaluated_item = langsam_eval(vm, item);
+    LANGSAM_CHECK(evaluated_item);
+    result = langsam_cons(vm, evaluated_item, result);
+    list = langsam_cdr(list);
+  }
+  return langsam_nreverse(result);
 }
 
 LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
