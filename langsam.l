@@ -26,3 +26,5 @@
   (let [oldv (get x k)
         newv (apply f oldv rest)]
     (put x k newv)))
+
+(defmacro comment [& body])
