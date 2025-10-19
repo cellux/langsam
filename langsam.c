@@ -1248,19 +1248,6 @@ LV langsam_cons(LangsamVM *vm, LV car, LV cdr) {
 
 bool langsam_consp(LV v) { return v.type == LT_CONS; }
 
-LV langsam_car(LV cons) { return ((LangsamCons *)cons.p)->car; }
-LV langsam_cdr(LV cons) { return ((LangsamCons *)cons.p)->cdr; }
-
-LV langsam_setcar(LV cons, LV value) {
-  ((LangsamCons *)cons.p)->car = value;
-  return cons;
-}
-
-LV langsam_setcdr(LV cons, LV value) {
-  ((LangsamCons *)cons.p)->cdr = value;
-  return cons;
-}
-
 static struct LangsamT LANGSAM_T_CONS = {
     .name = "Cons",
     .gcmanaged = true,

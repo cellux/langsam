@@ -333,11 +333,11 @@ LV langsam_cons(LangsamVM *vm, LV car, LV cdr);
 
 bool langsam_consp(LV v);
 
-LV langsam_car(LV cons);
-LV langsam_cdr(LV cons);
+#define langsam_car(cons) (((LangsamCons *)cons.p)->car)
+#define langsam_cdr(cons) (((LangsamCons *)cons.p)->cdr)
 
-LV langsam_setcar(LV cons, LV value);
-LV langsam_setcdr(LV cons, LV value);
+#define langsam_setcar(cons, newcar) (langsam_car(cons) = newcar)
+#define langsam_setcdr(cons, newcdr) (langsam_cdr(cons) = newcdr)
 
 LV langsam_nreverse(LV cons);
 LV langsam_nreverse_with_last(LV cons, LV last);
