@@ -52,3 +52,16 @@
         (inc counter)
         sym))))
 
+(defmacro and [x & rest]
+  (if rest
+    (let [val (gensym 'val)]
+      `(let [,val ,x]
+         (if ,val (and ,@rest) ,val)))
+    x))
+
+(defmacro or [x & rest]
+  (if rest
+    (let [val (gensym 'val)]
+      `(let [,val ,x]
+         (if ,val ,val (or ,@rest))))
+    x))

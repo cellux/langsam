@@ -37,3 +37,15 @@
 
 (assert (= (repr true) "true"))
 (assert (= (repr false) "false"))
+
+(assert (= (and 5 3) 3))
+(assert (= (and 0 3) 0))
+(assert (= (and false 3) false))
+(assert (= (and nil 3) nil))
+(assert (= (and [] 3) []))
+
+(assert (= (or 5 3) 5))
+(assert (= (or 0 3) 3))
+(assert (= (or false 3) 3))
+(assert (= (or nil 3) 3))
+(assert (= (or {} 3) 3))
