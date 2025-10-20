@@ -44,3 +44,11 @@
   (let [add1 (fn [x] (+ x 1))]
     (macro inc [x]
       `(swapq ,x ,add1))))
+
+(def gensym
+  (let [counter 0]
+    (fn gensym [&opt (prefix 'gensym)]
+      (let [sym (Symbol (str prefix "-" counter))]
+        (inc counter)
+        sym))))
+
