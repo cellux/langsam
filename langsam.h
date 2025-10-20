@@ -325,6 +325,7 @@ LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_Cons_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Cons_iter(LangsamVM *vm, LV self);
+LV langsam_Cons_deref(LangsamVM *vm, LV self);
 LV langsam_Cons_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Cons_eval(LangsamVM *vm, LV self);
 LV langsam_Cons_repr(LangsamVM *vm, LV self);
