@@ -344,6 +344,7 @@ static struct LangsamT LANGSAM_T_NIL = {
     .gcmanaged = false,
     .truthy = langsam_Nil_truthy,
     .hash = langsam_Nil_hash,
+    .iter = langsam_Cons_iter,
     .repr = langsam_Nil_repr,
 };
 
@@ -2591,7 +2592,7 @@ static LV eval_apply(LangsamVM *vm, LV args) {
       patch_target = tail;
       patch_source = next_tail;
     }
-    tail = langsam_cdr(tail);
+    tail = next_tail;
   }
   if (!langsam_nilp(tail)) {
     return langsam_exceptionf(vm, "apply", "invoked with improper list: %s",
@@ -2599,9 +2600,9 @@ static LV eval_apply(LangsamVM *vm, LV args) {
   }
   if (langsam_consp(patch_source)) {
     LV car = langsam_car(patch_source);
-    if (car.type != LT_CONS) {
+    if (car.type != LT_CONS && car.type != LT_NIL) {
       return langsam_exceptionf(vm, "apply",
-                                "last element should be list, got %s",
+                                "last element should be Cons or Nil, got %s",
                                 langsam_typename(vm, car.type));
     }
     langsam_setcdr(patch_target, car);
@@ -2958,6 +2959,22 @@ static LV eval_cdr(LangsamVM *vm, LV args) {
   return langsam_cdr(arg);
 }
 
+static LV eval_setcar(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(cons, args);
+  LANGSAM_ARG_TYPE(cons, LT_CONS);
+  LANGSAM_ARG(value, args);
+  langsam_setcar(cons, value);
+  return langsam_nil;
+}
+
+static LV eval_setcdr(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(cons, args);
+  LANGSAM_ARG_TYPE(cons, LT_CONS);
+  LANGSAM_ARG(value, args);
+  langsam_setcdr(cons, value);
+  return langsam_nil;
+}
+
 static LV eval_require(LangsamVM *vm, LV args) {
   LANGSAM_ARG(module_name, args);
   LANGSAM_ARG_TYPE(module_name, LT_STRING);
@@ -3029,6 +3046,8 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "cons", eval_cons);
   langsam_defn(vm, env, "car", eval_car);
   langsam_defn(vm, env, "cdr", eval_cdr);
+  langsam_defn(vm, env, "setcar", eval_setcar);
+  langsam_defn(vm, env, "setcdr", eval_setcdr);
   langsam_defn(vm, env, "require", eval_require);
   langsam_defn(vm, env, "gc", eval_gc);
   return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);

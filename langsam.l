@@ -28,3 +28,19 @@
     (put x k newv)))
 
 (defmacro comment [& body])
+
+(def reset setcdr)
+
+(defmacro setq [x val]
+  `(reset (gep (curlet) ',x) ,val))
+
+(defn swap [ref f & rest]
+  (reset ref (apply f @ref rest)))
+
+(defmacro swapq [x f & rest]
+  `(swap (gep (curlet) ',x) ,f ,@rest))
+
+(def inc
+  (let [add1 (fn [x] (+ x 1))]
+    (macro inc [x]
+      `(swapq ,x ,add1))))
