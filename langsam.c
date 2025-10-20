@@ -2926,6 +2926,22 @@ static LV eval_if(LangsamVM *vm, LV args) {
   }
 }
 
+static LV eval_while(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(cond, args);
+  LV result = langsam_nil;
+  while (true) {
+    LV cond_result = langsam_eval(vm, cond);
+    LANGSAM_CHECK(cond_result);
+    if (langsam_truthy(vm, cond_result)) {
+      result = langsam_do(vm, args);
+      LANGSAM_CHECK(result);
+    } else {
+      break;
+    }
+  }
+  return result;
+}
+
 static LV process_bindings(LangsamVM *vm, LV bindings) {
   LV it = langsam_iter(vm, bindings);
   LANGSAM_CHECK(it);
@@ -3126,6 +3142,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "macro", eval_macro);
   langsam_defspecial(vm, env, "do", eval_do);
   langsam_defspecial(vm, env, "if", eval_if);
+  langsam_defspecial(vm, env, "while", eval_while);
   langsam_defspecial(vm, env, "let", eval_let);
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
