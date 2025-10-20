@@ -2553,6 +2553,38 @@ static LV eval_cmp(LangsamVM *vm, LV args) {
   return langsam_cmp(vm, lhs, rhs);
 }
 
+static LV eval_lt(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  LANGSAM_ARG(rhs, args);
+  LV result = langsam_cmp(vm, lhs, rhs);
+  LANGSAM_CHECK(result);
+  return langsam_boolean(result.i < 0);
+}
+
+static LV eval_le(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  LANGSAM_ARG(rhs, args);
+  LV result = langsam_cmp(vm, lhs, rhs);
+  LANGSAM_CHECK(result);
+  return langsam_boolean(result.i <= 0);
+}
+
+static LV eval_ge(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  LANGSAM_ARG(rhs, args);
+  LV result = langsam_cmp(vm, lhs, rhs);
+  LANGSAM_CHECK(result);
+  return langsam_boolean(result.i >= 0);
+}
+
+static LV eval_gt(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  LANGSAM_ARG(rhs, args);
+  LV result = langsam_cmp(vm, lhs, rhs);
+  LANGSAM_CHECK(result);
+  return langsam_boolean(result.i > 0);
+}
+
 static LV eval_add(LangsamVM *vm, LV args) {
   LANGSAM_ARG(lhs, args);
   LV result = lhs;
@@ -3064,6 +3096,10 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "eq", eval_eq);
   langsam_defn(vm, env, "=", eval_equal);
   langsam_defn(vm, env, "cmp", eval_cmp);
+  langsam_defn(vm, env, "<", eval_lt);
+  langsam_defn(vm, env, "<=", eval_le);
+  langsam_defn(vm, env, ">=", eval_ge);
+  langsam_defn(vm, env, ">", eval_gt);
   langsam_defn(vm, env, "+", eval_add);
   langsam_defn(vm, env, "-", eval_sub);
   langsam_defn(vm, env, "*", eval_mul);
