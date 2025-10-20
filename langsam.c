@@ -3037,6 +3037,11 @@ static LV eval_gep(LangsamVM *vm, LV args) {
   return langsam_Map_gep(vm, map, key);
 }
 
+static LV eval_next(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(it, args);
+  return langsam_next(vm, it);
+}
+
 static LV eval_type(LangsamVM *vm, LV args) {
   LANGSAM_ARG(x, args);
   return langsam_type(x.type);
@@ -3133,6 +3138,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "getproto", eval_getproto);
   langsam_defn(vm, env, "setproto", eval_setproto);
   langsam_defn(vm, env, "gep", eval_gep);
+  langsam_defn(vm, env, "next", eval_next);
   langsam_defspecial(vm, env, "quote", eval_quote);
   langsam_defspecial(vm, env, "quasiquote", eval_quasiquote);
   langsam_defspecial(vm, env, "def", eval_def);
