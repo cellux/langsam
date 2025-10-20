@@ -2124,15 +2124,11 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
   };
 }
 
-static LV collect_rest(LangsamVM *vm, LV it) {
-  LV rest = langsam_nil;
-  while (langsam_truthy(vm, it)) {
-    LV value = langsam_deref(vm, it);
-    rest = langsam_cons(vm, value, rest);
-    it = langsam_next(vm, it);
-  }
-  return langsam_nreverse(rest);
-}
+typedef enum {
+  LANGSAM_BIND_POS,
+  LANGSAM_BIND_OPT,
+  LANGSAM_BIND_REST,
+} LangsamBindState;
 
 static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (lhs.type == LT_SYMBOL) {
@@ -2142,28 +2138,85 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     LANGSAM_CHECK(it_lhs);
     LV it_rhs = langsam_iter(vm, rhs);
     LANGSAM_CHECK(it_rhs);
+    LV opt_symbol = langsam_symbol(vm, "&opt");
     LV amp_symbol = langsam_symbol(vm, "&");
-    bool seen_amp = false;
+    LangsamBindState bs = LANGSAM_BIND_POS;
+    LV rest = langsam_nil;
     while (langsam_truthy(vm, it_lhs)) {
       LV pat = langsam_deref(vm, it_lhs);
-      if (!seen_amp && LVEQ(pat, amp_symbol)) {
-        seen_amp = true;
-      } else if (seen_amp) {
-        LV rest = collect_rest(vm, it_rhs);
-        LANGSAM_CHECK(rest);
+      switch (bs) {
+      case LANGSAM_BIND_POS:
+        if (LVEQ(pat, opt_symbol)) {
+          bs = LANGSAM_BIND_OPT;
+        } else if (LVEQ(pat, amp_symbol)) {
+          bs = LANGSAM_BIND_REST;
+        } else {
+          if (!langsam_truthy(vm, it_rhs)) {
+            return langsam_exceptionf(
+                vm, "bind",
+                "not enough values on the right side: lhs=%s rhs=%s",
+                langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+          }
+          LV value = langsam_deref(vm, it_rhs);
+          LV result = langsam_bind(vm, env, pat, value);
+          LANGSAM_CHECK(result);
+          it_rhs = langsam_next(vm, it_rhs);
+        }
+        break;
+      case LANGSAM_BIND_OPT:
+        if (LVEQ(pat, amp_symbol)) {
+          bs = LANGSAM_BIND_REST;
+        } else {
+          LV sym, val;
+          if (pat.type == LT_SYMBOL) {
+            sym = pat;
+            val = langsam_nil;
+          } else if (pat.type == LT_CONS) {
+            LV head = langsam_car(pat);
+            LV tail = langsam_cdr(pat);
+            if (head.type == LT_SYMBOL && tail.type == LT_CONS) {
+              sym = head;
+              val = langsam_car(tail);
+            } else {
+              return langsam_exceptionf(
+                  vm, "bind",
+                  "&opt parameter with default value should look like (sym "
+                  "default), got %s",
+                  langsam_cstr(vm, pat));
+            }
+          } else {
+            return langsam_exceptionf(
+                vm, "bind", "&opt parameter must be Symbol or Cons, got %s",
+                langsam_cstr(vm, pat));
+          }
+          if (langsam_truthy(vm, it_rhs)) {
+            val = langsam_deref(vm, it_rhs);
+            it_rhs = langsam_next(vm, it_rhs);
+          } else if (!langsam_nilp(val)) {
+            LV oldlet = vm->curlet;
+            vm->curlet = env;
+            val = langsam_eval(vm, val);
+            vm->curlet = oldlet;
+            LANGSAM_CHECK(val);
+          }
+          LV result = langsam_bind(vm, env, sym, val);
+          LANGSAM_CHECK(result);
+        }
+        break;
+      case LANGSAM_BIND_REST:
+        if (!langsam_nilp(rest)) {
+          return langsam_exceptionf(vm, "bind",
+                                    "& must be followed by a single form");
+        }
+        while (langsam_truthy(vm, it_rhs)) {
+          LV value = langsam_deref(vm, it_rhs);
+          rest = langsam_cons(vm, value, rest);
+          it_rhs = langsam_next(vm, it_rhs);
+        }
+        rest = langsam_nreverse(rest);
         LV result = langsam_bind(vm, env, pat, rest);
         LANGSAM_CHECK(result);
         break;
-      } else {
-        if (!langsam_truthy(vm, it_rhs)) {
-          return langsam_exceptionf(
-              vm, "bind", "not enough values on the right side: lhs=%s rhs=%s",
-              langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
-        }
-        LV value = langsam_deref(vm, it_rhs);
-        LV result = langsam_bind(vm, env, pat, value);
-        LANGSAM_CHECK(result);
-        it_rhs = langsam_next(vm, it_rhs);
       }
       it_lhs = langsam_next(vm, it_lhs);
     }
