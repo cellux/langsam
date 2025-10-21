@@ -2353,7 +2353,7 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   return langsam_nil;
 }
 
-static LV eval_list(LangsamVM *vm, LV list) {
+static LV evaluate_list(LangsamVM *vm, LV list) {
   LV result = langsam_nil;
   while (langsam_consp(list)) {
     LV item = langsam_car(list);
@@ -2369,7 +2369,7 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
   LangsamFunction *f = self.p;
   LV result = langsam_nil;
   if (f->evalargs) {
-    args = eval_list(vm, args);
+    args = evaluate_list(vm, args);
     LANGSAM_CHECK(args);
   }
   if (f->fn != NULL) {
