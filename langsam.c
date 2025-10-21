@@ -186,6 +186,22 @@ LV langsam_div(LangsamVM *vm, LV self, LV other) {
   return t1->div(vm, self, other);
 }
 
+LV langsam_mod(LangsamVM *vm, LV self, LV other) {
+  LangsamType t1 = self.type;
+  if (t1->mod == NULL) {
+    char *self_type_name = langsam_typename(vm, self.type);
+    char *other_type_name = langsam_typename(vm, other.type);
+    return langsam_exceptionf(vm, "mod", "type `%s` does not support mod",
+                              self_type_name, other_type_name, self_type_name);
+  }
+  LangsamType t2 = other.type;
+  if (t1 != t2) {
+    other = langsam_cast(vm, langsam_type(self.type), other);
+    LANGSAM_CHECK(other);
+  }
+  return t1->mod(vm, self, other);
+}
+
 LV langsam_get(LangsamVM *vm, LV self, LV key) {
   LangsamType t = self.type;
   if (t->get == NULL) {
@@ -539,6 +555,13 @@ LV langsam_Integer_div(LangsamVM *vm, LV self, LV other) {
   return langsam_integer(self.i / other.i);
 }
 
+LV langsam_Integer_mod(LangsamVM *vm, LV self, LV other) {
+  if (other.i == 0) {
+    return langsam_exceptionf(vm, "mod", "modulo by zero");
+  }
+  return langsam_integer(self.i % other.i);
+}
+
 LV langsam_Integer_repr(LangsamVM *vm, LV self) {
   return langsam_format(vm, "%lld", self.i);
 }
@@ -558,6 +581,7 @@ static struct LangsamT LANGSAM_T_INTEGER = {
     .sub = langsam_Integer_sub,
     .mul = langsam_Integer_mul,
     .div = langsam_Integer_div,
+    .mod = langsam_Integer_mod,
     .repr = langsam_Integer_repr,
 };
 
@@ -635,6 +659,19 @@ LV langsam_Float_div(LangsamVM *vm, LV self, LV other) {
   return langsam_float(self.f / other.f);
 }
 
+LV langsam_Float_mod(LangsamVM *vm, LV self, LV other) {
+  if (other.f == 0) {
+    return langsam_exceptionf(vm, "mod", "modulo by zero");
+  }
+#if LANGSAM_FLOAT_MANT_DIG == FLT_MANT_DIG
+  return langsam_float(fmodf(self.f, other.f));
+#elif LANGSAM_FLOAT_MANT_DIG == DBL_MANT_DIG
+  return langsam_float(fmod(self.f, other.f));
+#else
+#error "Cannot find a suitable implementation for Float modulo operation"
+#endif
+}
+
 LV langsam_Float_repr(LangsamVM *vm, LV self) {
   return langsam_format(vm, "%g", self.f);
 }
@@ -652,6 +689,7 @@ static struct LangsamT LANGSAM_T_FLOAT = {
     .sub = langsam_Float_sub,
     .mul = langsam_Float_mul,
     .div = langsam_Float_div,
+    .mod = langsam_Float_mod,
     .repr = langsam_Float_repr,
 };
 
@@ -2627,6 +2665,17 @@ static LV eval_div(LangsamVM *vm, LV args) {
   return result;
 }
 
+static LV eval_mod(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(lhs, args);
+  LV result = lhs;
+  while (langsam_consp(args)) {
+    LANGSAM_ARG(rhs, args);
+    result = langsam_mod(vm, result, rhs);
+    LANGSAM_CHECK(result);
+  }
+  return result;
+}
+
 static LV eval_get(LangsamVM *vm, LV args) {
   LANGSAM_ARG(coll, args);
   LANGSAM_ARG(key, args);
@@ -3126,6 +3175,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "-", eval_sub);
   langsam_defn(vm, env, "*", eval_mul);
   langsam_defn(vm, env, "/", eval_div);
+  langsam_defn(vm, env, "mod", eval_mod);
   langsam_defn(vm, env, "get", eval_get);
   langsam_defn(vm, env, "put", eval_put);
   langsam_defn(vm, env, "del", eval_del);

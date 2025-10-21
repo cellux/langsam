@@ -60,6 +60,7 @@ struct LangsamT {
   LV (*sub)(LangsamVM *vm, LV self, LV other);
   LV (*mul)(LangsamVM *vm, LV self, LV other);
   LV (*div)(LangsamVM *vm, LV self, LV other);
+  LV (*mod)(LangsamVM *vm, LV self, LV other);
   LV (*get)(LangsamVM *vm, LV self, LV key);
   LV (*put)(LangsamVM *vm, LV self, LV key, LV value);
   LV (*del)(LangsamVM *vm, LV self, LV key);
@@ -83,6 +84,7 @@ LV langsam_add(LangsamVM *vm, LV self, LV other);
 LV langsam_sub(LangsamVM *vm, LV self, LV other);
 LV langsam_mul(LangsamVM *vm, LV self, LV other);
 LV langsam_div(LangsamVM *vm, LV self, LV other);
+LV langsam_mod(LangsamVM *vm, LV self, LV other);
 LV langsam_get(LangsamVM *vm, LV self, LV key);
 LV langsam_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_del(LangsamVM *vm, LV self, LV key);
@@ -247,6 +249,7 @@ LV langsam_Integer_add(LangsamVM *vm, LV self, LV other);
 LV langsam_Integer_sub(LangsamVM *vm, LV self, LV other);
 LV langsam_Integer_mul(LangsamVM *vm, LV self, LV other);
 LV langsam_Integer_div(LangsamVM *vm, LV self, LV other);
+LV langsam_Integer_mod(LangsamVM *vm, LV self, LV other);
 LV langsam_Integer_repr(LangsamVM *vm, LV self);
 
 LV langsam_integer(LangsamInteger i);
@@ -261,6 +264,7 @@ LV langsam_Float_add(LangsamVM *vm, LV self, LV other);
 LV langsam_Float_sub(LangsamVM *vm, LV self, LV other);
 LV langsam_Float_mul(LangsamVM *vm, LV self, LV other);
 LV langsam_Float_div(LangsamVM *vm, LV self, LV other);
+LV langsam_Float_mod(LangsamVM *vm, LV self, LV other);
 LV langsam_Float_repr(LangsamVM *vm, LV self);
 
 LV langsam_float(LangsamFloat f);
