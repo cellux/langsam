@@ -1160,7 +1160,7 @@ LV langsam_Cons_apply(LangsamVM *vm, LV self, LV args) {
   LANGSAM_CHECK(method);
   if (langsam_nilp(method)) {
     return langsam_exceptionf(
-        vm, "apply", "cannot get method `%s` from value of type `%s`",
+        vm, "apply", "cannot find method `%s` in value of type `%s`",
         langsam_cstr(vm, key), langsam_typename(vm, obj.type));
   }
   args = langsam_cons(vm, langsam_quote(vm, obj), args);
@@ -1615,15 +1615,7 @@ uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
   LangsamMap *m = self.p;
   uint64_t hash = prevhash;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
-    LV bucket = m->buckets[i];
-    while (!langsam_nilp(bucket)) {
-      LV item = langsam_car(bucket);
-      LV k = langsam_car(item);
-      hash = langsam_hash(vm, k, hash);
-      LV v = langsam_cdr(item);
-      hash = langsam_hash(vm, v, hash);
-      bucket = langsam_cdr(bucket);
-    }
+    hash = langsam_hash(vm, m->buckets[i], hash);
   }
   return hash;
 }
@@ -1655,13 +1647,22 @@ LV langsam_Map_cast(LangsamVM *vm, LV other) {
 }
 
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
+  LangsamMap *m1 = self.p;
+  LangsamMap *m2 = other.p;
+  if (m1->nitems != m2->nitems) {
+    return langsam_false;
+  }
   LV items = langsam_Map_items(vm, self);
   while (!langsam_nilp(items)) {
     LV item = langsam_car(items);
     LV k = langsam_car(item);
     LV v1 = langsam_cdr(item);
-    LV v2 = langsam_get(vm, other, k);
-    LANGSAM_CHECK(v2);
+    LV v2item = langsam_Map_gep(vm, other, k);
+    LANGSAM_CHECK(v2item);
+    if (langsam_nilp(v2item)) {
+      return langsam_false;
+    }
+    LV v2 = langsam_cdr(v2item);
     LV eq = langsam_equal(vm, v1, v2);
     LANGSAM_CHECK(eq);
     if (langsam_falsep(eq)) {
@@ -1714,7 +1715,7 @@ static LV langsam_Map_rawgep(LangsamVM *vm, LV self, LV key) {
   return langsam_nil;
 }
 
-static LV langsam_Map_gep(LangsamVM *vm, LV self, LV key) {
+LV langsam_Map_gep(LangsamVM *vm, LV self, LV key) {
   LV item = langsam_Map_rawgep(vm, self, key);
   if (!langsam_nilp(item)) {
     return item;
@@ -1763,13 +1764,15 @@ static void resize_map(LangsamVM *vm, LV self, LangsamSize nbuckets) {
   m->nitems = tmp.nitems;
 }
 
+static LangsamInteger next_power_of_two(LangsamInteger n) {
+  LangsamInteger p = 1;
+  while (p < n) {
+    p <<= 1;
+  }
+  return p;
+}
+
 LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
-  if (langsam_nilp(key)) {
-    return langsam_exceptionf(vm, "put", "attempt to use nil as map key");
-  }
-  if (langsam_nilp(value)) {
-    return langsam_Map_del(vm, self, key);
-  }
   LV item = langsam_Map_rawgep(vm, self, key);
   LANGSAM_CHECK(item);
   if (!langsam_nilp(item)) {
@@ -1779,7 +1782,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   LangsamMap *m = self.p;
   LangsamSize limit = (LangsamSize)(m->load_factor * (LangsamFloat)m->nbuckets);
   if (m->nitems + 1 > limit) {
-    resize_map(vm, self, m->nbuckets * 2);
+    resize_map(vm, self, next_power_of_two(m->nbuckets * 2));
   }
   uint64_t hash = langsam_hash(vm, key, HASH_SEED);
   LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
@@ -1964,14 +1967,6 @@ LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
   LangsamMap *m = self.p;
   m->proto = proto;
   return proto;
-}
-
-static LangsamInteger next_power_of_two(LangsamInteger n) {
-  LangsamInteger p = 1;
-  while (p < n) {
-    p <<= 1;
-  }
-  return p;
 }
 
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {

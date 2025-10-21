@@ -391,6 +391,8 @@ LV langsam_Map_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Map_eval(LangsamVM *vm, LV self);
 LV langsam_Map_repr(LangsamVM *vm, LV self);
 
+LV langsam_Map_gep(LangsamVM *vm, LV self, LV key);
+
 LV langsam_Map_items(LangsamVM *vm, LV self);
 LV langsam_Map_keys(LangsamVM *vm, LV self);
 LV langsam_Map_values(LangsamVM *vm, LV self);

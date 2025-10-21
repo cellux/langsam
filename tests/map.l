@@ -27,3 +27,15 @@
     (assert (= (car item) :c))
     (assert (= (cdr item) 8))
     (assert (= @item 8))))
+
+(let [m {:a 5 :b 3}]
+  (assert (= (len m) 2))
+  (put m :c nil)
+  (assert (= (len m) 3))
+  (del m :c)
+  (assert (= (len m) 2)))
+
+(let [m1 {:a 5 :b 3 :c nil}
+      m2 {:a 5 :b 3}]
+  (assert (not= m1 m2))
+  (assert (not= m2 m1)))
