@@ -3076,6 +3076,12 @@ static LV eval_setcdr(LangsamVM *vm, LV args) {
   return langsam_nil;
 }
 
+static LV eval_nreverse(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(cons, args);
+  LANGSAM_ARG_TYPE(cons, LT_CONS);
+  return langsam_nreverse(cons);
+}
+
 static LV eval_require(LangsamVM *vm, LV args) {
   LANGSAM_ARG(module_name, args);
   LANGSAM_ARG_TYPE(module_name, LT_STRING);
@@ -3155,6 +3161,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "cdr", eval_cdr);
   langsam_defn(vm, env, "setcar", eval_setcar);
   langsam_defn(vm, env, "setcdr", eval_setcdr);
+  langsam_defn(vm, env, "nreverse", eval_nreverse);
   langsam_defn(vm, env, "require", eval_require);
   langsam_defn(vm, env, "gc", eval_gc);
   return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);

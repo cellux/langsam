@@ -65,3 +65,15 @@
       `(let [,val ,x]
          (if ,val ,val (or ,@rest))))
     x))
+
+(defn separate [pred coll]
+  (let [left nil
+        right nil
+        it (iter coll)]
+    (while it
+      (let [item @it]
+        (if (pred item)
+          (setq left (cons item left))
+          (setq right (cons item right))))
+      (setq it (next it)))
+    [(nreverse left) (nreverse right)]))
