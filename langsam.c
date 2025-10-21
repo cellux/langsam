@@ -3940,14 +3940,29 @@ static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
       fflush(stdout);
     }
     LV form = Reader_read(&r);
-    LANGSAM_CHECK(form);
+    if (langsam_exceptionp(form)) {
+      if (vm->repl) {
+        fprintf(stderr, "%s\n", langsam_cstr(vm, form));
+        fflush(stderr);
+        continue;
+      } else {
+        return form;
+      }
+    }
     if (langsam_nilp(form)) {
       break;
     }
     langsam_debug(vm, "> %s", langsam_cstr(vm, form));
     result = langsam_eval(vm, form);
-    LANGSAM_CHECK(result);
-    if (vm->repl) {
+    if (langsam_exceptionp(result)) {
+      if (vm->repl) {
+        fprintf(stderr, "%s\n", langsam_cstr(vm, result));
+        fflush(stderr);
+        result = langsam_nil;
+      } else {
+        return result;
+      }
+    } else if (vm->repl) {
       fprintf(stdout, "%s\n", langsam_cstr(vm, result));
     }
   }
