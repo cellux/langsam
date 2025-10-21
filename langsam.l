@@ -77,3 +77,6 @@
           (setq right (cons item right))))
       (setq it (next it)))
     [(nreverse left) (nreverse right)]))
+
+(defn even? [x] (= (mod x 2) 0))
+(defn odd? [x] (not (even? x)))
