@@ -15,10 +15,10 @@
 #define FNV1A_OFFSET_BASIS 0xcbf29ce484222325
 #define FNV1A_PRIME 0x00000100000001b3
 
-static uint64_t fnv1a_64_mix(uint64_t hash, uint8_t *p, size_t len) {
+static uint64_t fnv1a_64_mix(uint64_t hash, const uint8_t *p, size_t len) {
   for (size_t i = 0; i < len; i++) {
-    hash = hash ^ *p++;
-    hash = hash * FNV1A_PRIME;
+    hash ^= (uint64_t)p[i];
+    hash *= FNV1A_PRIME;
   }
   return hash;
 }
@@ -30,7 +30,7 @@ static uint64_t fnv1a_64_mix(uint64_t hash, uint8_t *p, size_t len) {
 #define FNV1A_FALSE 0xb5fae2c14238b978
 
 static uint64_t hash_ptr(uint64_t hash, void *p) {
-  return fnv1a_64_mix(hash, p, sizeof(void *));
+  return fnv1a_64_mix(hash, (uint8_t *)&p, sizeof(void *));
 }
 static uint64_t hash_uint64(uint64_t hash, uint64_t u) {
   return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(uint64_t));
@@ -57,10 +57,11 @@ bool langsam_truthy(LangsamVM *vm, LV self) {
   return t->truthy ? t->truthy(vm, self) : true;
 }
 
-uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamType t = self.type;
-  uint64_t hash = hash_ptr(prevhash, t);
-  return t->hash ? t->hash(vm, self, hash) : hash_ptr(hash, self.p);
+  hash = hash_ptr(hash, t);
+  hash = t->hash ? t->hash(vm, self, hash) : hash_ptr(hash, self.p);
+  return hash;
 }
 
 LV langsam_cast(LangsamVM *vm, LV type, LV other) {
@@ -301,8 +302,8 @@ LV langsam_str(LangsamVM *vm, LV self) {
 
 // Type
 
-uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  return hash_ptr(prevhash, self.p);
+uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t hash) {
+  return hash_ptr(hash, self.p);
 }
 
 LV langsam_Type_apply(LangsamVM *vm, LV self, LV args) {
@@ -347,8 +348,8 @@ const LangsamType LT_TYPE = &LANGSAM_T_TYPE;
 
 bool langsam_Nil_truthy(LangsamVM *vm, LV self) { return false; }
 
-uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  return hash_uint64(prevhash, FNV1A_NIL);
+uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t hash) {
+  return hash_uint64(hash, FNV1A_NIL);
 }
 
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
@@ -377,9 +378,9 @@ LangsamSize langsam_Exception_gcmark(LangsamVM *vm, void *p) {
   return langsam_mark(vm, ex->payload);
 }
 
-uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamException *ex = self.p;
-  return langsam_hash(vm, ex->payload, prevhash);
+  return langsam_hash(vm, ex->payload, hash);
 }
 
 LV langsam_Exception_cast(LangsamVM *vm, LV other) {
@@ -440,8 +441,8 @@ const LangsamType LT_EXCEPTION = &LANGSAM_T_EXCEPTION;
 
 bool langsam_Boolean_truthy(LangsamVM *vm, LV self) { return self.b; }
 
-uint64_t langsam_Boolean_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  return hash_boolean(prevhash, self.b);
+uint64_t langsam_Boolean_hash(LangsamVM *vm, LV self, uint64_t hash) {
+  return hash_boolean(hash, self.b);
 }
 
 LV langsam_Boolean_cast(LangsamVM *vm, LV other) {
@@ -481,8 +482,8 @@ bool langsam_falsep(LV v) { return v.type == LT_BOOLEAN && !v.b; }
 
 bool langsam_Integer_truthy(LangsamVM *vm, LV self) { return self.i != 0; }
 
-uint64_t langsam_Integer_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  return hash_integer(prevhash, self.i);
+uint64_t langsam_Integer_hash(LangsamVM *vm, LV self, uint64_t hash) {
+  return hash_integer(hash, self.i);
 }
 
 LV langsam_Integer_cast(LangsamVM *vm, LV other) {
@@ -591,8 +592,8 @@ const LangsamType LT_INTEGER = &LANGSAM_T_INTEGER;
 
 bool langsam_Float_truthy(LangsamVM *vm, LV self) { return self.f != 0.0; }
 
-uint64_t langsam_Float_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
-  return hash_float(prevhash, self.f);
+uint64_t langsam_Float_hash(LangsamVM *vm, LV self, uint64_t hash) {
+  return hash_float(hash, self.f);
 }
 
 LV langsam_Float_cast(LangsamVM *vm, LV other) {
@@ -713,9 +714,9 @@ bool langsam_String_truthy(LangsamVM *vm, LV self) {
   return s->len != 0;
 }
 
-uint64_t langsam_String_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_String_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamString *s = self.p;
-  return hash_string(prevhash, s->p, s->len);
+  return hash_string(hash, s->p, s->len);
 }
 
 LV langsam_String_cast(LangsamVM *vm, LV other) {
@@ -1110,9 +1111,8 @@ LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p) {
 
 bool langsam_Cons_truthy(LangsamVM *vm, LV self) { return !langsam_nilp(self); }
 
-uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamCons *cons = self.p;
-  uint64_t hash = prevhash;
   hash = langsam_hash(vm, cons->car, hash);
   hash = langsam_hash(vm, cons->cdr, hash);
   return hash;
@@ -1378,9 +1378,8 @@ bool langsam_Vector_truthy(LangsamVM *vm, LV self) {
   return v->items != 0;
 }
 
-uint64_t langsam_Vector_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_Vector_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamVector *v = self.p;
-  uint64_t hash = prevhash;
   for (LangsamIndex i = 0; i < v->len; i++) {
     hash = langsam_hash(vm, v->items[i], hash);
   }
@@ -1649,9 +1648,8 @@ bool langsam_Map_truthy(LangsamVM *vm, LV self) {
   return m->nitems != 0;
 }
 
-uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamMap *m = self.p;
-  uint64_t hash = prevhash;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     hash = langsam_hash(vm, m->buckets[i], hash);
   }
@@ -2104,9 +2102,8 @@ LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p) {
   return total;
 }
 
-uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamFunction *f = self.p;
-  uint64_t hash = prevhash;
   hash = langsam_hash(vm, f->name, hash);
   hash = langsam_hash(vm, f->params, hash);
   hash = langsam_hash(vm, f->doc, hash);
