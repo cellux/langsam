@@ -3618,6 +3618,7 @@ static LV Reader_read_integer_in_radix(Reader *r, int radix) {
       return langsam_integer(value);
     }
     value = (value * radix) + digit;
+    digits_read++;
   }
 }
 
@@ -3629,7 +3630,7 @@ static LV Reader_read_float(Reader *r, LangsamInteger integer_part) {
     if (langsam_exceptionp(result)) {
       return result;
     } else if (langsam_nilp(result)) {
-      return langsam_float(value);
+      return langsam_float(value / divisor);
     }
     uint8_t c = (uint8_t)result.i;
     if (c < '0' || c > '9') {
@@ -3647,8 +3648,10 @@ static LV Reader_read_number(Reader *r, uint8_t first) {
   bool check_prefix = true;
   while (1) {
     LV result = Reader_readbyte(r);
-    if (result.type != LT_INTEGER) {
+    if (langsam_exceptionp(result)) {
       return result;
+    } else if (langsam_nilp(result)) {
+      return langsam_integer(value);
     }
     uint8_t c = (uint8_t)result.i;
     if (check_prefix && value == 0) {
