@@ -93,7 +93,9 @@ LV langsam_equal(LangsamVM *vm, LV self, LV other) {
   LangsamType t2 = other.type;
   if (t1 != t2) {
     other = langsam_cast(vm, langsam_type(self.type), other);
-    LANGSAM_CHECK(other);
+    if (langsam_exceptionp(other)) {
+      return langsam_false;
+    }
   }
   if (t1->equal) {
     return t1->equal(vm, self, other);
