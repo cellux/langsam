@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -12,8 +13,8 @@
 
 // hash functions
 
-#define FNV1A_OFFSET_BASIS 0xcbf29ce484222325
-#define FNV1A_PRIME 0x00000100000001b3
+#define FNV1A_OFFSET_BASIS UINT64_C(0xcbf29ce484222325)
+#define FNV1A_PRIME UINT64_C(0x00000100000001b3)
 
 static uint64_t fnv1a_64_mix(uint64_t hash, const uint8_t *p, size_t len) {
   for (size_t i = 0; i < len; i++) {
@@ -25,26 +26,27 @@ static uint64_t fnv1a_64_mix(uint64_t hash, const uint8_t *p, size_t len) {
 
 #define HASH_SEED FNV1A_OFFSET_BASIS
 
-#define FNV1A_NIL 0x2146ba19257dc6ac
-#define FNV1A_TRUE 0x5b5c98ef514dbfa5
-#define FNV1A_FALSE 0xb5fae2c14238b978
+#define FNV1A_NIL UINT64_C(0x2146ba19257dc6ac)
+#define FNV1A_TRUE UINT64_C(0x5b5c98ef514dbfa5)
+#define FNV1A_FALSE UINT64_C(0xb5fae2c14238b978)
 
 static uint64_t hash_ptr(uint64_t hash, void *p) {
-  return fnv1a_64_mix(hash, (uint8_t *)&p, sizeof(void *));
+  uintptr_t u = (uintptr_t)p;
+  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(u));
 }
 static uint64_t hash_uint64(uint64_t hash, uint64_t u) {
-  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(uint64_t));
+  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(u));
 }
 
 static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b) {
   uint64_t bhash = b ? FNV1A_TRUE : FNV1A_FALSE;
-  return fnv1a_64_mix(hash, (uint8_t *)&bhash, sizeof(LangsamBoolean));
+  return fnv1a_64_mix(hash, (uint8_t *)&bhash, sizeof(bhash));
 }
 static uint64_t hash_integer(uint64_t hash, LangsamInteger i) {
-  return fnv1a_64_mix(hash, (uint8_t *)&i, sizeof(LangsamInteger));
+  return fnv1a_64_mix(hash, (uint8_t *)&i, sizeof(i));
 }
 static uint64_t hash_float(uint64_t hash, LangsamFloat f) {
-  return fnv1a_64_mix(hash, (uint8_t *)&f, sizeof(LangsamFloat));
+  return fnv1a_64_mix(hash, (uint8_t *)&f, sizeof(f));
 }
 static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len) {
   return fnv1a_64_mix(hash, (uint8_t *)s, (size_t)len);
