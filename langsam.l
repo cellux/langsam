@@ -17,14 +17,14 @@
   (if x false true))
 
 (defn not= [x & rest]
-  (not (apply = x rest)))
+  (not (= x . rest)))
 
 (defmacro import [name]
   `(def ,name (require ,(str name))))
 
 (defn update [x k f & rest]
   (let [oldv (get x k)
-        newv (apply f oldv rest)]
+        newv (f oldv . rest)]
     (put x k newv)))
 
 (defmacro comment [& body])
@@ -35,10 +35,18 @@
   `(reset (gep (curlet) ',x) ,val))
 
 (defn swap [ref f & rest]
-  (reset ref (apply f @ref rest)))
+  (reset ref (f @ref . rest)))
 
 (defmacro swapq [x f & rest]
   `(swap (gep (curlet) ',x) ,f ,@rest))
+
+(defn reduce [f init coll]
+  (let [result init
+        it (iter coll)]
+    (while it
+      (setq result (f @it result))
+      (setq it (next it)))
+    result))
 
 (def inc
   (let [add1 (fn [x] (+ x 1))]
@@ -66,6 +74,16 @@
          (if ,val ,val (or ,@rest))))
     x))
 
+(defn group-by [keyfn coll]
+  (let [groups {}
+        it (iter coll)]
+    (while it
+      (let [item @it
+            key (keyfn item)]
+        (update groups key (fn [group item] (cons item group)) item))
+      (setq it (next it)))
+    groups))
+
 (defn separate [pred coll]
   (let [left nil
         right nil
@@ -80,3 +98,5 @@
 
 (defn even? [x] (= (mod x 2) 0))
 (defn odd? [x] (not (even? x)))
+
+(gc)

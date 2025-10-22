@@ -27,5 +27,4 @@
 (assert (vector? [:a :b]))
 (assert (map? {:a 1 :b 3 :c 8}))
 (assert (function? function?))
-(assert (function? apply))
 (assert (function? let))

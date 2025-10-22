@@ -8,7 +8,7 @@
   (assert (= (m :bar) 15)))
 
 (let [obj {:value 3
-           %add (fn [self amount]
+           'add (fn [self amount]
                   (update self :value + amount))}]
   (assert (= (:value obj) 3))
   (obj.add 5)

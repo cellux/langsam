@@ -2357,25 +2357,37 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   return langsam_nil;
 }
 
-static LV evaluate_list(LangsamVM *vm, LV list) {
-  LV result = langsam_nil;
-  while (langsam_consp(list)) {
-    LV item = langsam_car(list);
-    LV evaluated_item = langsam_eval(vm, item);
-    LANGSAM_CHECK(evaluated_item);
-    result = langsam_cons(vm, evaluated_item, result);
-    list = langsam_cdr(list);
-  }
-  return langsam_nreverse(result);
-}
-
 LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
   LangsamFunction *f = self.p;
-  LV result = langsam_nil;
   if (f->evalargs) {
-    args = evaluate_list(vm, args);
-    LANGSAM_CHECK(args);
+    LV l = args;
+    LV ev_args = langsam_nil;
+    while (langsam_consp(l)) {
+      LV arg = langsam_car(l);
+      LV ev_arg = langsam_eval(vm, arg);
+      LANGSAM_CHECK(ev_arg);
+      ev_args = langsam_cons(vm, ev_arg, ev_args);
+      l = langsam_cdr(l);
+    }
+    if (!langsam_nilp(l)) {
+      LV dotted_args = langsam_eval(vm, l);
+      LANGSAM_CHECK(dotted_args);
+      LV it = langsam_iter(vm, dotted_args);
+      if (langsam_exceptionp(it)) {
+        return langsam_exceptionf(vm, "apply",
+                                  "dotted args should be iterable, got %s",
+                                  langsam_typename(vm, dotted_args.type));
+      }
+      while (langsam_truthy(vm, it)) {
+        LV ev_arg = langsam_deref(vm, it);
+        LANGSAM_CHECK(ev_arg);
+        ev_args = langsam_cons(vm, ev_arg, ev_args);
+        it = langsam_next(vm, it);
+      }
+    }
+    args = langsam_nreverse(ev_args);
   }
+  LV result = langsam_nil;
   if (f->fn != NULL) {
     result = f->fn(vm, args);
     LANGSAM_CHECK(result);
@@ -2709,35 +2721,6 @@ static LV eval_iter(LangsamVM *vm, LV args) {
 static LV eval_deref(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return langsam_deref(vm, obj);
-}
-
-static LV eval_apply(LangsamVM *vm, LV args) {
-  LV tail = args;
-  LANGSAM_ARG(obj, tail);
-  LV patch_target = args;
-  LV patch_source = tail;
-  while (langsam_consp(tail)) {
-    LV next_tail = langsam_cdr(tail);
-    if (langsam_consp(next_tail)) {
-      patch_target = tail;
-      patch_source = next_tail;
-    }
-    tail = next_tail;
-  }
-  if (!langsam_nilp(tail)) {
-    return langsam_exceptionf(vm, "apply", "invoked with improper list: %s",
-                              args);
-  }
-  if (langsam_consp(patch_source)) {
-    LV car = langsam_car(patch_source);
-    if (car.type != LT_CONS && car.type != LT_NIL) {
-      return langsam_exceptionf(vm, "apply",
-                                "last element should be Cons or Nil, got %s",
-                                langsam_typename(vm, car.type));
-    }
-    langsam_setcdr(patch_target, car);
-  }
-  return langsam_apply(vm, obj, langsam_cdr(args));
 }
 
 static LV eval_eval(LangsamVM *vm, LV args) {
@@ -3139,6 +3122,13 @@ static LV eval_require(LangsamVM *vm, LV args) {
   return langsam_require(vm, ls->p);
 }
 
+static LV eval_read_string(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(source, args);
+  LANGSAM_ARG_TYPE(source, LT_STRING);
+  LangsamString *ls = (LangsamString *)source.p;
+  return langsam_readstringn(vm, ls->p, ls->len);
+}
+
 static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 
 extern int langsam_l_len;
@@ -3183,7 +3173,6 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "len", eval_len);
   langsam_defn(vm, env, "iter", eval_iter);
   langsam_defn(vm, env, "deref", eval_deref);
-  langsam_defn(vm, env, "apply", eval_apply);
   langsam_defn(vm, env, "eval", eval_eval);
   langsam_defn(vm, env, "repr", eval_repr);
   langsam_defn(vm, env, "str", eval_str);
@@ -3214,6 +3203,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "setcdr", eval_setcdr);
   langsam_defn(vm, env, "nreverse", eval_nreverse);
   langsam_defn(vm, env, "require", eval_require);
+  langsam_defn(vm, env, "read-string", eval_read_string);
   langsam_defn(vm, env, "gc", eval_gc);
   return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);
 }
@@ -3535,7 +3525,7 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
     } else {
       LV cons =
           langsam_get(r->vm, r->vm->rootlet, langsam_symbol(r->vm, "cons"));
-      result = langsam_cons(r->vm, langsam_Opword_cast(r->vm, rhs), result);
+      result = langsam_cons(r->vm, langsam_quote(r->vm, rhs), result);
       result = langsam_cons(r->vm, lhs, result);
       result = langsam_cons(r->vm, cons, result);
     }
@@ -3933,6 +3923,13 @@ static LV Reader_read(Reader *r) {
   }
 }
 
+static LV langsam_read(LangsamVM *vm, ByteReadFunc readbyte,
+                       void *readbyte_data) {
+  Reader r;
+  Reader_init(&r, vm, readbyte, readbyte_data);
+  return Reader_read(&r);
+}
+
 static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
                        void *readbyte_data) {
   Reader r;
@@ -4014,6 +4011,20 @@ static LV readbyte_string(LangsamVM *vm, void *data) {
     return langsam_nil;
   }
   return langsam_integer(state->data[state->index++]);
+}
+
+LV langsam_readstring(LangsamVM *vm, char *s) {
+  LangsamSize len = (LangsamSize)strlen(s);
+  return langsam_readstringn(vm, s, len);
+}
+
+LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len) {
+  ReadByteStringState state = {
+      .data = (uint8_t *)s,
+      .len = len,
+      .index = 0,
+  };
+  return langsam_read(vm, readbyte_string, &state);
 }
 
 LV langsam_loadstring(LangsamVM *vm, char *s) {
