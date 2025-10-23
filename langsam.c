@@ -3036,6 +3036,22 @@ static LV eval_let(LangsamVM *vm, LV args) {
   return result;
 }
 
+static LV eval_if_let(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(bindings, args);
+  LANGSAM_ARG(if_expr, args);
+  LANGSAM_ARG_OPT(else_expr, args);
+  LV oldlet = vm->curlet;
+  vm->curlet = langsam_map(vm, vm->curlet, 64);
+  LV bind_result = process_bindings(vm, bindings);
+  if (langsam_exceptionp(bind_result)) {
+    vm->curlet = oldlet;
+    return langsam_eval(vm, else_expr);
+  }
+  LV result = langsam_eval(vm, if_expr);
+  vm->curlet = oldlet;
+  return result;
+}
+
 static LV eval_assert(LangsamVM *vm, LV args) {
   LANGSAM_ARG(expr, args);
   LV result = langsam_eval(vm, expr);
@@ -3224,6 +3240,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "if", eval_if);
   langsam_defspecial(vm, env, "while", eval_while);
   langsam_defspecial(vm, env, "let", eval_let);
+  langsam_defspecial(vm, env, "if-let", eval_if_let);
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defn(vm, env, "curlet", eval_curlet);
@@ -3374,14 +3391,14 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->numroots = 0;
   vm->strings = langsam_map(vm, langsam_nil, 4096);
   vm->rootlet = langsam_map(vm, langsam_nil, 4096);
+  LV modules = langsam_map(vm, langsam_nil, 64);
+  langsam_def(vm, vm->rootlet, "modules", modules);
   vm->curlet = vm->rootlet;
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
   vm->evalresult = true;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
-  LV modules = langsam_map(vm, langsam_nil, 64);
-  langsam_def(vm, vm->rootlet, "modules", modules);
   LV mainlet = langsam_map(vm, vm->rootlet, 4096);
   vm->curlet = mainlet;
   return langsam_nil;
