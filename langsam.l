@@ -56,22 +56,22 @@
 (def gensym
   (let [counter 0]
     (fn gensym [&opt (prefix 'gensym)]
-      (let [sym (Symbol (str prefix "-" counter))]
+      (let [sym (Symbol (str prefix "#" counter))]
         (inc counter)
         sym))))
 
 (defmacro and [x & rest]
   (if rest
-    (let [val (gensym 'val)]
-      `(let [,val ,x]
-         (if ,val (and ,@rest) ,val)))
+    (let [val# (gensym 'val)]
+      `(let [,val# ,x]
+         (if ,val# (and ,@rest) ,val#)))
     x))
 
 (defmacro or [x & rest]
   (if rest
-    (let [val (gensym 'val)]
-      `(let [,val ,x]
-         (if ,val ,val (or ,@rest))))
+    (let [val# (gensym 'val)]
+      `(let [,val# ,x]
+         (if ,val# ,val# (or ,@rest))))
     x))
 
 (defn group-by [keyfn coll]
@@ -99,4 +99,16 @@
 (defn even? [x] (= (mod x 2) 0))
 (defn odd? [x] (not (even? x)))
 
+(defmacro case [item & clauses]
+  (let [item# (gensym 'item)
+        subcase (fn [clauses]
+                  (if clauses
+                    (if-let [[pattern result & clauses] clauses]
+                      `(if-let [,pattern ,item#]
+                         ,result
+                         ,(subcase clauses))
+                      (if-let [[result] clauses]
+                        result))))]
+    `(let [,item# ,item]
+       ,(subcase clauses))))
 (gc)
