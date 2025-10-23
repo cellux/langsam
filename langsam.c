@@ -2440,10 +2440,18 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_Function_repr(LangsamVM *vm, LV self) {
   LangsamFunction *f = self.p;
-  if (!langsam_nilp(f->name)) {
-    return langsam_format(vm, "<Function:%s>", langsam_cstr(vm, f->name));
+  char *type;
+  if (f->evalargs) {
+    type = "Function";
+  } else if (f->evalresult) {
+    type = "Macro";
   } else {
-    return langsam_string(vm, "<Function>");
+    type = "Special";
+  }
+  if (!langsam_nilp(f->name)) {
+    return langsam_format(vm, "<%s:%s>", type, langsam_cstr(vm, f->name));
+  } else {
+    return langsam_format(vm, "<%s>", type);
   }
 }
 
