@@ -2379,40 +2379,38 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   return langsam_nil;
 }
 
-LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
-  LangsamFunction *f = self.p;
-  if (f->evalargs) {
-    LV l = args;
-    LV ev_args = langsam_nil;
-    while (langsam_consp(l)) {
-      LV arg = langsam_car(l);
-      LV ev_arg = langsam_eval(vm, arg);
+static LV fn_evalargs(LangsamVM *vm, LV args) {
+  LV l = args;
+  LV ev_args = langsam_nil;
+  while (langsam_consp(l)) {
+    LV arg = langsam_car(l);
+    LV ev_arg = langsam_eval(vm, arg);
+    LANGSAM_CHECK(ev_arg);
+    ev_args = langsam_cons(vm, ev_arg, ev_args);
+    l = langsam_cdr(l);
+  }
+  if (!langsam_nilp(l)) {
+    LV dotted_args = langsam_eval(vm, l);
+    LANGSAM_CHECK(dotted_args);
+    LV it = langsam_iter(vm, dotted_args);
+    if (langsam_exceptionp(it)) {
+      return langsam_exceptionf(vm, "apply",
+                                "dotted args should be iterable, got %s",
+                                langsam_typename(vm, dotted_args.type));
+    }
+    while (langsam_truthy(vm, it)) {
+      LV ev_arg = langsam_deref(vm, it);
       LANGSAM_CHECK(ev_arg);
       ev_args = langsam_cons(vm, ev_arg, ev_args);
-      l = langsam_cdr(l);
+      it = langsam_next(vm, it);
     }
-    if (!langsam_nilp(l)) {
-      LV dotted_args = langsam_eval(vm, l);
-      LANGSAM_CHECK(dotted_args);
-      LV it = langsam_iter(vm, dotted_args);
-      if (langsam_exceptionp(it)) {
-        return langsam_exceptionf(vm, "apply",
-                                  "dotted args should be iterable, got %s",
-                                  langsam_typename(vm, dotted_args.type));
-      }
-      while (langsam_truthy(vm, it)) {
-        LV ev_arg = langsam_deref(vm, it);
-        LANGSAM_CHECK(ev_arg);
-        ev_args = langsam_cons(vm, ev_arg, ev_args);
-        it = langsam_next(vm, it);
-      }
-    }
-    args = langsam_nreverse(ev_args);
   }
-  LV result = langsam_nil;
+  return langsam_nreverse(ev_args);
+}
+
+static LV fn_apply(LangsamVM *vm, LangsamFunction *f, LV args) {
   if (f->fn != NULL) {
-    result = f->fn(vm, args);
-    LANGSAM_CHECK(result);
+    return f->fn(vm, args);
   } else {
     LV body = f->body;
     LV oldlet = vm->curlet;
@@ -2422,14 +2420,19 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
       vm->curlet = oldlet;
       return bind_result;
     }
-    result = langsam_do(vm, body);
-    if (langsam_exceptionp(result)) {
-      vm->curlet = oldlet;
-      return result;
-    }
+    LV result = langsam_do(vm, body);
     vm->curlet = oldlet;
+    return result;
   }
-  if (f->evalresult) {
+}
+
+LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
+  LangsamFunction *f = self.p;
+  if (f->evalargs) {
+    args = fn_evalargs(vm, args);
+  }
+  LV result = fn_apply(vm, f, args);
+  if (f->evalresult && vm->evalresult) {
     result = langsam_eval(vm, result);
   }
   return result;
@@ -2961,6 +2964,14 @@ static LV eval_macro(LangsamVM *vm, LV args) {
   return make_function(vm, args, false, true);
 }
 
+static LV eval_macroexpand(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(macro_call, args);
+  vm->evalresult = false;
+  LV expansion = langsam_eval(vm, macro_call);
+  vm->evalresult = true;
+  return expansion;
+}
+
 static LV eval_do(LangsamVM *vm, LV args) { return langsam_do(vm, args); }
 
 static LV eval_if(LangsamVM *vm, LV args) {
@@ -3217,6 +3228,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defn(vm, env, "curlet", eval_curlet);
   langsam_defn(vm, env, "destructure", eval_destructure);
+  langsam_defn(vm, env, "macroexpand", eval_macroexpand);
   langsam_defn(vm, env, "type", eval_type);
   langsam_defn(vm, env, "cons", eval_cons);
   langsam_defn(vm, env, "car", eval_car);
@@ -3365,6 +3377,7 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->curlet = vm->rootlet;
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
+  vm->evalresult = true;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
   LV modules = langsam_map(vm, langsam_nil, 64);
