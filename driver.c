@@ -20,11 +20,25 @@ int main(int argc, char **argv) {
     langsam_loglevel(&vm, LANGSAM_DEBUG);
   }
   if (argc > 1) {
+    bool opt_e = false;
     for (int i = 1; i < argc; i++) {
-      LV result = langsam_loadfile(&vm, argv[i]);
+      if (strcmp(argv[i], "-e") == 0) {
+        opt_e = true;
+        continue;
+      }
+      LV result;
+      if (opt_e) {
+        result = langsam_readstring(&vm, argv[i]);
+        if (!langsam_exceptionp(result)) {
+          result = langsam_eval(&vm, result);
+        }
+        opt_e = false;
+      } else {
+        result = langsam_loadfile(&vm, argv[i]);
+      }
       if (langsam_exceptionp(result)) {
         char *error_message = langsam_cstr(&vm, result);
-        fprintf(stderr, "Error while loading %s: %s\n", argv[i], error_message);
+        fprintf(stderr, "%s: %s\n", argv[i], error_message);
         langsam_close(&vm);
         return 1;
       }
