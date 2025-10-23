@@ -40,6 +40,14 @@
 (defmacro swapq [x f & rest]
   `(swap (gep (curlet) ',x) ,f ,@rest))
 
+(defn map [f coll]
+  (let [result nil
+        it (iter coll)]
+    (while it
+      (setq result (cons (f @it) result))
+      (setq it (next it)))
+    (nreverse result)))
+
 (defn reduce [f init coll]
   (let [result init
         it (iter coll)]
@@ -111,4 +119,32 @@
                         result))))]
     `(let [,item# ,item]
        ,(subcase clauses))))
+
+(defmacro prog1 [head & rest]
+  (let [result# (gensym 'result)]
+    `(let [,result# ,head]
+       ,@rest
+       ,result#)))
+
+(defmacro for [bindings & body]
+  (if-let [[var coll & rest] bindings]
+    (let [it# (gensym 'it)
+          coll# (gensym 'coll)]
+      `(let [,coll# ,coll
+             ,it# (iter ,coll#)
+             ,var nil]
+         (while ,it#
+           (setq ,var @,it#)
+           (for ,rest ,@body)
+           (setq ,it# (next ,it#)))))
+    `(do ,@body)))
+
+(defn flatten-if [pred coll]
+  (def result nil)
+  (for [item coll]
+    (if (pred item)
+      (for [x (flatten-if pred item)]
+        (setq result (cons x result)))
+      (setq result (cons item result))))
+  ((type coll) (nreverse result)))
 (gc)
