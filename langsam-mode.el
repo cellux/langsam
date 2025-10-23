@@ -37,6 +37,7 @@
     ;; Symbol constituents common in Lisps
     (modify-syntax-entry ?! "_" st)
     (modify-syntax-entry ?$ "_" st)
+    (modify-syntax-entry ?# "_" st)
     (modify-syntax-entry ?% "_" st)
     (modify-syntax-entry ?& "_" st)
     (modify-syntax-entry ?* "_" st)
@@ -55,7 +56,6 @@
     (modify-syntax-entry ?` "'" st)
     (modify-syntax-entry ?, "'" st)
     (modify-syntax-entry ?@ "'" st)
-    (modify-syntax-entry ?# "'" st)
     (modify-syntax-entry ?^ "'" st)
     (modify-syntax-entry ?| "'" st)
     st))
