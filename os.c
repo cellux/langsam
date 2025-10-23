@@ -153,6 +153,9 @@ LV langsam_os_module(LangsamVM *vm) {
   LV module = langsam_map(vm, langsam_nil, 64);
   langsam_def(vm, module, "File", langsam_type(&os_File_T));
   langsam_defn(vm, module, "open", os_open);
+  langsam_def(vm, module, "stdin", os_File_cast(vm, langsam_integer(0)));
+  langsam_def(vm, module, "stdout", os_File_cast(vm, langsam_integer(1)));
+  langsam_def(vm, module, "stderr", os_File_cast(vm, langsam_integer(2)));
   langsam_def(vm, module, "O_APPEND", langsam_integer(O_APPEND));
   langsam_def(vm, module, "O_ASYNC", langsam_integer(O_ASYNC));
   langsam_def(vm, module, "O_CLOEXEC", langsam_integer(O_CLOEXEC));
