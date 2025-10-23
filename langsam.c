@@ -2982,6 +2982,11 @@ static LV eval_macroexpand(LangsamVM *vm, LV args) {
   return fn_apply(vm, f, macro_call);
 }
 
+static LV eval_throw(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(payload, args);
+  return langsam_exception(vm, payload);
+}
+
 static LV eval_do(LangsamVM *vm, LV args) { return langsam_do(vm, args); }
 
 static LV eval_if(LangsamVM *vm, LV args) {
@@ -3059,6 +3064,41 @@ static LV eval_if_let(LangsamVM *vm, LV args) {
   }
   LV result = langsam_eval(vm, if_expr);
   vm->curlet = oldlet;
+  return result;
+}
+
+static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
+  LV it = langsam_iter(vm, clauses);
+  LANGSAM_CHECK(it);
+  while (langsam_truthy(vm, it)) {
+    LV pat = langsam_deref(vm, it);
+    it = langsam_next(vm, it);
+    if (!langsam_truthy(vm, it)) {
+      return langsam_exceptionf(vm, "catch", "incomplete clause");
+    }
+    LV oldlet = vm->curlet;
+    vm->curlet = langsam_map(vm, vm->curlet, 64);
+    LV bind_result = langsam_bind(vm, vm->curlet, pat, payload);
+    if (!langsam_exceptionp(bind_result)) {
+      LV expr = langsam_deref(vm, it);
+      LV result = langsam_eval(vm, expr);
+      vm->curlet = oldlet;
+      return result;
+    }
+    vm->curlet = oldlet;
+    it = langsam_next(vm, it);
+  }
+  return langsam_exception(vm, payload);
+}
+
+static LV eval_catch(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(clauses, args);
+  LANGSAM_ARG_TYPE(clauses, LT_VECTOR);
+  LV result = langsam_do(vm, args);
+  if (langsam_exceptionp(result)) {
+    LangsamException *ex = result.p;
+    result = process_catch_clauses(vm, clauses, ex->payload);
+  }
   return result;
 }
 
@@ -3251,11 +3291,13 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "while", eval_while);
   langsam_defspecial(vm, env, "let", eval_let);
   langsam_defspecial(vm, env, "if-let", eval_if_let);
+  langsam_defspecial(vm, env, "catch", eval_catch);
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defn(vm, env, "curlet", eval_curlet);
   langsam_defn(vm, env, "destructure", eval_destructure);
   langsam_defn(vm, env, "macroexpand", eval_macroexpand);
+  langsam_defn(vm, env, "throw", eval_throw);
   langsam_defn(vm, env, "type", eval_type);
   langsam_defn(vm, env, "cons", eval_cons);
   langsam_defn(vm, env, "car", eval_car);
