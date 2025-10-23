@@ -530,7 +530,6 @@ struct LangsamVM {
   LV curlet;
   bool repl;
   LangsamLogLevel loglevel;
-  bool evalresult;
 };
 
 typedef LV (*LangsamImportFn)(LangsamVM *vm);

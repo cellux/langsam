@@ -2432,7 +2432,7 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
     args = fn_evalargs(vm, args);
   }
   LV result = fn_apply(vm, f, args);
-  if (f->evalresult && vm->evalresult) {
+  if (f->evalresult) {
     result = langsam_eval(vm, result);
   }
   return result;
@@ -2974,10 +2974,12 @@ static LV eval_macro(LangsamVM *vm, LV args) {
 
 static LV eval_macroexpand(LangsamVM *vm, LV args) {
   LANGSAM_ARG(macro_call, args);
-  vm->evalresult = false;
-  LV expansion = langsam_eval(vm, macro_call);
-  vm->evalresult = true;
-  return expansion;
+  LANGSAM_ARG(macro, macro_call);
+  macro = langsam_eval(vm, macro);
+  LANGSAM_CHECK(macro);
+  LANGSAM_ARG_TYPE(macro, LT_FUNCTION);
+  LangsamFunction *f = macro.p;
+  return fn_apply(vm, f, macro_call);
 }
 
 static LV eval_do(LangsamVM *vm, LV args) { return langsam_do(vm, args); }
@@ -3404,7 +3406,6 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->curlet = vm->rootlet;
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
-  vm->evalresult = true;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
   LV mainlet = langsam_map(vm, vm->rootlet, 4096);
