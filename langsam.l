@@ -139,11 +139,24 @@
            (setq ,it# (next ,it#)))))
     `(do ,@body)))
 
-(defn flatten-if [pred coll]
+(defn flatten [coll]
   (def result nil)
   (for [item coll]
-    (if (pred item)
-      (for [x (flatten-if pred item)]
+    (if-let [flattened (flatten item)]
+      (for [x flattened]
+        (setq result (cons x result)))
+      (setq result (cons item result))))
+  ((type coll) (nreverse result)))
+
+(defn iterable? [x]
+  (if-let [it (iter x)]
+    true false))
+
+(defn flatten1 [coll]
+  (def result nil)
+  (for [item coll]
+    (if (iterable? item)
+      (for [x item]
         (setq result (cons x result)))
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
