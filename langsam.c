@@ -1214,9 +1214,8 @@ LV langsam_Cons_eval(LangsamVM *vm, LV self) {
   LV op = langsam_eval(vm, head);
   LANGSAM_CHECK(op);
   if (langsam_nilp(op)) {
-    return langsam_exceptionf(
-        vm, "eval", "expression in operator position evaluated to nil: %s",
-        langsam_cstr(vm, head));
+    return langsam_exceptionf(vm, "eval", "unknown operator: %s",
+                              langsam_cstr(vm, head));
   }
   return langsam_apply(vm, op, langsam_cdr(self));
 }
@@ -2167,6 +2166,26 @@ typedef enum {
 static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (lhs.type == LT_SYMBOL) {
     langsam_put(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_CONS) {
+    LV head = langsam_car(lhs);
+    LV quote_symbol = langsam_symbol(vm, "quote");
+    if (LVEQ(head, quote_symbol)) {
+      LV tail = langsam_cdr(lhs);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "bind",
+                                  "malformed quote in cons pattern");
+      }
+      LV expected = langsam_car(tail);
+      LV result = langsam_equal(vm, expected, rhs);
+      if (langsam_falsep(result)) {
+        return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
+                                  langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+      }
+    } else {
+      return langsam_exceptionf(vm, "bind",
+                                "cons pattern must be quote, got %s",
+                                langsam_cstr(vm, lhs));
+    }
   } else if (lhs.type == LT_VECTOR) {
     LV it_lhs = langsam_iter(vm, lhs);
     LANGSAM_CHECK(it_lhs);
@@ -2293,8 +2312,11 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       it_lhs = langsam_next(vm, it_lhs);
     }
   } else {
-    return langsam_exceptionf(vm, "bind", "cannot bind pattern of type %s",
-                              langsam_typename(vm, lhs.type));
+    LV result = langsam_equal(vm, lhs, rhs);
+    if (langsam_falsep(result)) {
+      return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
+                                langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+    }
   }
   return env;
 }
