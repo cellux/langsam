@@ -17,10 +17,12 @@ typedef struct LangsamVM LangsamVM;
 typedef long long LangsamSize;
 #define LANGSAM_INTEGER_MIN LLONG_MIN
 #define LANGSAM_INTEGER_MAX LLONG_MAX
+#define LANGSAM_INTEGER_FMT "%lld"
 #elif INTPTR_MAX == LONG_MAX
 typedef long LangsamSize;
 #define LANGSAM_INTEGER_MIN LONG_MIN
 #define LANGSAM_INTEGER_MAX LONG_MAX
+#define LANGSAM_INTEGER_FMT "%ld"
 #else
 #error "Cannot find a suitable type for LangsamSize"
 #endif
