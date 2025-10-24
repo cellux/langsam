@@ -26,5 +26,6 @@
 (assert (cons? '(a . b)))
 (assert (vector? [:a :b]))
 (assert (map? {:a 1 :b 3 :c 8}))
-(assert (function? function?))
-(assert (function? let))
+
+(for [f [function? let do unless map]]
+  (assert (function? f)))

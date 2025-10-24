@@ -369,7 +369,7 @@ LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Vector_eval(LangsamVM *vm, LV self);
 LV langsam_Vector_repr(LangsamVM *vm, LV self);
 
-LV langsam_vector0(LangsamVM *vm, LangsamSize len);
+LV langsam_vector_uninitialized(LangsamVM *vm, LangsamSize len);
 LV langsam_vector(LangsamVM *vm, LangsamSize len);
 
 LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);

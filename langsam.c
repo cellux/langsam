@@ -530,14 +530,15 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
     LangsamString *s = other.p;
     LangsamInteger i;
     errno = 0;
+    char *endptr;
 #if INTPTR_MAX == LLONG_MAX
-    i = strtoll(s->p, NULL, 0);
+    i = strtoll(s->p, &endptr, 0);
 #elif INTPTR_MAX == LONG_MAX
-    i = strtol(s->p, NULL, 0);
+    i = strtol(s->p, &endptr, 0);
 #else
 #error "Cannot find a suitable implementation for String->Integer conversion"
 #endif
-    if (errno) {
+    if (endptr == s->p || errno != 0) {
       return langsam_exceptionf(
           vm, "cast", "String->Integer conversion failed for: %s", s->p);
     }
@@ -634,14 +635,15 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
     LangsamString *s = other.p;
     LangsamFloat f;
     errno = 0;
+    char *endptr;
 #if LANGSAM_FLOAT_MANT_DIG == FLT_MANT_DIG
-    f = strtof(s->p, NULL);
+    f = strtof(s->p, &endptr);
 #elif LANGSAM_FLOAT_MANT_DIG == DBL_MANT_DIG
-    f = strtod(s->p, NULL);
+    f = strtod(s->p, &endptr);
 #else
 #error "Cannot find a suitable implementation for String->Float conversion"
 #endif
-    if (errno) {
+    if (endptr == s->p || errno != 0) {
       return langsam_exceptionf(
           vm, "cast", "String->Float conversion failed for: %s", s->p);
     }
@@ -695,7 +697,7 @@ LV langsam_Float_mod(LangsamVM *vm, LV self, LV other) {
 }
 
 LV langsam_Float_repr(LangsamVM *vm, LV self) {
-  return langsam_format(vm, "%g", self.f);
+  return langsam_format(vm, "%.17g", self.f);
 }
 
 LV langsam_float(LangsamFloat f) { return (LV){.type = LT_FLOAT, .f = f}; }
@@ -1413,7 +1415,7 @@ LV langsam_Vector_cast(LangsamVM *vm, LV other) {
     it = langsam_next(vm, it);
     len++;
   }
-  LV self = langsam_vector0(vm, len);
+  LV self = langsam_vector_uninitialized(vm, len);
   LangsamVector *v = self.p;
   for (LangsamIndex i = len - 1; i >= 0; i--) {
     v->items[i] = langsam_car(l);
@@ -1440,7 +1442,7 @@ LV langsam_Vector_add(LangsamVM *vm, LV self, LV other) {
   LangsamVector *v1 = self.p;
   LangsamVector *v2 = other.p;
   LangsamSize len = v1->len + v2->len;
-  LV result = langsam_vector0(vm, len);
+  LV result = langsam_vector_uninitialized(vm, len);
   LV *items = ((LangsamVector *)result.p)->items;
   LangsamIndex index = 0;
   for (LangsamIndex i = 0; i < v1->len; i++) {
@@ -1515,7 +1517,7 @@ LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_Vector_eval(LangsamVM *vm, LV self) {
   LangsamVector *v = self.p;
-  LV result = langsam_vector0(vm, v->len);
+  LV result = langsam_vector_uninitialized(vm, v->len);
   LV *result_items = ((LangsamVector *)result.p)->items;
   for (LangsamIndex i = 0; i < v->len; i++) {
     result_items[i] = langsam_eval(vm, v->items[i]);
@@ -1556,7 +1558,7 @@ LV langsam_Vector_repr(LangsamVM *vm, LV self) {
   return langsam_stringn_wrap(vm, result, total_length + 2);
 }
 
-LV langsam_vector0(LangsamVM *vm, LangsamSize len) {
+LV langsam_vector_uninitialized(LangsamVM *vm, LangsamSize len) {
   LangsamVector *v =
       langsam_gcalloc(vm, LT_VECTOR, LANGSAM_SIZEOF(LangsamVector));
   v->items = langsam_alloc(vm, LANGSAM_SIZEOF(LV) * len);
@@ -1568,7 +1570,7 @@ LV langsam_vector0(LangsamVM *vm, LangsamSize len) {
 }
 
 LV langsam_vector(LangsamVM *vm, LangsamSize len) {
-  LV result = langsam_vector0(vm, len);
+  LV result = langsam_vector_uninitialized(vm, len);
   LangsamVector *v = result.p;
   for (LangsamIndex i = 0; i < len; i++) {
     v->items[i] = langsam_nil;

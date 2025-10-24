@@ -170,4 +170,9 @@
         (setq result (cons x result)))
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
+
+(defmacro throws? [expected-payload & body]
+  (let [catch-result# (gensym 'catch-result)]
+    `(let [,catch-result# (catch [payload (cons %exception-payload payload)] ,@body)]
+       (assert (= ,catch-result# (cons %exception-payload ,expected-payload))))))
 (gc)
