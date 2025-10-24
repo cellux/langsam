@@ -2012,9 +2012,9 @@ LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
                               "values of type `%s` do not have a prototype",
                               langsam_typename(vm, self.type));
   }
-  if (proto.type != LT_MAP) {
+  if (proto.type != LT_MAP && proto.type != LT_NIL) {
     return langsam_exceptionf(vm, "setproto",
-                              "prototype must be a Map, got `%s`",
+                              "prototype must be Map or Nil, got `%s`",
                               langsam_typename(vm, proto.type));
   }
   LangsamMap *m = self.p;
@@ -3167,7 +3167,6 @@ static LV eval_setproto(LangsamVM *vm, LV args) {
   LANGSAM_ARG(map, args);
   LANGSAM_ARG_TYPE(map, LT_MAP);
   LANGSAM_ARG(proto, args);
-  LANGSAM_ARG_TYPE(proto, LT_MAP);
   return langsam_Map_setproto(vm, map, proto);
 }
 
