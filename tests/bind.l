@@ -1,6 +1,7 @@
-(let [dtest (fn [pattern value expected-result]
-              (let [actual-result (destructure pattern value)]
-                (assert (= actual-result expected-result))))]
+(let [dtest (fn [pattern value expected-env]
+              (let [env (sublet (curlet))]
+                (bind env pattern value)
+                (assert (= env expected-env))))]
   (dtest 'a 5 {'a 5})
   (dtest '[a b c] [1 2 3] {'a 1 'b 2 'c 3})
   (dtest '[a b & rest] [1 2 3 4 5 6] {'a 1 'b 2 'rest '(3 4 5 6)})
@@ -14,6 +15,8 @@
   (dtest '[a b &opt c (d :foo) & rest] [1 2 3 4 5 6] {'a 1 'b 2 'c 3 'd 4 'rest '(5 6)})
   (dtest '[a b &opt (c 7) (d (+ c 4))] [1 2] {'a 1 'b 2 'c 7 'd 11})
   (dtest '[a b &opt (c 'foo)] [1 2] {'a 1 'b 2 'c 'foo})
+  (dtest '[a b &opt (c :foo c-set?)] [1 2] {'a 1 'b 2 'c :foo 'c-set? false})
+  (dtest '[a b &opt (c :foo c-set?)] [1 2 nil] {'a 1 'b 2 'c nil 'c-set? true})
   (dtest '{a :a b :b} {:a 1 :b 2 :c 3} {'a 1 'b 2})
   (dtest '{:keys [a c] b :b} {:a 1 :b 2 :c 3} {'a 1 'c 3 'b 2})
   (dtest '[1 foo 2] [1 7 2] {'foo 7})

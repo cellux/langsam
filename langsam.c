@@ -2235,6 +2235,7 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           bs = LANGSAM_BIND_REST;
         } else {
           LV sym, val;
+          LV symsetp = langsam_nil;
           if (pat.type == LT_SYMBOL) {
             sym = pat;
             val = langsam_nil;
@@ -2244,11 +2245,20 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
             if (head.type == LT_SYMBOL && tail.type == LT_CONS) {
               sym = head;
               val = langsam_car(tail);
+              tail = langsam_cdr(tail);
+              if (tail.type == LT_CONS) {
+                symsetp = langsam_car(tail);
+                if (symsetp.type != LT_SYMBOL) {
+                  return langsam_exceptionf(vm, "bind",
+                                            "symsetp should be Symbol, got %s",
+                                            langsam_typename(vm, symsetp.type));
+                }
+              }
             } else {
               return langsam_exceptionf(
                   vm, "bind",
                   "&opt parameter with default value should look like (sym "
-                  "default), got %s",
+                  "default) or (sym default symsetp), got %s",
                   langsam_cstr(vm, pat));
             }
           } else {
@@ -2256,7 +2266,9 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
                 vm, "bind", "&opt parameter must be Symbol or Cons, got %s",
                 langsam_cstr(vm, pat));
           }
+          bool argsetp = false;
           if (langsam_truthy(vm, it_rhs)) {
+            argsetp = true;
             val = langsam_deref(vm, it_rhs);
             it_rhs = langsam_next(vm, it_rhs);
           } else if (langsam_somep(val)) {
@@ -2266,8 +2278,13 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
             vm->curlet = oldlet;
             LANGSAM_CHECK(val);
           }
-          LV result = langsam_bind(vm, env, sym, val);
-          LANGSAM_CHECK(result);
+          LV bind_value_result = langsam_bind(vm, env, sym, val);
+          LANGSAM_CHECK(bind_value_result);
+          if (langsam_somep(symsetp)) {
+            LV bind_symsetp_result =
+                langsam_bind(vm, env, symsetp, langsam_boolean(argsetp));
+            LANGSAM_CHECK(bind_symsetp_result);
+          }
         }
         break;
       case LANGSAM_BIND_REST:
@@ -3150,11 +3167,12 @@ static LV eval_int3(LangsamVM *vm, LV args) {
 
 static LV eval_curlet(LangsamVM *vm, LV args) { return vm->curlet; }
 
-static LV eval_destructure(LangsamVM *vm, LV args) {
+static LV eval_bind(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(env, args);
+  LANGSAM_ARG_TYPE(env, LT_MAP);
   LANGSAM_ARG(pattern, args);
   LANGSAM_ARG(value, args);
-  LV bindlet = langsam_map(vm, vm->curlet, 64);
-  return langsam_bind(vm, bindlet, pattern, value);
+  return langsam_bind(vm, env, pattern, value);
 }
 
 static LV eval_getproto(LangsamVM *vm, LV args) {
@@ -3308,7 +3326,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defn(vm, env, "curlet", eval_curlet);
-  langsam_defn(vm, env, "destructure", eval_destructure);
+  langsam_defn(vm, env, "bind", eval_bind);
   langsam_defn(vm, env, "macroexpand", eval_macroexpand);
   langsam_defn(vm, env, "throw", eval_throw);
   langsam_defn(vm, env, "type", eval_type);
