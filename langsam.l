@@ -21,6 +21,14 @@
 (defn not= [x & rest]
   (not (= x . rest)))
 
+(defmacro unless [cond & body]
+  `(when (not ,cond) ,@body))
+
+(defn sublet [proto &opt (size 64)]
+  (let [sublet (Map size)]
+    (setproto sublet proto)
+    sublet))
+
 (defmacro import [name]
   `(def ,name (require ,(str name))))
 
