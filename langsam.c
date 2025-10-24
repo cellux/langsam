@@ -277,20 +277,36 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
   return t->apply(vm, self, args);
 }
 
+#define LANGSAM_MAX_EVAL_DEPTH 256
+
 LV langsam_eval(LangsamVM *vm, LV self) {
+  if (vm->evaldepth == LANGSAM_MAX_EVAL_DEPTH) {
+    return langsam_exceptionf(vm, "eval", "detected infinite recursion");
+  }
+  vm->evaldepth++;
   LANGSAM_CHECK(langsam_pushroot(vm, self));
   LangsamType t = self.type;
   LV result = t->eval ? t->eval(vm, self) : self;
   langsam_debug(vm, "EVAL: %s -> %s", langsam_cstr(vm, self),
                 langsam_cstr(vm, result));
   langsam_poproot(vm);
+  vm->evaldepth--;
   return result;
 }
 
+#define LANGSAM_MAX_REPR_DEPTH 16
+
 LV langsam_repr(LangsamVM *vm, LV self) {
+  if (vm->reprdepth == LANGSAM_MAX_REPR_DEPTH) {
+    return langsam_exceptionf(vm, "repr", "detected infinite recursion");
+  }
   LangsamType t = self.type;
   if (t->repr) {
-    return langsam_str(vm, t->repr(vm, self));
+    vm->reprdepth++;
+    LV result = t->repr(vm, self);
+    vm->reprdepth--;
+    LANGSAM_CHECK(result);
+    return langsam_str(vm, result);
   }
   char *self_type_name = langsam_typename(vm, self.type);
   return langsam_format(vm, "<%s>", self_type_name);
@@ -3449,6 +3465,8 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->curlet = vm->rootlet;
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
+  vm->evaldepth = 0;
+  vm->reprdepth = 0;
   LV result = import_langsam_core(vm);
   LANGSAM_CHECK(result);
   LV mainlet = langsam_map(vm, vm->rootlet, 4096);
