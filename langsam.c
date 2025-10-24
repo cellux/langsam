@@ -1130,8 +1130,6 @@ LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p) {
   return total;
 }
 
-bool langsam_Cons_truthy(LangsamVM *vm, LV self) { return !langsam_nilp(self); }
-
 uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t hash) {
   LangsamCons *cons = self.p;
   hash = langsam_hash(vm, cons->car, hash);
@@ -1313,7 +1311,6 @@ static struct LangsamT LANGSAM_T_CONS = {
     .name = "Cons",
     .gcmanaged = true,
     .gcmark = langsam_Cons_gcmark,
-    .truthy = langsam_Cons_truthy,
     .hash = langsam_Cons_hash,
     .cast = langsam_Cons_cast,
     .equal = langsam_Cons_equal,

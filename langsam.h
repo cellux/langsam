@@ -323,7 +323,6 @@ LV langsam_opword(LangsamVM *vm, char *name);
 // Cons
 
 LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p);
-bool langsam_Cons_truthy(LangsamVM *vm, LV self);
 uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t prevhash);
 LV langsam_Cons_cast(LangsamVM *vm, LV other);
 LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other);
