@@ -58,13 +58,13 @@ static LV os_open(LangsamVM *vm, LV args) {
   LANGSAM_ARG(path, args);
   LANGSAM_ARG_TYPE(path, LT_STRING);
   LANGSAM_ARG_OPT(flags, args);
-  if (!langsam_nilp(flags)) {
+  if (langsam_somep(flags)) {
     LANGSAM_ARG_TYPE(flags, LT_INTEGER);
   } else {
     flags = langsam_integer(0);
   }
   LANGSAM_ARG_OPT(mode, args);
-  if (!langsam_nilp(mode)) {
+  if (langsam_somep(mode)) {
     LANGSAM_ARG_TYPE(mode, LT_INTEGER);
   }
   int fd;

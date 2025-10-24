@@ -374,6 +374,7 @@ const LangsamType LT_NIL = &LANGSAM_T_NIL;
 const LV langsam_nil = {.type = LT_NIL, .p = NULL};
 
 bool langsam_nilp(LV v) { return v.type == LT_NIL; }
+bool langsam_somep(LV v) { return v.type != LT_NIL; }
 
 // Exception
 
@@ -921,7 +922,7 @@ LV langsam_istringn(LangsamVM *vm, char *s, LangsamSize len) {
       .p = &stmp,
   };
   LV vs = langsam_get(vm, vm->strings, vtmp);
-  if (!langsam_nilp(vs)) {
+  if (langsam_somep(vs)) {
     return vs;
   }
   return intern_stringn(vm, s, len);
@@ -1236,7 +1237,7 @@ LV langsam_Cons_repr(LangsamVM *vm, LV self) {
     reprs = langsam_cons(vm, repr, reprs);
     cur = langsam_cdr(cur);
   }
-  if (!langsam_nilp(cur)) {
+  if (langsam_somep(cur)) {
     total_length += 2;
     reprs = langsam_cons(vm, langsam_istring(vm, "."), reprs);
     LV repr = langsam_repr(vm, cur);
@@ -1251,7 +1252,7 @@ LV langsam_Cons_repr(LangsamVM *vm, LV self) {
   char *result = langsam_alloc(vm, index);
   result[--index] = 0;
   result[--index] = ')';
-  for (LV r = reprs; !langsam_nilp(r); r = langsam_cdr(r)) {
+  for (LV r = reprs; langsam_consp(r); r = langsam_cdr(r)) {
     LV repr = langsam_car(r);
     LangsamString *reprstr = (LangsamString *)repr.p;
     index -= reprstr->len;
@@ -1528,7 +1529,7 @@ LV langsam_Vector_repr(LangsamVM *vm, LV self) {
   char *result = langsam_alloc(vm, index);
   result[--index] = 0;
   result[--index] = ']';
-  for (LV r = reprs; !langsam_nilp(r); r = langsam_cdr(r)) {
+  for (LV r = reprs; langsam_consp(r); r = langsam_cdr(r)) {
     LV repr = langsam_car(r);
     char *repr_p = ((LangsamString *)repr.p)->p;
     LangsamSize repr_len = ((LangsamString *)repr.p)->len;
@@ -1692,7 +1693,7 @@ LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
     return langsam_false;
   }
   LV items = langsam_Map_items(vm, self);
-  while (!langsam_nilp(items)) {
+  while (langsam_somep(items)) {
     LV item = langsam_car(items);
     LV k = langsam_car(item);
     LV v1 = langsam_cdr(item);
@@ -1718,7 +1719,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
   LangsamSize nitems = m1->nitems + m2->nitems;
   LV result = langsam_map(vm, m1->proto, nitems);
   LV items = langsam_Map_items(vm, self);
-  while (!langsam_nilp(items)) {
+  while (langsam_consp(items)) {
     LV item = langsam_car(items);
     LV k = langsam_car(item);
     LV v = langsam_cdr(item);
@@ -1726,7 +1727,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
     items = langsam_cdr(items);
   }
   LV otheritems = langsam_Map_items(vm, other);
-  while (!langsam_nilp(otheritems)) {
+  while (langsam_consp(otheritems)) {
     LV otheritem = langsam_car(otheritems);
     LV k = langsam_car(otheritem);
     LV v = langsam_cdr(otheritem);
@@ -1741,7 +1742,7 @@ static LV langsam_Map_rawgep(LangsamVM *vm, LV self, LV key) {
   uint64_t hash = langsam_hash(vm, key, HASH_SEED);
   LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
-  while (!langsam_nilp(bucket)) {
+  while (langsam_consp(bucket)) {
     LV item = langsam_car(bucket);
     LV k = langsam_car(item);
     LV eq = langsam_equal(vm, k, key);
@@ -1756,7 +1757,7 @@ static LV langsam_Map_rawgep(LangsamVM *vm, LV self, LV key) {
 
 LV langsam_Map_gep(LangsamVM *vm, LV self, LV key) {
   LV item = langsam_Map_rawgep(vm, self, key);
-  if (!langsam_nilp(item)) {
+  if (langsam_somep(item)) {
     return item;
   }
   LV proto = langsam_Map_getproto(vm, self);
@@ -1769,7 +1770,7 @@ LV langsam_Map_gep(LangsamVM *vm, LV self, LV key) {
 LV langsam_Map_get(LangsamVM *vm, LV self, LV key) {
   LV item = langsam_Map_gep(vm, self, key);
   LANGSAM_CHECK(item);
-  if (!langsam_nilp(item)) {
+  if (langsam_consp(item)) {
     return langsam_cdr(item);
   }
   return langsam_nil;
@@ -1814,7 +1815,7 @@ static LangsamInteger next_power_of_two(LangsamInteger n) {
 LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   LV item = langsam_Map_rawgep(vm, self, key);
   LANGSAM_CHECK(item);
-  if (!langsam_nilp(item)) {
+  if (langsam_consp(item)) {
     langsam_setcdr(item, value);
     return langsam_nil;
   }
@@ -1837,16 +1838,16 @@ LV langsam_Map_del(LangsamVM *vm, LV self, LV key) {
   LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   LV prev = langsam_nil;
-  while (!langsam_nilp(bucket)) {
+  while (langsam_consp(bucket)) {
     LV item = langsam_car(bucket);
     LV k = langsam_car(item);
     LV eq = langsam_equal(vm, k, key);
     LANGSAM_CHECK(eq);
     if (langsam_truep(eq)) {
-      if (langsam_nilp(prev)) {
-        m->buckets[bucket_index] = langsam_cdr(bucket);
-      } else {
+      if (langsam_consp(prev)) {
         langsam_setcdr(prev, langsam_cdr(bucket));
+      } else {
+        m->buckets[bucket_index] = langsam_cdr(bucket);
       }
       m->nitems--;
       return langsam_nil;
@@ -1884,7 +1885,7 @@ LV langsam_Map_eval(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   LV result = langsam_map(vm, m->proto, m->nitems);
   LV items = langsam_Map_items(vm, self);
-  while (!langsam_nilp(items)) {
+  while (langsam_consp(items)) {
     LV item = langsam_car(items);
     LV k = langsam_car(item);
     LV v = langsam_cdr(item);
@@ -1902,7 +1903,7 @@ LV langsam_Map_repr(LangsamVM *vm, LV self) {
   LV items = langsam_Map_items(vm, self);
   LV reprs = langsam_nil;
   LangsamSize total_length = 0;
-  while (!langsam_nilp(items)) {
+  while (langsam_consp(items)) {
     LV item = langsam_car(items);
     LV k = langsam_car(item);
     LV v = langsam_cdr(item);
@@ -1926,7 +1927,7 @@ LV langsam_Map_repr(LangsamVM *vm, LV self) {
   char *result = langsam_alloc(vm, index);
   result[--index] = 0;
   result[--index] = '}';
-  for (LV r = reprs; !langsam_nilp(r); r = langsam_cdr(r)) {
+  for (LV r = reprs; langsam_consp(r); r = langsam_cdr(r)) {
     LV repr = langsam_car(r);
     char *repr_p = ((LangsamString *)repr.p)->p;
     LangsamSize repr_len = ((LangsamString *)repr.p)->len;
@@ -1945,7 +1946,7 @@ LV langsam_Map_items(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     LV bucket = m->buckets[i];
-    while (!langsam_nilp(bucket)) {
+    while (langsam_consp(bucket)) {
       LV item = langsam_car(bucket);
       result = langsam_cons(vm, item, result);
       bucket = langsam_cdr(bucket);
@@ -1959,7 +1960,7 @@ LV langsam_Map_keys(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     LV bucket = m->buckets[i];
-    while (!langsam_nilp(bucket)) {
+    while (langsam_consp(bucket)) {
       LV item = langsam_car(bucket);
       result = langsam_cons(vm, langsam_car(item), result);
       bucket = langsam_cdr(bucket);
@@ -1973,7 +1974,7 @@ LV langsam_Map_values(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     LV bucket = m->buckets[i];
-    while (!langsam_nilp(bucket)) {
+    while (langsam_consp(bucket)) {
       LV item = langsam_car(bucket);
       result = langsam_cons(vm, langsam_cdr(item), result);
       bucket = langsam_cdr(bucket);
@@ -2059,7 +2060,7 @@ LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p) {
 
 bool langsam_MapIterator_truthy(LangsamVM *vm, LV self) {
   LangsamMapIterator *it = self.p;
-  return !langsam_nilp(it->items);
+  return langsam_consp(it->items);
 }
 
 LV langsam_MapIterator_deref(LangsamVM *vm, LV self) {
@@ -2125,7 +2126,7 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
   LangsamFunction *f =
       langsam_gcalloc(vm, LT_FUNCTION, LANGSAM_SIZEOF(LangsamFunction));
   f->name = langsam_get(vm, other, langsam_keyword(vm, "name"));
-  if (!langsam_nilp(f->name)) {
+  if (langsam_somep(f->name)) {
     if (f->name.type != LT_SYMBOL) {
       return langsam_exceptionf(
           vm, "syntax", "Function name should be symbol, got %s: %s",
@@ -2245,7 +2246,7 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           if (langsam_truthy(vm, it_rhs)) {
             val = langsam_deref(vm, it_rhs);
             it_rhs = langsam_next(vm, it_rhs);
-          } else if (!langsam_nilp(val)) {
+          } else if (langsam_somep(val)) {
             LV oldlet = vm->curlet;
             vm->curlet = env;
             val = langsam_eval(vm, val);
@@ -2257,7 +2258,7 @@ static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         }
         break;
       case LANGSAM_BIND_REST:
-        if (!langsam_nilp(rest)) {
+        if (langsam_somep(rest)) {
           return langsam_exceptionf(vm, "bind",
                                     "& must be followed by a single form");
         }
@@ -2389,7 +2390,7 @@ static LV fn_evalargs(LangsamVM *vm, LV args) {
     ev_args = langsam_cons(vm, ev_arg, ev_args);
     l = langsam_cdr(l);
   }
-  if (!langsam_nilp(l)) {
+  if (langsam_somep(l)) {
     LV dotted_args = langsam_eval(vm, l);
     LANGSAM_CHECK(dotted_args);
     LV it = langsam_iter(vm, dotted_args);
@@ -2448,7 +2449,7 @@ LV langsam_Function_repr(LangsamVM *vm, LV self) {
   } else {
     type = "Special";
   }
-  if (!langsam_nilp(f->name)) {
+  if (langsam_somep(f->name)) {
     return langsam_format(vm, "<%s:%s>", type, langsam_cstr(vm, f->name));
   } else {
     return langsam_format(vm, "<%s>", type);
@@ -3325,7 +3326,7 @@ LV langsam_require(LangsamVM *vm, char *module_name) {
   LV module_iname = langsam_istring(vm, module_name);
   LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
   LV module = langsam_get(vm, modules, module_iname);
-  if (!langsam_nilp(module)) {
+  if (langsam_somep(module)) {
     return module;
   }
   LangsamModule *m = registered_modules;
@@ -3879,7 +3880,7 @@ static LV Reader_read_vector(Reader *r) {
     if (c == ']') {
       LV vec = langsam_vector(r->vm, len);
       LV index = langsam_integer(len - 1);
-      for (LV list = items; !langsam_nilp(list); list = langsam_cdr(list)) {
+      for (LV list = items; langsam_consp(list); list = langsam_cdr(list)) {
         langsam_put(r->vm, vec, index, langsam_car(list));
         index.i--;
       }
@@ -3915,7 +3916,7 @@ static LV Reader_read_map(Reader *r) {
                                   "map literal with odd number of elements");
       }
       LV map = langsam_map(r->vm, langsam_nil, len / 2);
-      for (LV list = items; !langsam_nilp(list);) {
+      for (LV list = items; langsam_consp(list);) {
         LV v = langsam_car(list);
         list = langsam_cdr(list);
         LV k = langsam_car(list);

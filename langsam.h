@@ -201,6 +201,7 @@ LV langsam_Nil_repr(LangsamVM *vm, LV self);
 extern const LV langsam_nil;
 
 bool langsam_nilp(LV v);
+bool langsam_somep(LV v);
 
 // Exception
 
