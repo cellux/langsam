@@ -1352,7 +1352,7 @@ LV langsam_ConsIterator_deref(LangsamVM *vm, LV self) {
   LangsamConsIterator *it = self.p;
   if (!langsam_consp(it->cur)) {
     return langsam_exceptionf(vm, "deref",
-                              "attempt to deref consumed list iterator");
+                              "attempt to deref consumed ConsIterator");
   }
   return langsam_car(it->cur);
 }
@@ -1361,7 +1361,7 @@ LV langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args) {
   LangsamConsIterator *it = self.p;
   if (!langsam_consp(it->cur)) {
     return langsam_exceptionf(vm, "apply",
-                              "attempt to advance consumed list iterator");
+                              "attempt to advance consumed ConsIterator");
   }
   it->cur = langsam_cdr(it->cur);
   return self;
@@ -1516,7 +1516,6 @@ LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args) {
   LANGSAM_ARG(index, args);
   index = langsam_eval(vm, index);
   LANGSAM_CHECK(index);
-  LANGSAM_ARG_TYPE(index, LT_INTEGER);
   return langsam_Vector_get(vm, self, index);
 }
 
@@ -1622,7 +1621,7 @@ LV langsam_VectorIterator_deref(LangsamVM *vm, LV self) {
   LangsamVector *v = it->v.p;
   if (it->i >= v->len) {
     return langsam_exceptionf(vm, "deref",
-                              "attempt to deref consumed vector iterator");
+                              "attempt to deref consumed VectorIterator");
   }
   return v->items[it->i];
 }
@@ -1631,8 +1630,8 @@ LV langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args) {
   LangsamVectorIterator *it = self.p;
   LangsamVector *v = it->v.p;
   if (it->i >= v->len) {
-    return langsam_exceptionf(vm, "deref",
-                              "attempt to advance consumed vector iterator");
+    return langsam_exceptionf(vm, "apply",
+                              "attempt to advance consumed VectorIterator");
   }
   it->i++;
   return self;
@@ -2087,7 +2086,7 @@ LV langsam_MapIterator_deref(LangsamVM *vm, LV self) {
   LangsamMapIterator *it = self.p;
   if (langsam_nilp(it->items)) {
     return langsam_exceptionf(vm, "deref",
-                              "attempt to deref consumed map iterator");
+                              "attempt to deref consumed MapIterator");
   }
   return langsam_car(it->items);
 }
@@ -2095,8 +2094,8 @@ LV langsam_MapIterator_deref(LangsamVM *vm, LV self) {
 LV langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args) {
   LangsamMapIterator *it = self.p;
   if (langsam_nilp(it->items)) {
-    return langsam_exceptionf(vm, "deref",
-                              "attempt to advance consumed map iterator");
+    return langsam_exceptionf(vm, "apply",
+                              "attempt to advance consumed MapIterator");
   }
   it->items = langsam_cdr(it->items);
   return self;
