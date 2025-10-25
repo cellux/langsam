@@ -6,4 +6,4 @@
     (assert (= x 6))
     (assert (= y 6))
     (assert (= z 12)))
-  (assert (= x 5)))
+  (assert (= x 6)))

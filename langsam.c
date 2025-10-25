@@ -2456,19 +2456,13 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
 }
 
 LV langsam_do(LangsamVM *vm, LV forms) {
-  LV oldlet = vm->curlet;
-  vm->curlet = langsam_map(vm, vm->curlet, 64);
   LV result = langsam_nil;
   while (langsam_consp(forms)) {
     LV form = langsam_car(forms);
     result = langsam_eval(vm, form);
-    if (langsam_exceptionp(result)) {
-      vm->curlet = oldlet;
-      return result;
-    }
+    LANGSAM_CHECK(result);
     forms = langsam_cdr(forms);
   }
-  vm->curlet = oldlet;
   return result;
 }
 
