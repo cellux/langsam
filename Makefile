@@ -28,6 +28,10 @@ $(OBJS): langsam.h
 
 .PHONY: test
 test: langsam
+	./langsam tests/*.l
+
+.PHONY: vtest
+vtest: langsam
 	valgrind --leak-check=full --show-leak-kinds=all ./langsam tests/*.l
 
 .PHONY: gdb
