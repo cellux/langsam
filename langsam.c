@@ -127,8 +127,7 @@ LV langsam_cmp(LangsamVM *vm, LV self, LV other) {
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
-    other = langsam_cast(vm, langsam_type(self.type), other);
-    LANGSAM_CHECK(other);
+    return langsam_integer(t1 - t2);
   }
   return t1->cmp(vm, self, other);
 }
