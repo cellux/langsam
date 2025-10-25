@@ -25,3 +25,15 @@
 (assert (= 1.0 1.0))
 (assert (not= 1 1.0))
 (assert (not= 1.0 1))
+
+(let [values [nil true false
+              Nil Boolean String Symbol Map
+              0 0.0 "foo" 'foo :foo %foo
+              '(a b) '(a . b) [:a :b] {:a 1 :b 3 :c 8}
+              let do unless map]]
+  (for [v values] (assert (= v v)))
+  (let [l (Cons values)]
+    (while l
+      (let [lhs (car l)]
+        (for [rhs (cdr l)] (assert (not= lhs rhs))))
+      (setq l (cdr l)))))
