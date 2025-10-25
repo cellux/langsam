@@ -94,19 +94,14 @@ LV langsam_cast(LangsamVM *vm, LV type, LV other) {
 }
 
 LV langsam_equal(LangsamVM *vm, LV self, LV other) {
-  if (LVEQ(self, other)) {
+  bool eq = LVEQ(self, other);
+  if (eq) {
     return langsam_true;
   }
   LangsamType t1 = self.type;
-  if (t1->equal == NULL && t1->cmp == NULL) {
-    return LVEQ(self, other) ? langsam_true : langsam_false;
-  }
   LangsamType t2 = other.type;
   if (t1 != t2) {
-    other = langsam_cast(vm, langsam_type(self.type), other);
-    if (langsam_exceptionp(other)) {
-      return langsam_false;
-    }
+    return langsam_false;
   }
   if (t1->equal) {
     return t1->equal(vm, self, other);
@@ -116,7 +111,7 @@ LV langsam_equal(LangsamVM *vm, LV self, LV other) {
     LANGSAM_CHECK(cmp_result);
     return langsam_boolean(cmp_result.i == 0);
   }
-  return langsam_false;
+  return eq ? langsam_true : langsam_false;
 }
 
 LV langsam_cmp(LangsamVM *vm, LV self, LV other) {

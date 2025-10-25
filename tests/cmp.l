@@ -20,3 +20,8 @@
 (assert (>= 3 3))
 (assert (>= 5 3))
 (assert (not (> 5 5)))
+
+(assert (= 1 1))
+(assert (= 1.0 1.0))
+(assert (not= 1 1.0))
+(assert (not= 1.0 1))
