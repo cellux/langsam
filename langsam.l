@@ -1,7 +1,7 @@
 (defn type? [x] (= (type x) Type))
 
 (defn nil? [x] (= x nil))
-(defn some? [x] (!= x nil))
+(defn some? [x] (not= x nil))
 
 (defn boolean? [x] (= (type x) Boolean))
 (defn integer? [x] (= (type x) Integer))
