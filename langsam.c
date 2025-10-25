@@ -1330,12 +1330,6 @@ static struct LangsamT LANGSAM_T_CONS = {
 
 const LangsamType LT_CONS = &LANGSAM_T_CONS;
 
-// iterators
-
-LV langsam_next(LangsamVM *vm, LV it) {
-  return langsam_apply(vm, it, langsam_nil);
-}
-
 // ConsIterator
 
 LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p) {
@@ -2177,177 +2171,194 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
   };
 }
 
+// bind
+
+static LV bind_quote(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV tail = langsam_cdr(lhs);
+  if (!langsam_consp(tail)) {
+    return langsam_exceptionf(vm, "bind", "malformed quote in cons pattern");
+  }
+  LV expected = langsam_car(tail);
+  LV result = langsam_equal(vm, expected, rhs);
+  if (langsam_falsep(result)) {
+    return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
+                              langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+  }
+  return env;
+}
+
+static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV head = langsam_car(lhs);
+  LV quote_symbol = langsam_symbol(vm, "quote");
+  if (LVEQ(head, quote_symbol)) {
+    return bind_quote(vm, env, lhs, rhs);
+  } else {
+    return langsam_exceptionf(vm, "bind", "cons pattern must be quote, got %s",
+                              langsam_cstr(vm, lhs));
+  }
+}
+
 typedef enum {
   LANGSAM_BIND_POS,
   LANGSAM_BIND_OPT,
   LANGSAM_BIND_REST,
-} LangsamBindState;
+} LangsamBindVectorState;
 
-static LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
-  if (lhs.type == LT_SYMBOL) {
-    langsam_put(vm, env, lhs, rhs);
-  } else if (lhs.type == LT_CONS) {
-    LV head = langsam_car(lhs);
-    LV quote_symbol = langsam_symbol(vm, "quote");
-    if (LVEQ(head, quote_symbol)) {
-      LV tail = langsam_cdr(lhs);
-      if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "bind",
-                                  "malformed quote in cons pattern");
-      }
-      LV expected = langsam_car(tail);
-      LV result = langsam_equal(vm, expected, rhs);
-      if (langsam_falsep(result)) {
-        return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
-                                  langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
-      }
-    } else {
-      return langsam_exceptionf(vm, "bind",
-                                "cons pattern must be quote, got %s",
-                                langsam_cstr(vm, lhs));
-    }
-  } else if (lhs.type == LT_VECTOR) {
-    LV it_lhs = langsam_iter(vm, lhs);
-    LANGSAM_CHECK(it_lhs);
-    LV it_rhs = langsam_iter(vm, rhs);
-    LANGSAM_CHECK(it_rhs);
-    LV opt_symbol = langsam_symbol(vm, "&opt");
-    LV amp_symbol = langsam_symbol(vm, "&");
-    LangsamBindState bs = LANGSAM_BIND_POS;
-    LV rest = langsam_nil;
-    while (langsam_truthy(vm, it_lhs)) {
-      LV pat = langsam_deref(vm, it_lhs);
-      switch (bs) {
-      case LANGSAM_BIND_POS:
-        if (LVEQ(pat, opt_symbol)) {
-          bs = LANGSAM_BIND_OPT;
-        } else if (LVEQ(pat, amp_symbol)) {
-          bs = LANGSAM_BIND_REST;
-        } else {
-          if (!langsam_truthy(vm, it_rhs)) {
-            return langsam_exceptionf(
-                vm, "bind",
-                "not enough values on the right side: lhs=%s rhs=%s",
-                langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
-          }
-          LV value = langsam_deref(vm, it_rhs);
-          LV result = langsam_bind(vm, env, pat, value);
-          LANGSAM_CHECK(result);
-          it_rhs = langsam_next(vm, it_rhs);
+static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV it_lhs = langsam_iter(vm, lhs);
+  LANGSAM_CHECK(it_lhs);
+  LV it_rhs = langsam_iter(vm, rhs);
+  LANGSAM_CHECK(it_rhs);
+  LV opt_symbol = langsam_symbol(vm, "&opt");
+  LV amp_symbol = langsam_symbol(vm, "&");
+  LangsamBindVectorState bs = LANGSAM_BIND_POS;
+  LV rest = langsam_nil;
+  while (langsam_truthy(vm, it_lhs)) {
+    LV pat = langsam_deref(vm, it_lhs);
+    switch (bs) {
+    case LANGSAM_BIND_POS:
+      if (LVEQ(pat, opt_symbol)) {
+        bs = LANGSAM_BIND_OPT;
+      } else if (LVEQ(pat, amp_symbol)) {
+        bs = LANGSAM_BIND_REST;
+      } else {
+        if (!langsam_truthy(vm, it_rhs)) {
+          return langsam_exceptionf(
+              vm, "bind", "not enough values on the right side: lhs=%s rhs=%s",
+              langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
         }
-        break;
-      case LANGSAM_BIND_OPT:
-        if (LVEQ(pat, amp_symbol)) {
-          bs = LANGSAM_BIND_REST;
-        } else {
-          LV sym, val;
-          LV symsetp = langsam_nil;
-          if (pat.type == LT_SYMBOL) {
-            sym = pat;
-            val = langsam_nil;
-          } else if (pat.type == LT_CONS) {
-            LV head = langsam_car(pat);
-            LV tail = langsam_cdr(pat);
-            if (head.type == LT_SYMBOL && tail.type == LT_CONS) {
-              sym = head;
-              val = langsam_car(tail);
-              tail = langsam_cdr(tail);
-              if (tail.type == LT_CONS) {
-                symsetp = langsam_car(tail);
-                if (symsetp.type != LT_SYMBOL) {
-                  return langsam_exceptionf(vm, "bind",
-                                            "symsetp should be Symbol, got %s",
-                                            langsam_typename(vm, symsetp.type));
-                }
+        LV value = langsam_deref(vm, it_rhs);
+        LV result = langsam_bind(vm, env, pat, value);
+        LANGSAM_CHECK(result);
+        it_rhs = langsam_next(vm, it_rhs);
+      }
+      break;
+    case LANGSAM_BIND_OPT:
+      if (LVEQ(pat, amp_symbol)) {
+        bs = LANGSAM_BIND_REST;
+      } else {
+        LV sym, val;
+        LV symsetp = langsam_nil;
+        if (pat.type == LT_SYMBOL) {
+          sym = pat;
+          val = langsam_nil;
+        } else if (pat.type == LT_CONS) {
+          LV head = langsam_car(pat);
+          LV tail = langsam_cdr(pat);
+          if (head.type == LT_SYMBOL && tail.type == LT_CONS) {
+            sym = head;
+            val = langsam_car(tail);
+            tail = langsam_cdr(tail);
+            if (tail.type == LT_CONS) {
+              symsetp = langsam_car(tail);
+              if (symsetp.type != LT_SYMBOL) {
+                return langsam_exceptionf(vm, "bind",
+                                          "symsetp should be Symbol, got %s",
+                                          langsam_typename(vm, symsetp.type));
               }
-            } else {
-              return langsam_exceptionf(
-                  vm, "bind",
-                  "&opt parameter with default value should look like (sym "
-                  "default) or (sym default symsetp), got %s",
-                  langsam_cstr(vm, pat));
             }
           } else {
             return langsam_exceptionf(
-                vm, "bind", "&opt parameter must be Symbol or Cons, got %s",
+                vm, "bind",
+                "&opt parameter with default value should look like (sym "
+                "default) or (sym default symsetp), got %s",
                 langsam_cstr(vm, pat));
           }
-          bool argsetp = false;
-          if (langsam_truthy(vm, it_rhs)) {
-            argsetp = true;
-            val = langsam_deref(vm, it_rhs);
-            it_rhs = langsam_next(vm, it_rhs);
-          } else if (langsam_somep(val)) {
-            LV oldlet = vm->curlet;
-            vm->curlet = env;
-            val = langsam_eval(vm, val);
-            vm->curlet = oldlet;
-            LANGSAM_CHECK(val);
-          }
-          LV bind_value_result = langsam_bind(vm, env, sym, val);
-          LANGSAM_CHECK(bind_value_result);
-          if (langsam_somep(symsetp)) {
-            LV bind_symsetp_result =
-                langsam_bind(vm, env, symsetp, langsam_boolean(argsetp));
-            LANGSAM_CHECK(bind_symsetp_result);
-          }
-        }
-        break;
-      case LANGSAM_BIND_REST:
-        if (langsam_somep(rest)) {
-          return langsam_exceptionf(vm, "bind",
-                                    "& must be followed by a single form");
-        }
-        while (langsam_truthy(vm, it_rhs)) {
-          LV value = langsam_deref(vm, it_rhs);
-          rest = langsam_cons(vm, value, rest);
-          it_rhs = langsam_next(vm, it_rhs);
-        }
-        rest = langsam_nreverse(rest);
-        LV result = langsam_bind(vm, env, pat, rest);
-        LANGSAM_CHECK(result);
-        break;
-      }
-      it_lhs = langsam_next(vm, it_lhs);
-    }
-  } else if (lhs.type == LT_MAP) {
-    LV it_lhs = langsam_iter(vm, lhs);
-    LANGSAM_CHECK(it_lhs);
-    while (langsam_truthy(vm, it_lhs)) {
-      LV item = langsam_deref(vm, it_lhs);
-      LV pat = langsam_car(item);
-      LV key = langsam_cdr(item);
-      if (pat.type == LT_KEYWORD) {
-        LV keys = langsam_keyword(vm, "keys");
-        if (LVEQ(pat, keys)) {
-          LV it_key = langsam_iter(vm, key);
-          LANGSAM_CHECK(it_key);
-          while (langsam_truthy(vm, it_key)) {
-            LV sym = langsam_deref(vm, it_key);
-            if (sym.type != LT_SYMBOL) {
-              return langsam_exceptionf(
-                  vm, "bind",
-                  "found value of type `%s` in iterable passed to :keys",
-                  langsam_typename(vm, sym.type));
-            }
-            LV k = langsam_Keyword_cast(vm, sym);
-            LV v = langsam_get(vm, rhs, k);
-            LV result = langsam_bind(vm, env, sym, v);
-            LANGSAM_CHECK(result);
-            it_key = langsam_next(vm, it_key);
-          }
         } else {
-          return langsam_exceptionf(vm, "bind",
-                                    "invalid key in map pattern: %s",
-                                    langsam_cstr(vm, pat));
+          return langsam_exceptionf(
+              vm, "bind", "&opt parameter must be Symbol or Cons, got %s",
+              langsam_cstr(vm, pat));
+        }
+        bool argsetp = false;
+        if (langsam_truthy(vm, it_rhs)) {
+          argsetp = true;
+          val = langsam_deref(vm, it_rhs);
+          it_rhs = langsam_next(vm, it_rhs);
+        } else if (langsam_somep(val)) {
+          LV oldlet = vm->curlet;
+          vm->curlet = env;
+          val = langsam_eval(vm, val);
+          vm->curlet = oldlet;
+          LANGSAM_CHECK(val);
+        }
+        LV bind_value_result = langsam_bind(vm, env, sym, val);
+        LANGSAM_CHECK(bind_value_result);
+        if (langsam_somep(symsetp)) {
+          LV bind_symsetp_result =
+              langsam_bind(vm, env, symsetp, langsam_boolean(argsetp));
+          LANGSAM_CHECK(bind_symsetp_result);
+        }
+      }
+      break;
+    case LANGSAM_BIND_REST:
+      if (langsam_somep(rest)) {
+        return langsam_exceptionf(vm, "bind",
+                                  "& must be followed by a single form");
+      }
+      while (langsam_truthy(vm, it_rhs)) {
+        LV value = langsam_deref(vm, it_rhs);
+        rest = langsam_cons(vm, value, rest);
+        it_rhs = langsam_next(vm, it_rhs);
+      }
+      rest = langsam_nreverse(rest);
+      LV result = langsam_bind(vm, env, pat, rest);
+      LANGSAM_CHECK(result);
+      break;
+    }
+    it_lhs = langsam_next(vm, it_lhs);
+  }
+  return env;
+}
+
+static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV it_lhs = langsam_iter(vm, lhs);
+  LANGSAM_CHECK(it_lhs);
+  while (langsam_truthy(vm, it_lhs)) {
+    LV item = langsam_deref(vm, it_lhs);
+    LV pat = langsam_car(item);
+    LV key = langsam_cdr(item);
+    if (pat.type == LT_KEYWORD) {
+      LV keys = langsam_keyword(vm, "keys");
+      if (LVEQ(pat, keys)) {
+        LV it_key = langsam_iter(vm, key);
+        LANGSAM_CHECK(it_key);
+        while (langsam_truthy(vm, it_key)) {
+          LV sym = langsam_deref(vm, it_key);
+          if (sym.type != LT_SYMBOL) {
+            return langsam_exceptionf(
+                vm, "bind",
+                "found value of type `%s` in iterable passed to :keys",
+                langsam_typename(vm, sym.type));
+          }
+          LV k = langsam_Keyword_cast(vm, sym);
+          LV v = langsam_get(vm, rhs, k);
+          LV result = langsam_bind(vm, env, sym, v);
+          LANGSAM_CHECK(result);
+          it_key = langsam_next(vm, it_key);
         }
       } else {
-        LV value = langsam_get(vm, rhs, key);
-        LV result = langsam_bind(vm, env, pat, value);
-        LANGSAM_CHECK(result);
+        return langsam_exceptionf(vm, "bind", "invalid key in map pattern: %s",
+                                  langsam_cstr(vm, pat));
       }
-      it_lhs = langsam_next(vm, it_lhs);
+    } else {
+      LV value = langsam_get(vm, rhs, key);
+      LV result = langsam_bind(vm, env, pat, value);
+      LANGSAM_CHECK(result);
     }
+    it_lhs = langsam_next(vm, it_lhs);
+  }
+  return env;
+}
+
+LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  if (lhs.type == LT_SYMBOL) {
+    langsam_put(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_CONS) {
+    return bind_cons(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_VECTOR) {
+    return bind_vector(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_MAP) {
+    return bind_map(vm, env, lhs, rhs);
   } else {
     LV result = langsam_equal(vm, lhs, rhs);
     if (langsam_falsep(result)) {
@@ -2381,6 +2392,10 @@ LV langsam_do(LangsamVM *vm, LV forms) {
   }
   vm->curlet = oldlet;
   return result;
+}
+
+LV langsam_next(LangsamVM *vm, LV it) {
+  return langsam_apply(vm, it, langsam_nil);
 }
 
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
