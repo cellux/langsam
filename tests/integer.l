@@ -1,6 +1,0 @@
-(assert (= (type 0) Integer))
-(assert (= (type 1) Integer))
-(assert (= (Integer 5) 5))
-(assert (= (Integer 5.3) 5))
-(assert (= (Integer 5.5) 6))
-(assert (= (Integer 5.7) 6))

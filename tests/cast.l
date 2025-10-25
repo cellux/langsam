@@ -56,10 +56,12 @@
 
 (assert (= (Keyword :foo) :foo))
 (assert (= (Keyword "foo") :foo))
+(assert (= (Keyword 'foo) :foo))
 (assert (throws? '(cast . "Cannot cast value of type `Integer` to Keyword") (Keyword 1234)))
 
 (assert (= (Opword %foo) %foo))
 (assert (= (Opword "foo") %foo))
+(assert (= (Opword 'foo) %foo))
 (assert (throws? '(cast . "Cannot cast value of type `Integer` to Opword") (Opword 1234)))
 
 (assert (= (Cons '(a . b)) '(a . b)))

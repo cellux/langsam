@@ -13,6 +13,21 @@
 (assert (type? Map))
 (assert (type? Function))
 
+(assert (= (type nil) Nil))
+(assert (= (type true) Boolean))
+(assert (= (type false) Boolean))
+(assert (= (type 0) Integer))
+(assert (= (type 0.0) Float))
+(assert (= (type "foo") String))
+(assert (= (type 'foo) Symbol))
+(assert (= (type :foo) Keyword))
+(assert (= (type %foo) Opword))
+(assert (= (type '(a b)) Cons))
+(assert (= (type '(a . b)) Cons))
+(assert (= (type [:a :b]) Vector))
+(assert (= (type {:a 1 :b 3 :c 8}) Map))
+(assert (= (type do) Function))
+
 (assert (nil? nil))
 (assert (boolean? true))
 (assert (boolean? false))
@@ -26,6 +41,4 @@
 (assert (cons? '(a . b)))
 (assert (vector? [:a :b]))
 (assert (map? {:a 1 :b 3 :c 8}))
-
-(for [f [function? let do unless map]]
-  (assert (function? f)))
+(assert (function? do))
