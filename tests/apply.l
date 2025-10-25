@@ -30,7 +30,7 @@
 (let [v [1 2 3]]
   (assert (= (v 2) 3))
   (assert (throws? '(get . "attempt to index Vector with non-integer index of type `Keyword`") (v :foo)))
-  (assert (throws? '(get . "vector index 5 out of range (0..2)") (v 5))))
+  (assert (throws? '(get . "Vector index 5 out of range (0..2)") (v 5))))
 
 ; VectorIterator
 (let [v '[a b c]

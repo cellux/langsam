@@ -1468,7 +1468,7 @@ LV langsam_Vector_get(LangsamVM *vm, LV self, LV key) {
   LangsamVector *v = self.p;
   if (index >= v->len) {
     return langsam_exceptionf(vm, "get",
-                              "vector index " LANGSAM_INTEGER_FMT
+                              "Vector index " LANGSAM_INTEGER_FMT
                               " out of range (0.." LANGSAM_INTEGER_FMT ")",
                               index, v->len - 1);
   }
