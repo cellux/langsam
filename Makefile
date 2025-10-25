@@ -15,6 +15,7 @@ langsam: $(LIBS) $(OBJS)
 $(LIBS:.a=.o): langsam.h
 $(OBJS): langsam.h
 
+# disable Make builtin which would process *.l with lex
 %.c: %.l
 
 %.lc: %.l bin2c.py
