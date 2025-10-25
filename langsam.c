@@ -13,43 +13,54 @@
 
 // hash functions
 
+#if UINTPTR_MAX == 0xfffffffful
+
+#define FNV1A_OFFSET_BASIS UINT32_C(0x811c9dc5)
+#define FNV1A_PRIME UINT32_C(0x01000193)
+
+#define FNV1A_NIL UINT32_C(0x321a0a5b)
+#define FNV1A_TRUE UINT32_C(0xa9f37ed7)
+#define FNV1A_FALSE UINT32_C(0xa3f79810)
+
+#elif UINTPTR_MAX == 0xffffffffffffffffull
+
 #define FNV1A_OFFSET_BASIS UINT64_C(0xcbf29ce484222325)
 #define FNV1A_PRIME UINT64_C(0x00000100000001b3)
-
-static uint64_t fnv1a_64_mix(uint64_t hash, const uint8_t *p, size_t len) {
-  for (size_t i = 0; i < len; i++) {
-    hash ^= (uint64_t)p[i];
-    hash *= FNV1A_PRIME;
-  }
-  return hash;
-}
-
-#define HASH_SEED FNV1A_OFFSET_BASIS
 
 #define FNV1A_NIL UINT64_C(0x2146ba19257dc6ac)
 #define FNV1A_TRUE UINT64_C(0x5b5c98ef514dbfa5)
 #define FNV1A_FALSE UINT64_C(0xb5fae2c14238b978)
 
-static uint64_t hash_ptr(uint64_t hash, void *p) {
-  uintptr_t u = (uintptr_t)p;
-  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(u));
-}
-static uint64_t hash_uint64(uint64_t hash, uint64_t u) {
-  return fnv1a_64_mix(hash, (uint8_t *)&u, sizeof(u));
+#else
+#error "Cannot find a suitable implementation for value hashing"
+#endif
+
+#define HASH_SEED FNV1A_OFFSET_BASIS
+
+static LangsamHash fnv1a_mix(LangsamHash hash, const uint8_t *p, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    hash ^= (LangsamHash)p[i];
+    hash *= FNV1A_PRIME;
+  }
+  return hash;
 }
 
-static uint64_t hash_boolean(uint64_t hash, LangsamBoolean b) {
-  uint64_t bhash = b ? FNV1A_TRUE : FNV1A_FALSE;
-  return fnv1a_64_mix(hash, (uint8_t *)&bhash, sizeof(bhash));
+static LangsamHash hash_ptr(LangsamHash hash, void *p) {
+  uintptr_t u = (uintptr_t)p;
+  return fnv1a_mix(hash, (uint8_t *)&u, sizeof(u));
 }
-static uint64_t hash_integer(uint64_t hash, LangsamInteger i) {
-  return fnv1a_64_mix(hash, (uint8_t *)&i, sizeof(i));
+
+static LangsamHash hash_boolean(LangsamHash hash, LangsamBoolean b) {
+  return fnv1a_mix(hash, (uint8_t *)&b, sizeof(b));
 }
-static uint64_t hash_float(uint64_t hash, LangsamFloat f) {
-  return fnv1a_64_mix(hash, (uint8_t *)&f, sizeof(f));
+static LangsamHash hash_integer(LangsamHash hash, LangsamInteger i) {
+  return fnv1a_mix(hash, (uint8_t *)&i, sizeof(i));
 }
-static uint64_t hash_string(uint64_t hash, char *s, LangsamSize len) {
-  return fnv1a_64_mix(hash, (uint8_t *)s, (size_t)len);
+static LangsamHash hash_float(LangsamHash hash, LangsamFloat f) {
+  return fnv1a_mix(hash, (uint8_t *)&f, sizeof(f));
+}
+static LangsamHash hash_string(LangsamHash hash, char *s, LangsamSize len) {
+  return fnv1a_mix(hash, (uint8_t *)s, (size_t)len);
 }
 
 // core API
@@ -59,7 +70,7 @@ bool langsam_truthy(LangsamVM *vm, LV self) {
   return t->truthy ? t->truthy(vm, self) : true;
 }
 
-uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamType t = self.type;
   hash = hash_ptr(hash, t);
   hash = t->hash ? t->hash(vm, self, hash) : hash_ptr(hash, self.p);
@@ -322,7 +333,7 @@ LV langsam_str(LangsamVM *vm, LV self) {
 
 // Type
 
-uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Type_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_ptr(hash, self.p);
 }
 
@@ -368,8 +379,8 @@ const LangsamType LT_TYPE = &LANGSAM_T_TYPE;
 
 bool langsam_Nil_truthy(LangsamVM *vm, LV self) { return false; }
 
-uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t hash) {
-  return hash_uint64(hash, FNV1A_NIL);
+LangsamHash langsam_Nil_hash(LangsamVM *vm, LV self, LangsamHash hash) {
+  return hash_integer(hash, (LangsamInteger)FNV1A_NIL);
 }
 
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
@@ -399,7 +410,7 @@ LangsamSize langsam_Exception_gcmark(LangsamVM *vm, void *p) {
   return langsam_mark(vm, ex->payload);
 }
 
-uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Exception_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamException *ex = self.p;
   return langsam_hash(vm, ex->payload, hash);
 }
@@ -462,7 +473,7 @@ const LangsamType LT_EXCEPTION = &LANGSAM_T_EXCEPTION;
 
 bool langsam_Boolean_truthy(LangsamVM *vm, LV self) { return self.b; }
 
-uint64_t langsam_Boolean_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Boolean_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_boolean(hash, self.b);
 }
 
@@ -503,7 +514,7 @@ bool langsam_falsep(LV v) { return v.type == LT_BOOLEAN && !v.b; }
 
 bool langsam_Integer_truthy(LangsamVM *vm, LV self) { return self.i != 0; }
 
-uint64_t langsam_Integer_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Integer_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_integer(hash, self.i);
 }
 
@@ -614,7 +625,7 @@ const LangsamType LT_INTEGER = &LANGSAM_T_INTEGER;
 
 bool langsam_Float_truthy(LangsamVM *vm, LV self) { return self.f != 0.0; }
 
-uint64_t langsam_Float_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Float_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_float(hash, self.f);
 }
 
@@ -737,7 +748,7 @@ bool langsam_String_truthy(LangsamVM *vm, LV self) {
   return s->len != 0;
 }
 
-uint64_t langsam_String_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_String_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamString *s = self.p;
   return hash_string(hash, s->p, s->len);
 }
@@ -1133,7 +1144,7 @@ LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p) {
   return total;
 }
 
-uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Cons_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamCons *cons = self.p;
   hash = langsam_hash(vm, cons->car, hash);
   hash = langsam_hash(vm, cons->cdr, hash);
@@ -1394,7 +1405,7 @@ bool langsam_Vector_truthy(LangsamVM *vm, LV self) {
   return v->items != 0;
 }
 
-uint64_t langsam_Vector_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Vector_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamVector *v = self.p;
   for (LangsamIndex i = 0; i < v->len; i++) {
     hash = langsam_hash(vm, v->items[i], hash);
@@ -1665,7 +1676,7 @@ bool langsam_Map_truthy(LangsamVM *vm, LV self) {
   return m->nitems != 0;
 }
 
-uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Map_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamMap *m = self.p;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
     hash = langsam_hash(vm, m->buckets[i], hash);
@@ -1752,8 +1763,8 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
 
 static LV langsam_Map_rawgep(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
-  uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
+  LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   while (langsam_consp(bucket)) {
     LV item = langsam_car(bucket);
@@ -1837,8 +1848,8 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   if (m->nitems + 1 > limit) {
     resize_map(vm, self, next_power_of_two(m->nbuckets * 2));
   }
-  uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
+  LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
   item = langsam_cons(vm, key, value);
   m->buckets[bucket_index] = langsam_cons(vm, item, m->buckets[bucket_index]);
   m->nitems++;
@@ -1847,8 +1858,8 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
 
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
-  uint64_t hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (uint64_t)m->nbuckets);
+  LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
+  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
   LV bucket = m->buckets[bucket_index];
   LV prev = langsam_nil;
   while (langsam_consp(bucket)) {
@@ -2119,7 +2130,7 @@ LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p) {
   return total;
 }
 
-uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t hash) {
+LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamFunction *f = self.p;
   hash = langsam_hash(vm, f->name, hash);
   hash = langsam_hash(vm, f->params, hash);
@@ -2726,6 +2737,17 @@ LV langsam_gc(LangsamVM *vm) {
 
 // core
 
+static LV eval_hash(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  LANGSAM_ARG_OPT(prev, args);
+  if (langsam_somep(prev)) {
+    LANGSAM_ARG_TYPE(prev, LT_INTEGER);
+  }
+  LangsamHash prevhash = langsam_somep(prev) ? (LangsamHash)prev.i : HASH_SEED;
+  LangsamHash hash = langsam_hash(vm, obj, prevhash);
+  return langsam_integer((LangsamInteger)hash);
+}
+
 static LV eval_eq(LangsamVM *vm, LV args) {
   LANGSAM_ARG(lhs, args);
   while (langsam_consp(args)) {
@@ -3298,6 +3320,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_def(vm, env, "ConsIterator", langsam_type(LT_CONSITERATOR));
   langsam_def(vm, env, "VectorIterator", langsam_type(LT_VECTORITERATOR));
   langsam_def(vm, env, "MapIterator", langsam_type(LT_MAPITERATOR));
+  langsam_defn(vm, env, "hash", eval_hash);
   langsam_defn(vm, env, "eq", eval_eq);
   langsam_defn(vm, env, "=", eval_equal);
   langsam_defn(vm, env, "cmp", eval_cmp);

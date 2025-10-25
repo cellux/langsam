@@ -32,7 +32,7 @@ typedef LangsamSize LangsamIndex;
 typedef LangsamSize LangsamBoolean;
 typedef LangsamSize LangsamInteger;
 
-#if UINTPTR_MAX == 0xffffffffu
+#if UINTPTR_MAX == 0xfffffffful
 typedef float LangsamFloat;
 #define LANGSAM_FLOAT_MANT_DIG FLT_MANT_DIG
 #elif UINTPTR_MAX == 0xffffffffffffffffull
@@ -40,6 +40,14 @@ typedef double LangsamFloat;
 #define LANGSAM_FLOAT_MANT_DIG DBL_MANT_DIG
 #else
 #error "Cannot find a suitable type for LangsamFloat"
+#endif
+
+#if UINTPTR_MAX == 0xfffffffful
+typedef uint32_t LangsamHash;
+#elif UINTPTR_MAX == 0xffffffffffffffffull
+typedef uint64_t LangsamHash;
+#else
+#error "Cannot find a suitable type for LangsamHash"
 #endif
 
 #define LANGSAM_SIZEOF(x) ((LangsamSize)(sizeof(x)))
@@ -54,7 +62,7 @@ struct LangsamT {
   LangsamSize (*gcmark)(LangsamVM *vm, void *p);
   LangsamSize (*gcfree)(LangsamVM *vm, void *p);
   bool (*truthy)(LangsamVM *vm, LV self);
-  uint64_t (*hash)(LangsamVM *vm, LV self, uint64_t prevhash);
+  LangsamHash (*hash)(LangsamVM *vm, LV self, LangsamHash prevhash);
   LV (*cast)(LangsamVM *vm, LV other);
   LV (*equal)(LangsamVM *vm, LV self, LV other);
   LV (*cmp)(LangsamVM *vm, LV self, LV other);
@@ -78,7 +86,7 @@ struct LangsamT {
 typedef struct LangsamT *LangsamType;
 
 bool langsam_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_cast(LangsamVM *vm, LV type, LV other);
 LV langsam_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_cmp(LangsamVM *vm, LV self, LV other);
@@ -187,7 +195,7 @@ typedef struct {
 
 // Type
 
-uint64_t langsam_Type_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Type_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Type_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Type_repr(LangsamVM *vm, LV self);
 
@@ -197,7 +205,7 @@ char *langsam_typename(LangsamVM *vm, LangsamType t);
 // Nil
 
 bool langsam_Nil_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Nil_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Nil_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Nil_repr(LangsamVM *vm, LV self);
 
 extern const LV langsam_nil;
@@ -208,7 +216,8 @@ bool langsam_somep(LV v);
 // Exception
 
 LangsamSize langsam_Exception_gcmark(LangsamVM *vm, void *p);
-uint64_t langsam_Exception_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Exception_hash(LangsamVM *vm, LV self,
+                                   LangsamHash prevhash);
 LV langsam_Exception_cast(LangsamVM *vm, LV other);
 LV langsam_Exception_deref(LangsamVM *vm, LV self);
 LV langsam_Exception_repr(LangsamVM *vm, LV self);
@@ -230,7 +239,7 @@ bool langsam_exceptionp(LV v);
 // Boolean
 
 bool langsam_Boolean_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Boolean_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Boolean_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Boolean_cast(LangsamVM *vm, LV other);
 LV langsam_Boolean_repr(LangsamVM *vm, LV self);
 
@@ -245,7 +254,7 @@ bool langsam_falsep(LV v);
 // Integer
 
 bool langsam_Integer_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Integer_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Integer_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Integer_cast(LangsamVM *vm, LV other);
 LV langsam_Integer_cmp(LangsamVM *vm, LV self, LV other);
 LV langsam_Integer_add(LangsamVM *vm, LV self, LV other);
@@ -260,7 +269,7 @@ LV langsam_integer(LangsamInteger i);
 // Float
 
 bool langsam_Float_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Float_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Float_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Float_cast(LangsamVM *vm, LV other);
 LV langsam_Float_cmp(LangsamVM *vm, LV self, LV other);
 LV langsam_Float_add(LangsamVM *vm, LV self, LV other);
@@ -277,7 +286,7 @@ LV langsam_float(LangsamFloat f);
 LangsamSize langsam_String_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_String_gcfree(LangsamVM *vm, void *p);
 bool langsam_String_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_String_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_String_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_String_cast(LangsamVM *vm, LV other);
 LV langsam_String_cmp(LangsamVM *vm, LV self, LV other);
 LV langsam_String_add(LangsamVM *vm, LV self, LV other);
@@ -325,7 +334,7 @@ LV langsam_opword(LangsamVM *vm, char *name);
 // Cons
 
 LangsamSize langsam_Cons_gcmark(LangsamVM *vm, void *p);
-uint64_t langsam_Cons_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Cons_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Cons_cast(LangsamVM *vm, LV other);
 LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_Cons_get(LangsamVM *vm, LV self, LV key);
@@ -359,7 +368,7 @@ LV langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args);
 LangsamSize langsam_Vector_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_Vector_gcfree(LangsamVM *vm, void *p);
 bool langsam_Vector_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Vector_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Vector_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Vector_cast(LangsamVM *vm, LV other);
 LV langsam_Vector_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_Vector_add(LangsamVM *vm, LV self, LV other);
@@ -384,7 +393,7 @@ LV langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args);
 LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p);
 bool langsam_Map_truthy(LangsamVM *vm, LV self);
-uint64_t langsam_Map_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Map_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Map_cast(LangsamVM *vm, LV other);
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_Map_add(LangsamVM *vm, LV self, LV other);
@@ -416,7 +425,7 @@ LV langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args);
 // Function
 
 LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p);
-uint64_t langsam_Function_hash(LangsamVM *vm, LV self, uint64_t prevhash);
+LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Function_cast(LangsamVM *vm, LV other);
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Function_apply(LangsamVM *vm, LV self, LV args);

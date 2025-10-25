@@ -14,9 +14,9 @@ typedef struct {
   LV fd;
 } os_File;
 
-static uint64_t os_File_hash(LangsamVM *vm, LV self, uint64_t prevhash) {
+static LangsamHash os_File_hash(LangsamVM *vm, LV self, LangsamHash prevhash) {
   os_File *f = self.p;
-  uint64_t hash = prevhash;
+  LangsamHash hash = prevhash;
   hash = langsam_hash(vm, f->fd, hash);
   return hash;
 }
