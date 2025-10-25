@@ -2369,12 +2369,90 @@ LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   return env;
 }
 
-LV langsam_quote(LangsamVM *vm, LV arg) {
+LV langsam_quote(LangsamVM *vm, LV obj) {
   LV quote = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "quote"));
   LV result = langsam_nil;
-  result = langsam_cons(vm, arg, result);
+  result = langsam_cons(vm, obj, result);
   result = langsam_cons(vm, quote, result);
   return result;
+}
+
+static LV quasiquote_collect(LangsamVM *vm, LV coll) {
+  LV splice = langsam_opword(vm, "splice");
+  LV result = langsam_nil;
+  LV it = langsam_iter(vm, coll);
+  LANGSAM_CHECK(it);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV qqitem = langsam_quasiquote(vm, item);
+    if (langsam_exceptionp(qqitem)) {
+      bool throw = true;
+      LV payload = langsam_deref(vm, qqitem);
+      if (langsam_consp(payload)) {
+        LV head = langsam_car(payload);
+        if (LVEQ(head, splice)) {
+          throw = false;
+          LV splice_items = langsam_cdr(payload);
+          while (langsam_consp(splice_items)) {
+            LV splice_item = langsam_car(splice_items);
+            result = langsam_cons(vm, splice_item, result);
+            splice_items = langsam_cdr(splice_items);
+          }
+        }
+      }
+      if (throw) {
+        return qqitem;
+      }
+    } else {
+      result = langsam_cons(vm, qqitem, result);
+    }
+    it = langsam_next(vm, it);
+  }
+  return langsam_nreverse(result);
+}
+
+LV langsam_quasiquote(LangsamVM *vm, LV obj) {
+  if (obj.type == LT_CONS) {
+    LV head = langsam_car(obj);
+    LV unquote = langsam_symbol(vm, "unquote");
+    LV unquote_splicing = langsam_symbol(vm, "unquote-splicing");
+    if (LVEQ(head, unquote)) {
+      LV tail = langsam_cdr(obj);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "quasiquote", "unquote needs argument");
+      }
+      LV form = langsam_car(tail);
+      return langsam_eval(vm, form);
+    } else if (LVEQ(head, unquote_splicing)) {
+      LV tail = langsam_cdr(obj);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "quasiquote",
+                                  "unquote-splicing needs argument");
+      }
+      LV form = langsam_car(tail);
+      LV evaluated_form = langsam_eval(vm, form);
+      LANGSAM_CHECK(evaluated_form);
+      LV it = langsam_iter(vm, evaluated_form);
+      LANGSAM_CHECK(it);
+      LV result = langsam_nil;
+      while (langsam_truthy(vm, it)) {
+        LV item = langsam_deref(vm, it);
+        result = langsam_cons(vm, item, result);
+        it = langsam_next(vm, it);
+      }
+      result = langsam_nreverse(result);
+      LV splice = langsam_opword(vm, "splice");
+      return langsam_exception(vm, langsam_cons(vm, splice, result));
+    } else {
+      return quasiquote_collect(vm, obj);
+    }
+  } else if (obj.type == LT_VECTOR || obj.type == LT_MAP) {
+    LV items = quasiquote_collect(vm, obj);
+    LANGSAM_CHECK(items);
+    return langsam_cast(vm, langsam_type(obj.type), items);
+  } else {
+    return obj;
+  }
 }
 
 LV langsam_do(LangsamVM *vm, LV forms) {
@@ -2853,89 +2931,9 @@ static LV eval_quote(LangsamVM *vm, LV args) {
   return obj;
 }
 
-static LV quasiquote(LangsamVM *vm, LV obj);
-
-static LV quasiquote_collect(LangsamVM *vm, LV coll) {
-  LV splice = langsam_opword(vm, "splice");
-  LV result = langsam_nil;
-  LV it = langsam_iter(vm, coll);
-  LANGSAM_CHECK(it);
-  while (langsam_truthy(vm, it)) {
-    LV item = langsam_deref(vm, it);
-    LV qqitem = quasiquote(vm, item);
-    if (langsam_exceptionp(qqitem)) {
-      bool throw = true;
-      LV payload = langsam_deref(vm, qqitem);
-      if (langsam_consp(payload)) {
-        LV head = langsam_car(payload);
-        if (LVEQ(head, splice)) {
-          throw = false;
-          LV splice_items = langsam_cdr(payload);
-          while (langsam_consp(splice_items)) {
-            LV splice_item = langsam_car(splice_items);
-            result = langsam_cons(vm, splice_item, result);
-            splice_items = langsam_cdr(splice_items);
-          }
-        }
-      }
-      if (throw) {
-        return qqitem;
-      }
-    } else {
-      result = langsam_cons(vm, qqitem, result);
-    }
-    it = langsam_next(vm, it);
-  }
-  return langsam_nreverse(result);
-}
-
-static LV quasiquote(LangsamVM *vm, LV obj) {
-  if (obj.type == LT_CONS) {
-    LV head = langsam_car(obj);
-    LV unquote = langsam_symbol(vm, "unquote");
-    LV unquote_splicing = langsam_symbol(vm, "unquote-splicing");
-    if (LVEQ(head, unquote)) {
-      LV tail = langsam_cdr(obj);
-      if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "quasiquote", "unquote needs argument");
-      }
-      LV form = langsam_car(tail);
-      return langsam_eval(vm, form);
-    } else if (LVEQ(head, unquote_splicing)) {
-      LV tail = langsam_cdr(obj);
-      if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "quasiquote",
-                                  "unquote-splicing needs argument");
-      }
-      LV form = langsam_car(tail);
-      LV evaluated_form = langsam_eval(vm, form);
-      LANGSAM_CHECK(evaluated_form);
-      LV it = langsam_iter(vm, evaluated_form);
-      LANGSAM_CHECK(it);
-      LV result = langsam_nil;
-      while (langsam_truthy(vm, it)) {
-        LV item = langsam_deref(vm, it);
-        result = langsam_cons(vm, item, result);
-        it = langsam_next(vm, it);
-      }
-      result = langsam_nreverse(result);
-      LV splice = langsam_opword(vm, "splice");
-      return langsam_exception(vm, langsam_cons(vm, splice, result));
-    } else {
-      return quasiquote_collect(vm, obj);
-    }
-  } else if (obj.type == LT_VECTOR || obj.type == LT_MAP) {
-    LV items = quasiquote_collect(vm, obj);
-    LANGSAM_CHECK(items);
-    return langsam_cast(vm, langsam_type(obj.type), items);
-  } else {
-    return obj;
-  }
-}
-
 static LV eval_quasiquote(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
-  return quasiquote(vm, obj);
+  return langsam_quasiquote(vm, obj);
 }
 
 static LV eval_def(LangsamVM *vm, LV args) {

@@ -425,7 +425,8 @@ LV langsam_Function_repr(LangsamVM *vm, LV self);
 // core functions and helpers
 
 LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs);
-LV langsam_quote(LangsamVM *vm, LV arg);
+LV langsam_quote(LangsamVM *vm, LV obj);
+LV langsam_quasiquote(LangsamVM *vm, LV obj);
 LV langsam_do(LangsamVM *vm, LV forms);
 LV langsam_next(LangsamVM *vm, LV it);
 
