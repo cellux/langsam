@@ -13,7 +13,7 @@
   (assert (= (:value x) 10))
   (assert (= ((cons x 'add) 7 8) (+ 10 7 8)))
   (assert (= (x.add 7 8) (+ 10 7 8)))
-  (assert (throws? '(apply . "cannot find method `sub` in value of type `Map`") (x.sub 7 8))))
+  (assert (throws? '(apply . "cannot find method `sub` in value of type Map") (x.sub 7 8))))
 
 ; ConsIterator
 (let [c '(a b c)
@@ -29,7 +29,7 @@
 ; Vector
 (let [v [1 2 3]]
   (assert (= (v 2) 3))
-  (assert (throws? '(get . "attempt to index Vector with non-integer index of type `Keyword`") (v :foo)))
+  (assert (throws? '(get . "attempt to index Vector with non-integer index of type Keyword") (v :foo)))
   (assert (throws? '(get . "Vector index 5 out of range (0..2)") (v 5))))
 
 ; VectorIterator

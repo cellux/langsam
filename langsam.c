@@ -86,7 +86,7 @@ LV langsam_cast(LangsamVM *vm, LV type, LV other) {
     char *type_name = langsam_cstr(vm, type);
     char *other_type_name = langsam_typename(vm, other.type);
     return langsam_exceptionf(vm, "cast",
-                              "cannot cast %s to %s: type `%s` does not "
+                              "cannot cast %s to %s: type %s does not "
                               "support cast",
                               other_type_name, type_name, type_name);
   }
@@ -122,7 +122,7 @@ LV langsam_cmp(LangsamVM *vm, LV self, LV other) {
   if (t1->cmp == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "cmp", "type `%s` does not support cmp",
+    return langsam_exceptionf(vm, "cmp", "type %s does not support cmp",
                               self_type_name, other_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -137,7 +137,7 @@ LV langsam_add(LangsamVM *vm, LV self, LV other) {
   if (t1->add == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "add", "type `%s` does not support add",
+    return langsam_exceptionf(vm, "add", "type %s does not support add",
                               other_type_name, self_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -153,7 +153,7 @@ LV langsam_sub(LangsamVM *vm, LV self, LV other) {
   if (t1->sub == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "sub", "type `%s` does not support sub",
+    return langsam_exceptionf(vm, "sub", "type %s does not support sub",
                               other_type_name, self_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -169,7 +169,7 @@ LV langsam_mul(LangsamVM *vm, LV self, LV other) {
   if (t1->mul == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "mul", "type `%s` does not support mul",
+    return langsam_exceptionf(vm, "mul", "type %s does not support mul",
                               self_type_name, other_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -185,7 +185,7 @@ LV langsam_div(LangsamVM *vm, LV self, LV other) {
   if (t1->div == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "div", "type `%s` does not support div",
+    return langsam_exceptionf(vm, "div", "type %s does not support div",
                               self_type_name, other_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -201,7 +201,7 @@ LV langsam_mod(LangsamVM *vm, LV self, LV other) {
   if (t1->mod == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
     char *other_type_name = langsam_typename(vm, other.type);
-    return langsam_exceptionf(vm, "mod", "type `%s` does not support mod",
+    return langsam_exceptionf(vm, "mod", "type %s does not support mod",
                               self_type_name, other_type_name, self_type_name);
   }
   LangsamType t2 = other.type;
@@ -216,7 +216,7 @@ LV langsam_get(LangsamVM *vm, LV self, LV key) {
   LangsamType t = self.type;
   if (t->get == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "get", "type `%s` does not support get",
+    return langsam_exceptionf(vm, "get", "type %s does not support get",
                               self_type_name);
   }
   return t->get(vm, self, key);
@@ -226,7 +226,7 @@ LV langsam_put(LangsamVM *vm, LV self, LV key, LV value) {
   LangsamType t = self.type;
   if (t->put == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "put", "type `%s` does not support put",
+    return langsam_exceptionf(vm, "put", "type %s does not support put",
                               self_type_name);
   }
   return t->put(vm, self, key, value);
@@ -236,7 +236,7 @@ LV langsam_del(LangsamVM *vm, LV self, LV key) {
   LangsamType t = self.type;
   if (t->del == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "del", "type `%s` does not support del",
+    return langsam_exceptionf(vm, "del", "type %s does not support del",
                               self_type_name);
   }
   return t->del(vm, self, key);
@@ -246,7 +246,7 @@ LV langsam_len(LangsamVM *vm, LV self) {
   LangsamType t = self.type;
   if (t->len == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "len", "type `%s` does not support len",
+    return langsam_exceptionf(vm, "len", "type %s does not support len",
                               self_type_name);
   }
   return t->len(vm, self);
@@ -256,7 +256,7 @@ LV langsam_iter(LangsamVM *vm, LV self) {
   LangsamType t = self.type;
   if (t->iter == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "iter", "type `%s` does not support iter",
+    return langsam_exceptionf(vm, "iter", "type %s does not support iter",
                               self_type_name);
   }
   return t->iter(vm, self);
@@ -266,7 +266,7 @@ LV langsam_deref(LangsamVM *vm, LV self) {
   LangsamType t = self.type;
   if (t->deref == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "deref", "type `%s` does not support deref",
+    return langsam_exceptionf(vm, "deref", "type %s does not support deref",
                               self_type_name);
   }
   return t->deref(vm, self);
@@ -276,7 +276,7 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
   LangsamType t = self.type;
   if (t->apply == NULL) {
     char *self_type_name = langsam_typename(vm, self.type);
-    return langsam_exceptionf(vm, "apply", "type `%s` does not support apply",
+    return langsam_exceptionf(vm, "apply", "type %s does not support apply",
                               self_type_name);
   }
   return t->apply(vm, self, args);
@@ -550,7 +550,7 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
     return langsam_integer(i);
   }
   return langsam_exceptionf(vm, "cast",
-                            "Cannot cast value of type `%s` to Integer",
+                            "Cannot cast value of type %s to Integer",
                             langsam_typename(vm, other.type));
 }
 
@@ -654,8 +654,7 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
     }
     return langsam_float(f);
   }
-  return langsam_exceptionf(vm, "cast",
-                            "Cannot cast value of type `%s` to Float",
+  return langsam_exceptionf(vm, "cast", "Cannot cast value of type %s to Float",
                             langsam_typename(vm, other.type));
 }
 
@@ -779,8 +778,7 @@ LV langsam_String_get(LangsamVM *vm, LV self, LV key) {
   if (key.type != LT_INTEGER) {
     char *key_type_name = langsam_typename(vm, key.type);
     return langsam_exceptionf(
-        vm, "get",
-        "attempt to index String with non-integer index of type `%s`",
+        vm, "get", "attempt to index String with non-integer index of type %s",
         key_type_name);
   }
   LangsamIndex index = key.i;
@@ -1004,7 +1002,7 @@ LV langsam_Symbol_cast(LangsamVM *vm, LV other) {
     return langsam_symbol(vm, s->p);
   }
   return langsam_exceptionf(vm, "cast",
-                            "Cannot cast value of type `%s` to Symbol",
+                            "Cannot cast value of type %s to Symbol",
                             langsam_typename(vm, other.type));
 }
 
@@ -1055,7 +1053,7 @@ LV langsam_Keyword_cast(LangsamVM *vm, LV other) {
     };
   }
   return langsam_exceptionf(vm, "cast",
-                            "Cannot cast value of type `%s` to Keyword",
+                            "Cannot cast value of type %s to Keyword",
                             langsam_typename(vm, other.type));
 }
 
@@ -1102,7 +1100,7 @@ LV langsam_Opword_cast(LangsamVM *vm, LV other) {
     };
   }
   return langsam_exceptionf(vm, "cast",
-                            "Cannot cast value of type `%s` to Opword",
+                            "Cannot cast value of type %s to Opword",
                             langsam_typename(vm, other.type));
 }
 
@@ -1175,7 +1173,7 @@ LV langsam_Cons_get(LangsamVM *vm, LV self, LV key) {
   if (key.type != LT_INTEGER) {
     char *key_type_name = langsam_typename(vm, key.type);
     return langsam_exceptionf(
-        vm, "get", "attempt to index Cons with non-integer index of type `%s`",
+        vm, "get", "attempt to index Cons with non-integer index of type %s",
         key_type_name);
   }
   LangsamCons *cons = self.p;
@@ -1195,7 +1193,7 @@ LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value) {
   if (key.type != LT_INTEGER) {
     char *key_type_name = langsam_typename(vm, key.type);
     return langsam_exceptionf(
-        vm, "put", "attempt to index Cons with non-integer index of type `%s`",
+        vm, "put", "attempt to index Cons with non-integer index of type %s",
         key_type_name);
   }
   LangsamCons *cons = self.p;
@@ -1233,7 +1231,7 @@ LV langsam_Cons_apply(LangsamVM *vm, LV self, LV args) {
   LANGSAM_CHECK(method);
   if (langsam_nilp(method)) {
     return langsam_exceptionf(
-        vm, "apply", "cannot find method `%s` in value of type `%s`",
+        vm, "apply", "cannot find method `%s` in value of type %s",
         langsam_cstr(vm, key), langsam_typename(vm, obj.type));
   }
   args = langsam_cons(vm, langsam_quote(vm, obj), args);
@@ -1467,8 +1465,7 @@ LV langsam_Vector_get(LangsamVM *vm, LV self, LV key) {
   if (key.type != LT_INTEGER) {
     char *key_type_name = langsam_typename(vm, key.type);
     return langsam_exceptionf(
-        vm, "get",
-        "attempt to index Vector with non-integer index of type `%s`",
+        vm, "get", "attempt to index Vector with non-integer index of type %s",
         key_type_name);
   }
   LangsamIndex index = key.i;
@@ -1486,8 +1483,7 @@ LV langsam_Vector_put(LangsamVM *vm, LV self, LV key, LV value) {
   if (key.type != LT_INTEGER) {
     char *key_type_name = langsam_typename(vm, key.type);
     return langsam_exceptionf(
-        vm, "put",
-        "attempt to index Vector with non-integer index of type `%s`",
+        vm, "put", "attempt to index Vector with non-integer index of type %s",
         key_type_name);
   }
   LangsamIndex index = key.i;
@@ -2012,7 +2008,7 @@ LV langsam_Map_values(LangsamVM *vm, LV self) {
 LV langsam_Map_getproto(LangsamVM *vm, LV self) {
   if (self.type != LT_MAP) {
     return langsam_exceptionf(vm, "getproto",
-                              "values of type `%s` do not have a prototype",
+                              "values of type %s do not have a prototype",
                               langsam_typename(vm, self.type));
   }
   LangsamMap *m = self.p;
@@ -2022,12 +2018,12 @@ LV langsam_Map_getproto(LangsamVM *vm, LV self) {
 LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
   if (self.type != LT_MAP) {
     return langsam_exceptionf(vm, "setproto",
-                              "values of type `%s` do not have a prototype",
+                              "values of type %s do not have a prototype",
                               langsam_typename(vm, self.type));
   }
   if (proto.type != LT_MAP && proto.type != LT_NIL) {
     return langsam_exceptionf(vm, "setproto",
-                              "prototype must be Map or Nil, got `%s`",
+                              "prototype must be Map or Nil, got %s",
                               langsam_typename(vm, proto.type));
   }
   LangsamMap *m = self.p;
@@ -2191,16 +2187,15 @@ static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     if (rhs.type != LT_CONS && rhs.type != LT_NIL) {
       return langsam_exceptionf(
-          vm, "bind", "attempt to bind value of type `%s` to quasiquoted cons",
-          langsam_typename(vm, rhs.type));
+          vm, "bind", "attempt to bind value of type %s to `%s",
+          langsam_typename(vm, rhs.type), langsam_cstr(vm, lhs));
     }
     return bind_quasiquoted_seq(vm, env, lhs, rhs);
   } else if (lhs.type == LT_VECTOR) {
     if (rhs.type != LT_VECTOR) {
       return langsam_exceptionf(
-          vm, "bind",
-          "attempt to bind value of type `%s` to quasiquoted vector",
-          langsam_typename(vm, rhs.type));
+          vm, "bind", "attempt to bind value of type %s to `%s",
+          langsam_typename(vm, rhs.type), langsam_cstr(vm, lhs));
     }
     return bind_quasiquoted_seq(vm, env, lhs, rhs);
   } else {
@@ -2356,7 +2351,7 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           if (sym.type != LT_SYMBOL) {
             return langsam_exceptionf(
                 vm, "bind",
-                "found value of type `%s` in iterable passed to :keys",
+                "found value of type %s in iterable passed to :keys",
                 langsam_typename(vm, sym.type));
           }
           LV k = langsam_Keyword_cast(vm, sym);
@@ -2520,7 +2515,7 @@ LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
 LV langsam_Function_cast(LangsamVM *vm, LV other) {
   if (other.type != LT_MAP) {
     return langsam_exceptionf(vm, "cast",
-                              "Cannot cast value of type `%s` to Function",
+                              "Cannot cast value of type %s to Function",
                               langsam_typename(vm, other.type));
   }
   LangsamFunction *f =
