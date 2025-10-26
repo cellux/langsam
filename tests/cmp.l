@@ -38,7 +38,7 @@
               '(a b) '(a . b) [:a :b] {:a 1 :b 3 :c 8}
               let do unless map]]
   (for [v values] (assert (= v v)))
-  (let [l (Cons values)]
+  (let [l (list values)]
     (while l
       (let [lhs (car l)]
         (for [rhs (cdr l)] (assert (not= lhs rhs))))

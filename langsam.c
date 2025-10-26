@@ -1145,20 +1145,22 @@ LangsamHash langsam_Cons_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash;
 }
 
-static LV collect_rest(LangsamVM *vm, LV it) {
+LV langsam_Cons_cast(LangsamVM *vm, LV other) {
+  LV it = langsam_iter(vm, other);
+  LANGSAM_CHECK(it);
   LV items = langsam_nil;
+  int len = 0;
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
     items = langsam_cons(vm, item, items);
     it = langsam_next(vm, it);
+    len++;
   }
-  return langsam_nreverse(items);
-}
-
-LV langsam_Cons_cast(LangsamVM *vm, LV other) {
-  LV it = langsam_iter(vm, other);
-  LANGSAM_CHECK(it);
-  return collect_rest(vm, it);
+  if (len < 2) {
+    return langsam_exceptionf(
+        vm, "cast", "Cons requires an iterable with at least 2 elements");
+  }
+  return langsam_nreverse_with_last(langsam_cdr(items), langsam_car(items));
 }
 
 LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other) {
@@ -2118,6 +2120,16 @@ static struct LangsamT LANGSAM_T_MAPITERATOR = {
 const LangsamType LT_MAPITERATOR = &LANGSAM_T_MAPITERATOR;
 
 // bind
+
+static LV collect_rest(LangsamVM *vm, LV it) {
+  LV items = langsam_nil;
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    items = langsam_cons(vm, item, items);
+    it = langsam_next(vm, it);
+  }
+  return langsam_nreverse(items);
+}
 
 static LV bind_quoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV result = langsam_equal(vm, lhs, rhs);
@@ -3306,9 +3318,13 @@ static LV eval_type(LangsamVM *vm, LV args) {
 }
 
 static LV eval_cons(LangsamVM *vm, LV args) {
-  LANGSAM_ARG(car, args);
-  LANGSAM_ARG(cdr, args);
-  return langsam_cons(vm, car, cdr);
+  return langsam_Cons_cast(vm, args);
+}
+
+static LV eval_list(LangsamVM *vm, LV args) {
+  LV it = langsam_iter(vm, args);
+  LANGSAM_CHECK(it);
+  return collect_rest(vm, it);
 }
 
 static LV eval_car(LangsamVM *vm, LV args) {
@@ -3432,6 +3448,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "throw", eval_throw);
   langsam_defn(vm, env, "type", eval_type);
   langsam_defn(vm, env, "cons", eval_cons);
+  langsam_defn(vm, env, "list", eval_list);
   langsam_defn(vm, env, "car", eval_car);
   langsam_defn(vm, env, "cdr", eval_cdr);
   langsam_defn(vm, env, "setcar", eval_setcar);

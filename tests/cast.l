@@ -66,7 +66,7 @@
 
 (assert (= (Cons '(a . b)) '(a . b)))
 (assert (= (Cons '(a b c)) '(a b c)))
-(assert (= (Cons '[a b c]) '(a b c)))
+(assert (= (Cons '[a b c]) '(a b . c)))
 
 (assert (= (Vector [1 2 3]) [1 2 3]))
 (assert (= (Vector '(a b c)) '[a b c]))

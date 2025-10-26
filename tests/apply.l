@@ -1,7 +1,7 @@
 ; Type
 (assert (throws? '(syntax . "Cons constructor with no arguments") (Cons)))
 (assert (throws? '(syntax . "Cons constructor requires a single argument") (Cons [:a :b] [:c :d])))
-(assert (= (Cons [:a :b]) '(:a :b)))
+(assert (= (Cons [:a :b]) '(:a . :b)))
 
 ; keyword
 (let [m {:a 5 :b 8 :c 3}]
