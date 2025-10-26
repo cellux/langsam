@@ -1145,16 +1145,20 @@ LangsamHash langsam_Cons_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash;
 }
 
+static LV collect_rest(LangsamVM *vm, LV it) {
+  LV items = langsam_nil;
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    items = langsam_cons(vm, item, items);
+    it = langsam_next(vm, it);
+  }
+  return langsam_nreverse(items);
+}
+
 LV langsam_Cons_cast(LangsamVM *vm, LV other) {
   LV it = langsam_iter(vm, other);
   LANGSAM_CHECK(it);
-  LV result = langsam_nil;
-  while (langsam_truthy(vm, it)) {
-    LV item = langsam_deref(vm, it);
-    result = langsam_cons(vm, item, result);
-    it = langsam_next(vm, it);
-  }
-  return langsam_nreverse(result);
+  return collect_rest(vm, it);
 }
 
 LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other) {
@@ -1413,7 +1417,8 @@ LV langsam_Vector_cast(LangsamVM *vm, LV other) {
   LV l = langsam_nil;
   LangsamSize len = 0;
   while (langsam_truthy(vm, it)) {
-    l = langsam_cons(vm, langsam_deref(vm, it), l);
+    LV item = langsam_deref(vm, it);
+    l = langsam_cons(vm, item, l);
     it = langsam_next(vm, it);
     len++;
   }
@@ -1687,7 +1692,8 @@ LV langsam_Map_cast(LangsamVM *vm, LV other) {
   LV l = langsam_nil;
   LangsamSize nitems = 0;
   while (langsam_truthy(vm, it)) {
-    l = langsam_cons(vm, langsam_deref(vm, it), l);
+    LV item = langsam_deref(vm, it);
+    l = langsam_cons(vm, item, l);
     it = langsam_next(vm, it);
     nitems++;
   }
@@ -2111,80 +2117,10 @@ static struct LangsamT LANGSAM_T_MAPITERATOR = {
 
 const LangsamType LT_MAPITERATOR = &LANGSAM_T_MAPITERATOR;
 
-// Function
-
-LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p) {
-  LangsamFunction *f = p;
-  LangsamSize total = 0;
-  total += langsam_mark(vm, f->name);
-  total += langsam_mark(vm, f->params);
-  total += langsam_mark(vm, f->doc);
-  total += langsam_mark(vm, f->funclet);
-  total += langsam_mark(vm, f->body);
-  return total;
-}
-
-LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
-  LangsamFunction *f = self.p;
-  hash = langsam_hash(vm, f->name, hash);
-  hash = langsam_hash(vm, f->params, hash);
-  hash = langsam_hash(vm, f->doc, hash);
-  hash = langsam_hash(vm, f->body, hash);
-  hash = hash_boolean(hash, f->evalargs);
-  hash = hash_boolean(hash, f->evalresult);
-  return hash;
-}
-
-LV langsam_Function_cast(LangsamVM *vm, LV other) {
-  if (other.type != LT_MAP) {
-    return langsam_exceptionf(vm, "cast",
-                              "Cannot cast value of type `%s` to Function",
-                              langsam_typename(vm, other.type));
-  }
-  LangsamFunction *f =
-      langsam_gcalloc(vm, LT_FUNCTION, LANGSAM_SIZEOF(LangsamFunction));
-  f->name = langsam_get(vm, other, langsam_keyword(vm, "name"));
-  if (langsam_somep(f->name)) {
-    if (f->name.type != LT_SYMBOL) {
-      return langsam_exceptionf(
-          vm, "syntax", "Function name should be symbol, got %s: %s",
-          langsam_typename(vm, f->name.type), langsam_cstr(vm, f->name));
-    }
-  }
-  f->params = langsam_get(vm, other, langsam_keyword(vm, "params"));
-  if (f->params.type != LT_VECTOR && f->params.type != LT_NIL) {
-    return langsam_exceptionf(
-        vm, "syntax", "Function parameters should be Vector or Nil, got %s",
-        langsam_typename(vm, f->params.type));
-  }
-  f->doc = langsam_get(vm, other, langsam_keyword(vm, "doc"));
-  f->funclet = vm->curlet;
-  f->body = langsam_get(vm, other, langsam_keyword(vm, "body"));
-  if (f->body.type != LT_CONS && f->body.type != LT_NIL) {
-    return langsam_exceptionf(vm, "syntax",
-                              "Function body should be Cons or Nil, got %s",
-                              langsam_typename(vm, f->body.type));
-  }
-  f->fn = NULL;
-  f->evalargs = langsam_truthy(
-      vm, langsam_get(vm, other, langsam_keyword(vm, "evalargs")));
-  f->evalresult = langsam_truthy(
-      vm, langsam_get(vm, other, langsam_keyword(vm, "evalresult")));
-  return (LV){
-      .type = LT_FUNCTION,
-      .p = f,
-  };
-}
-
 // bind
 
-static LV bind_quote(LangsamVM *vm, LV env, LV lhs, LV rhs) {
-  LV tail = langsam_cdr(lhs);
-  if (!langsam_consp(tail)) {
-    return langsam_exceptionf(vm, "bind", "malformed quote in cons pattern");
-  }
-  LV expected = langsam_car(tail);
-  LV result = langsam_equal(vm, expected, rhs);
+static LV bind_quoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV result = langsam_equal(vm, lhs, rhs);
   if (langsam_falsep(result)) {
     return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
                               langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
@@ -2192,15 +2128,96 @@ static LV bind_quote(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   return env;
 }
 
+static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs);
+
+static LV bind_quasiquoted_seq(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  LV it_lhs = langsam_iter(vm, lhs);
+  LANGSAM_CHECK(it_lhs);
+  LV it_rhs = langsam_iter(vm, rhs);
+  LANGSAM_CHECK(it_rhs);
+  LV unquote_splicing_symbol = langsam_symbol(vm, "unquote-splicing");
+  while (langsam_truthy(vm, it_lhs)) {
+    LV head = langsam_deref(vm, it_lhs);
+    if (langsam_consp(head) &&
+        LVEQ(langsam_car(head), unquote_splicing_symbol)) {
+      LV tail = langsam_cdr(head);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "bind",
+                                  "malformed unquote-splicing form: %s",
+                                  langsam_cstr(vm, head));
+      }
+      LV pat = langsam_car(tail);
+      LV rhs_items = collect_rest(vm, it_rhs);
+      return langsam_bind(vm, env, pat, rhs_items);
+    }
+    if (!langsam_truthy(vm, it_rhs)) {
+      return langsam_exceptionf(vm, "bind",
+                                "not enough values on the right side to bind "
+                                "quasiquoted seq: lhs=%s rhs=%s",
+                                langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+    }
+    LV value = langsam_deref(vm, it_rhs);
+    LV bind_result = bind_quasiquoted(vm, env, head, value);
+    LANGSAM_CHECK(bind_result);
+    it_lhs = langsam_next(vm, it_lhs);
+    it_rhs = langsam_next(vm, it_rhs);
+  }
+  return env;
+}
+
+static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
+  if (lhs.type == LT_CONS) {
+    LV head = langsam_car(lhs);
+    LV unquote_symbol = langsam_symbol(vm, "unquote");
+    if (LVEQ(head, unquote_symbol)) {
+      LV tail = langsam_cdr(lhs);
+      if (!langsam_consp(tail)) {
+        return langsam_exceptionf(vm, "bind", "malformed unquote form: %s",
+                                  langsam_cstr(vm, lhs));
+      }
+      return langsam_bind(vm, env, langsam_car(tail), rhs);
+    }
+    if (rhs.type != LT_CONS && rhs.type != LT_NIL) {
+      return langsam_exceptionf(
+          vm, "bind", "attempt to bind value of type `%s` to quasiquoted cons",
+          langsam_typename(vm, rhs.type));
+    }
+    return bind_quasiquoted_seq(vm, env, lhs, rhs);
+  } else if (lhs.type == LT_VECTOR) {
+    if (rhs.type != LT_VECTOR) {
+      return langsam_exceptionf(
+          vm, "bind",
+          "attempt to bind value of type `%s` to quasiquoted vector",
+          langsam_typename(vm, rhs.type));
+    }
+    return bind_quasiquoted_seq(vm, env, lhs, rhs);
+  } else {
+    return bind_quoted(vm, env, lhs, rhs);
+  }
+}
+
 static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV head = langsam_car(lhs);
   LV quote_symbol = langsam_symbol(vm, "quote");
   if (LVEQ(head, quote_symbol)) {
-    return bind_quote(vm, env, lhs, rhs);
-  } else {
-    return langsam_exceptionf(vm, "bind", "cons pattern must be quote, got %s",
-                              langsam_cstr(vm, lhs));
+    LV tail = langsam_cdr(lhs);
+    if (!langsam_consp(tail)) {
+      return langsam_exceptionf(vm, "bind", "malformed quote form: %s",
+                                langsam_cstr(vm, lhs));
+    }
+    return bind_quoted(vm, env, langsam_car(tail), rhs);
   }
+  LV quasiquote_symbol = langsam_symbol(vm, "quasiquote");
+  if (LVEQ(head, quasiquote_symbol)) {
+    LV tail = langsam_cdr(lhs);
+    if (!langsam_consp(tail)) {
+      return langsam_exceptionf(vm, "bind", "malformed quasiquote form: %s",
+                                langsam_cstr(vm, lhs));
+    }
+    return bind_quasiquoted(vm, env, langsam_car(tail), rhs);
+  }
+  return langsam_exceptionf(vm, "bind", "invalid cons pattern: %s",
+                            langsam_cstr(vm, lhs));
 }
 
 typedef enum {
@@ -2300,12 +2317,7 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         return langsam_exceptionf(vm, "bind",
                                   "& must be followed by a single form");
       }
-      while (langsam_truthy(vm, it_rhs)) {
-        LV value = langsam_deref(vm, it_rhs);
-        rest = langsam_cons(vm, value, rest);
-        it_rhs = langsam_next(vm, it_rhs);
-      }
-      rest = langsam_nreverse(rest);
+      rest = collect_rest(vm, it_rhs);
       LV result = langsam_bind(vm, env, pat, rest);
       LANGSAM_CHECK(result);
       break;
@@ -2439,13 +2451,7 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
       LANGSAM_CHECK(evaluated_form);
       LV it = langsam_iter(vm, evaluated_form);
       LANGSAM_CHECK(it);
-      LV result = langsam_nil;
-      while (langsam_truthy(vm, it)) {
-        LV item = langsam_deref(vm, it);
-        result = langsam_cons(vm, item, result);
-        it = langsam_next(vm, it);
-      }
-      result = langsam_nreverse(result);
+      LV result = collect_rest(vm, it);
       LV splice = langsam_opword(vm, "splice");
       return langsam_exception(vm, langsam_cons(vm, splice, result));
     } else {
@@ -2473,6 +2479,71 @@ LV langsam_do(LangsamVM *vm, LV forms) {
 
 LV langsam_next(LangsamVM *vm, LV it) {
   return langsam_apply(vm, it, langsam_nil);
+}
+
+// Function
+
+LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p) {
+  LangsamFunction *f = p;
+  LangsamSize total = 0;
+  total += langsam_mark(vm, f->name);
+  total += langsam_mark(vm, f->params);
+  total += langsam_mark(vm, f->doc);
+  total += langsam_mark(vm, f->funclet);
+  total += langsam_mark(vm, f->body);
+  return total;
+}
+
+LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
+  LangsamFunction *f = self.p;
+  hash = langsam_hash(vm, f->name, hash);
+  hash = langsam_hash(vm, f->params, hash);
+  hash = langsam_hash(vm, f->doc, hash);
+  hash = langsam_hash(vm, f->body, hash);
+  hash = hash_boolean(hash, f->evalargs);
+  hash = hash_boolean(hash, f->evalresult);
+  return hash;
+}
+
+LV langsam_Function_cast(LangsamVM *vm, LV other) {
+  if (other.type != LT_MAP) {
+    return langsam_exceptionf(vm, "cast",
+                              "Cannot cast value of type `%s` to Function",
+                              langsam_typename(vm, other.type));
+  }
+  LangsamFunction *f =
+      langsam_gcalloc(vm, LT_FUNCTION, LANGSAM_SIZEOF(LangsamFunction));
+  f->name = langsam_get(vm, other, langsam_keyword(vm, "name"));
+  if (langsam_somep(f->name)) {
+    if (f->name.type != LT_SYMBOL) {
+      return langsam_exceptionf(
+          vm, "syntax", "Function name should be symbol, got %s: %s",
+          langsam_typename(vm, f->name.type), langsam_cstr(vm, f->name));
+    }
+  }
+  f->params = langsam_get(vm, other, langsam_keyword(vm, "params"));
+  if (f->params.type != LT_VECTOR && f->params.type != LT_NIL) {
+    return langsam_exceptionf(
+        vm, "syntax", "Function parameters should be Vector or Nil, got %s",
+        langsam_typename(vm, f->params.type));
+  }
+  f->doc = langsam_get(vm, other, langsam_keyword(vm, "doc"));
+  f->funclet = vm->curlet;
+  f->body = langsam_get(vm, other, langsam_keyword(vm, "body"));
+  if (f->body.type != LT_CONS && f->body.type != LT_NIL) {
+    return langsam_exceptionf(vm, "syntax",
+                              "Function body should be Cons or Nil, got %s",
+                              langsam_typename(vm, f->body.type));
+  }
+  f->fn = NULL;
+  f->evalargs = langsam_truthy(
+      vm, langsam_get(vm, other, langsam_keyword(vm, "evalargs")));
+  f->evalresult = langsam_truthy(
+      vm, langsam_get(vm, other, langsam_keyword(vm, "evalresult")));
+  return (LV){
+      .type = LT_FUNCTION,
+      .p = f,
+  };
 }
 
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
