@@ -176,4 +176,23 @@
   (let [catch-result# (gensym 'catch-result)]
     `(let [,catch-result# (catch [payload (cons %exception-payload payload)] ,@body)]
        (assert (= ,catch-result# (cons %exception-payload ,expected-payload))))))
+
+(defmacro try [& body]
+  (let [keyfn (fn [item] (if (cons? item)
+                           (case (car item)
+                             %catch :catch
+                             %finally :finally
+                             :body)
+                           :body))
+        {:keys [body catch finally]} (group-by keyfn body)
+        finally-forms (flatten1 (map cdr finally))
+        ex# (gensym 'ex)
+        ex-patterns (map (fn [[_ pattern & body]]
+                           `(,pattern (prog1 (do ,@body) ,@finally-forms)))
+                      (nreverse catch))]
+    `(catch [,ex# (case ,ex#
+                    ,@(flatten1 ex-patterns)
+                    (throw ,ex#))]
+       ,@(nreverse body)
+       ,@finally-forms)))
 (gc)

@@ -1526,7 +1526,9 @@ LV langsam_Vector_eval(LangsamVM *vm, LV self) {
   LV result = langsam_vector_uninitialized(vm, v->len);
   LV *result_items = ((LangsamVector *)result.p)->items;
   for (LangsamIndex i = 0; i < v->len; i++) {
-    result_items[i] = langsam_eval(vm, v->items[i]);
+    LV result_item = langsam_eval(vm, v->items[i]);
+    LANGSAM_CHECK(result_item);
+    result_items[i] = result_item;
   }
   return result;
 }
@@ -2668,10 +2670,13 @@ LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
   LangsamFunction *f = self.p;
   if (f->evalargs) {
     args = fn_evalargs(vm, args);
+    LANGSAM_CHECK(args);
   }
   LV result = fn_apply(vm, f, args);
+  LANGSAM_CHECK(result);
   if (f->evalresult) {
     result = langsam_eval(vm, result);
+    LANGSAM_CHECK(result);
   }
   return result;
 }
