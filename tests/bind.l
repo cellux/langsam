@@ -28,4 +28,7 @@
   (test-bind '`(a b ,c d) '(a b foo d) {'c 'foo})
   (test-bind '`(a b ,[x y & rest] d) '(a b (1 2 3 4) d) {'x 1 'y 2 'rest '(3 4)})
   (test-bind '`(a b ,@[x y & rest]) '(a b 1 2 3 4) {'x 1 'y 2 'rest '(3 4)})
-  (test-bind '`(a b ,@rest) '(a b 1 2 3 4) {'rest '(1 2 3 4)}))
+  (test-bind '`(a b ,@rest) '(a b 1 2 3 4) {'rest '(1 2 3 4)})
+  (test-bind '(cons a b) '(:x . :y) {'a :x 'b :y})
+  (test-bind '(cons a b c) '(:x :y . :z) {'a :x 'b :y 'c :z})
+  (test-bind '(cons a b c) '(:x :y :z) {'a :x 'b :y 'c '(:z)}))

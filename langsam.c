@@ -2223,6 +2223,37 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return bind_quasiquoted(vm, env, langsam_car(tail), rhs);
   }
+  LV cons_symbol = langsam_symbol(vm, "cons");
+  if (LVEQ(head, cons_symbol)) {
+    if (rhs.type != LT_CONS) {
+      return langsam_exceptionf(
+          vm, "bind", "attempt to bind value of type %s to %s",
+          langsam_typename(vm, rhs.type), langsam_cstr(vm, lhs));
+    }
+    LV pat = langsam_Cons_cast(vm, langsam_cdr(lhs));
+    LANGSAM_CHECK(pat);
+    LV pat_items = pat;
+    LV rhs_items = rhs;
+    while (langsam_consp(pat_items)) {
+      LV pat_head = langsam_car(pat_items);
+      if (!langsam_consp(rhs_items)) {
+        return langsam_exceptionf(vm, "bind",
+                                  "not enough values on the right side: "
+                                  "lhs=%s rhs=%s",
+                                  langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+      }
+      LV rhs_head = langsam_car(rhs_items);
+      LV bind_result = langsam_bind(vm, env, pat_head, rhs_head);
+      LANGSAM_CHECK(bind_result);
+      pat_items = langsam_cdr(pat_items);
+      rhs_items = langsam_cdr(rhs_items);
+    }
+    if (!langsam_nilp(pat_items)) {
+      LV bind_result = langsam_bind(vm, env, pat_items, rhs_items);
+      LANGSAM_CHECK(bind_result);
+    }
+    return env;
+  }
   return langsam_exceptionf(vm, "bind", "invalid cons pattern: %s",
                             langsam_cstr(vm, lhs));
 }
