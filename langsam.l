@@ -127,14 +127,15 @@
                          ,(subcase clauses))
                       (if-let [[result] clauses]
                         result))))]
-    `(let [,item# ,item]
+    `(do
+       (def ,item# ,item)
        ,(subcase clauses))))
 
 (defmacro prog1 [head & rest]
   (let [result# (gensym 'result)]
-    `(let [,result# ,head]
-       ,@rest
-       ,result#)))
+    `(do (def ,result# ,head)
+         ,@rest
+         ,result#)))
 
 (defmacro for [bindings & body]
   (if-let [[var coll & rest] bindings]

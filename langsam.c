@@ -3355,7 +3355,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "catch", eval_catch);
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
-  langsam_defn(vm, env, "curlet", eval_curlet);
+  langsam_defspecial(vm, env, "curlet", eval_curlet);
   langsam_defn(vm, env, "bind", eval_bind);
   langsam_defn(vm, env, "macroexpand", eval_macroexpand);
   langsam_defn(vm, env, "throw", eval_throw);
