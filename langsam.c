@@ -3787,6 +3787,7 @@ typedef struct {
   void *readbyte_data;
   uint8_t buffer[1];
   LangsamSize bufsize;
+  LangsamIndex pos;
 } Reader;
 
 static void Reader_init(Reader *r, LangsamVM *vm, ByteReadFunc readbyte,
@@ -3795,20 +3796,27 @@ static void Reader_init(Reader *r, LangsamVM *vm, ByteReadFunc readbyte,
   r->readbyte = readbyte;
   r->readbyte_data = readbyte_data;
   r->bufsize = 0;
+  r->pos = 0;
 }
 
 static LV Reader_readbyte(Reader *r) {
+  LV result;
   if (r->bufsize > 0) {
     r->bufsize = 0;
-    return langsam_integer(r->buffer[0]);
+    result = langsam_integer(r->buffer[0]);
   } else {
-    return r->readbyte(r->vm, r->readbyte_data);
+    result = r->readbyte(r->vm, r->readbyte_data);
   }
+  if (result.type == LT_INTEGER) {
+    r->pos++;
+  }
+  return result;
 }
 
 static void Reader_unreadbyte(Reader *r, uint8_t c) {
   r->buffer[0] = c;
   r->bufsize = 1;
+  r->pos--;
 }
 
 static bool is_whitespace(uint8_t c) { return c <= 0x20; }
@@ -3835,6 +3843,23 @@ start:
       } else {
         return comment_result;
       }
+    }
+  } else if (c == '#' && r->pos == 1) {
+    LV shebang_result = Reader_readbyte(r);
+    if (shebang_result.type == LT_INTEGER && shebang_result.i == '!') {
+      while (1) {
+        shebang_result = Reader_readbyte(r);
+        if (shebang_result.type == LT_INTEGER) {
+          if (shebang_result.i == '\n') {
+            goto start;
+          }
+        } else {
+          return shebang_result;
+        }
+      }
+    } else {
+      Reader_unreadbyte(r, (uint8_t)shebang_result.i);
+      return result;
     }
   } else {
     return result;
