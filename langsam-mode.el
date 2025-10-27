@@ -60,6 +60,29 @@
     (modify-syntax-entry ?| "'" st)
     st))
 
+;;;; Syntax propertize ---------------------------------------------------------
+
+(defun langsam--propertize-shebang (start end)
+  "Mark a leading #!… line as a comment between START and END."
+  (save-excursion
+    ;; Only if we're at the beginning of the buffer and see #!
+    (goto-char (max start (point-min)))
+    (when (and (= (point) (point-min))
+               (looking-at "#!.*$"))
+      (let* ((bol (match-beginning 0))
+             (eol (match-end 0))
+             (nl (and (< eol (point-max)) (1+ eol))))
+        ;; comment start on '#'
+        (put-text-property bol (1+ bol)
+                           'syntax-table (string-to-syntax "<"))
+        ;; comment end on the newline after the shebang (if any)
+        (when nl
+          (put-text-property eol nl
+                             'syntax-table (string-to-syntax ">")))))))
+
+(defun langsam--syntax-propertize (start end)
+  (langsam--propertize-shebang start end))
+
 ;;;; Font-lock -----------------------------------------------------------------
 
 (rx-let ((sym (+ (any "a-z" "A-Z" "0-9" ?- "!$%&*+./:<=>?_~")))
@@ -291,6 +314,10 @@ Respects `langsam-indent-specs` and otherwise falls back to `lisp-indent-functio
 
   ;; Font-lock
   (setq-local font-lock-defaults `(langsam--font-lock-keywords))
+
+  ;; Syntax propertize
+  (setq-local syntax-propertize-function #'langsam--syntax-propertize)
+  (setq-local parse-sexp-lookup-properties t)
 
   ;; Indentation
   (setq-local indent-line-function #'lisp-indent-line)
