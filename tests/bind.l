@@ -1,7 +1,7 @@
 (let [test-bind (fn [pattern value expected-env]
-              (let [env (sublet (curlet))]
-                (bind env pattern value)
-                (assert (= env expected-env))))]
+                  (let [env (sublet (curlet))]
+                    (bind env pattern value)
+                    (assert (= env expected-env))))]
   (test-bind 'a 5 {'a 5})
   (test-bind '[a b c] [1 2 3] {'a 1 'b 2 'c 3})
   (test-bind '[a b & rest] [1 2 3 4 5 6] {'a 1 'b 2 'rest '(3 4 5 6)})
@@ -31,4 +31,11 @@
   (test-bind '`(a b ,@rest) '(a b 1 2 3 4) {'rest '(1 2 3 4)})
   (test-bind '(cons a b) '(:x . :y) {'a :x 'b :y})
   (test-bind '(cons a b c) '(:x :y . :z) {'a :x 'b :y 'c :z})
-  (test-bind '(cons a b c) '(:x :y :z) {'a :x 'b :y 'c '(:z)}))
+  (test-bind '(cons a b c) '(:x :y :z) {'a :x 'b :y 'c '(:z)})
+  (assert (throws? '(bind . "pattern failed: (and (pred float?) f)")
+                   (test-bind '(and (pred float?) f) 5 {})))
+  (test-bind '(and (pred float?) f) 5.0 {'f 5.0})
+  (test-bind '(and (or (pred float?) (pred string?)) f) 5.0 {'f 5.0})
+  (test-bind '(and (or (pred float?) (pred string?)) f) "foo" {'f "foo"})
+  (assert (throws? '(bind . "pattern failed: (and (or (pred float?) (pred string?)) f)")
+                   (test-bind '(and (or (pred float?) (pred string?)) f) 5 {}))))

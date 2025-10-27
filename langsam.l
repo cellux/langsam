@@ -21,6 +21,14 @@
 (defn not= [x & rest]
   (not (= x . rest)))
 
+(defn special? [x]
+  (and (function? x)
+       (not (:evalargs x))
+       (not (:evalresult x))))
+
+(defmacro when [cond & body]
+  `(if ,cond (do ,@body)))
+
 (defmacro unless [cond & body]
   `(when (not ,cond) ,@body))
 
@@ -65,6 +73,16 @@
       (setq result (f @it result))
       (setq it (next it)))
     result))
+
+(defn filter [f coll]
+  (let [result nil
+        it (iter coll)]
+    (while it
+      (let [item @it]
+        (if (f item)
+          (setq result (cons item result))))
+      (setq it (next it)))
+    (nreverse result)))
 
 (def inc
   (let [add1 (fn [x] (+ x 1))]
@@ -195,4 +213,31 @@
                     (throw ,ex#))]
        ,@(nreverse body)
        ,@finally-forms)))
+
+(defn macroexpand
+  [form]
+  (if-let [[head & rest] form
+           (pred macro?) (eval head)]
+      (macroexpand (macroexpand-1 form))
+    form))
+
+(defmacro -> [head & rest]
+  (case rest
+    [[beg & end] & tail] `(-> (,beg ,head ,@end) ,@tail)
+    [beg & tail] `(-> (,beg ,head) ,@tail)
+    head))
+
+(defmacro ->> [head & rest]
+  (case rest
+    [[beg & end] & tail] `(->> (,beg ,@end ,head) ,@tail)
+    [beg & tail] `(->> (,beg ,head) ,@tail)
+    head))
+
+(defmacro with-syms [syms & body]
+  (let [bindings (-> syms
+                     (->> (map (fn [sym] [(Symbol (str sym "#")) `(gensym ',sym)])))
+                     flatten1
+                     Vector)]
+    `(let ,bindings ,@body)))
+
 (gc)

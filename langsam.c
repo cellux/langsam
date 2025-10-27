@@ -2256,6 +2256,50 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return env;
   }
+  LV and_symbol = langsam_symbol(vm, "and");
+  if (LVEQ(head, and_symbol)) {
+    LV pats = langsam_cdr(lhs);
+    while (langsam_consp(pats)) {
+      LV pat = langsam_car(pats);
+      LV bind_result = langsam_bind(vm, env, pat, rhs);
+      if (langsam_exceptionp(bind_result)) {
+        return langsam_exceptionf(vm, "bind", "pattern failed: %s",
+                                  langsam_cstr(vm, lhs));
+      }
+      pats = langsam_cdr(pats);
+    }
+    return env;
+  }
+  LV or_symbol = langsam_symbol(vm, "or");
+  if (LVEQ(head, or_symbol)) {
+    LV pats = langsam_cdr(lhs);
+    while (langsam_consp(pats)) {
+      LV pat = langsam_car(pats);
+      LV bind_result = langsam_bind(vm, env, pat, rhs);
+      if (!langsam_exceptionp(bind_result)) {
+        return env;
+      }
+      pats = langsam_cdr(pats);
+    }
+    return langsam_exceptionf(vm, "bind", "pattern failed: %s",
+                              langsam_cstr(vm, lhs));
+  }
+  LV pred_symbol = langsam_symbol(vm, "pred");
+  if (LVEQ(head, pred_symbol)) {
+    LV tail = langsam_cdr(lhs);
+    LANGSAM_ARG(pred, tail);
+    LV pred_fn = langsam_eval(vm, pred);
+    LANGSAM_CHECK(pred_fn);
+    LV pred_form = tail;
+    pred_form = langsam_cons(vm, rhs, pred_form);
+    pred_form = langsam_cons(vm, pred_fn, pred_form);
+    LV result = langsam_eval(vm, pred_form);
+    if (langsam_exceptionp(result) || !langsam_truthy(vm, result)) {
+      return langsam_exceptionf(vm, "bind", "pattern failed: %s",
+                                langsam_cstr(vm, lhs));
+    }
+    return env;
+  }
   return langsam_exceptionf(vm, "bind", "invalid cons pattern: %s",
                             langsam_cstr(vm, lhs));
 }
@@ -3146,13 +3190,31 @@ static LV eval_macro(LangsamVM *vm, LV args) {
   return make_function(vm, args, false, true);
 }
 
-static LV eval_macroexpand(LangsamVM *vm, LV args) {
+static LangsamFunction *is_macro(LV obj) {
+  if (obj.type != LT_FUNCTION) {
+    return NULL;
+  }
+  LangsamFunction *f = obj.p;
+  if (f->evalargs == true || f->evalresult == false) {
+    return NULL;
+  }
+  return f;
+}
+
+static LV eval_macrop(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  return langsam_boolean(is_macro(obj) != NULL);
+}
+
+static LV eval_macroexpand_1(LangsamVM *vm, LV args) {
   LANGSAM_ARG(macro_call, args);
   LANGSAM_ARG(macro, macro_call);
   macro = langsam_eval(vm, macro);
   LANGSAM_CHECK(macro);
-  LANGSAM_ARG_TYPE(macro, LT_FUNCTION);
-  LangsamFunction *f = macro.p;
+  LangsamFunction *f = is_macro(macro);
+  if (f == NULL) {
+    return macro_call;
+  }
   return fn_apply(vm, f, macro_call);
 }
 
@@ -3475,7 +3537,8 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defspecial(vm, env, "curlet", eval_curlet);
   langsam_defn(vm, env, "bind", eval_bind);
-  langsam_defn(vm, env, "macroexpand", eval_macroexpand);
+  langsam_defn(vm, env, "macro?", eval_macrop);
+  langsam_defn(vm, env, "macroexpand-1", eval_macroexpand_1);
   langsam_defn(vm, env, "throw", eval_throw);
   langsam_defn(vm, env, "type", eval_type);
   langsam_defn(vm, env, "cons", eval_cons);
