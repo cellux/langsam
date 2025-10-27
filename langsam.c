@@ -2300,6 +2300,36 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return env;
   }
+  LV when_symbol = langsam_symbol(vm, "when");
+  if (LVEQ(head, when_symbol)) {
+    LV tail = langsam_cdr(lhs);
+    LANGSAM_ARG(expr, tail);
+    LV oldlet = vm->curlet;
+    vm->curlet = env;
+    LV result = langsam_eval(vm, expr);
+    vm->curlet = oldlet;
+    LANGSAM_CHECK(result);
+    if (langsam_exceptionp(result) || !langsam_truthy(vm, result)) {
+      return langsam_exceptionf(vm, "bind", "pattern failed: %s",
+                                langsam_cstr(vm, lhs));
+    }
+    return env;
+  }
+  if (head.type == LT_SYMBOL) {
+    LV ev_head = langsam_eval(vm, head);
+    if (ev_head.type == LT_TYPE) {
+      LV value = langsam_cast(vm, ev_head, rhs);
+      LANGSAM_CHECK(value);
+      LV tail = langsam_cdr(lhs);
+      LANGSAM_ARG(pat, tail);
+      LV bind_result = langsam_bind(vm, env, pat, value);
+      if (langsam_exceptionp(bind_result)) {
+        return langsam_exceptionf(vm, "bind", "pattern failed: %s",
+                                  langsam_cstr(vm, lhs));
+      }
+      return env;
+    }
+  }
   return langsam_exceptionf(vm, "bind", "invalid cons pattern: %s",
                             langsam_cstr(vm, lhs));
 }
