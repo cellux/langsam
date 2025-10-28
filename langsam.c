@@ -2129,8 +2129,22 @@ static LV collect_rest(LangsamVM *vm, LV it) {
   return langsam_nreverse(items);
 }
 
+static bool bind_exceptionp(LangsamVM *vm, LV obj) {
+  if (!langsam_exceptionp(obj)) {
+    return false;
+  }
+  LangsamException *ex = obj.p;
+  if (!langsam_consp(ex->payload)) {
+    return false;
+  }
+  LV exception_kind = langsam_car(ex->payload);
+  LV bind = langsam_symbol(vm, "bind");
+  return LVEQ(exception_kind, bind);
+}
+
 static LV bind_quoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV result = langsam_equal(vm, lhs, rhs);
+  LANGSAM_CHECK(result);
   if (langsam_falsep(result)) {
     return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
                               langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
@@ -2147,14 +2161,14 @@ static LV bind_quasiquoted_seq(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LANGSAM_CHECK(it_rhs);
   LV unquote_splicing_symbol = langsam_symbol(vm, "unquote-splicing");
   while (langsam_truthy(vm, it_lhs)) {
-    LV head = langsam_deref(vm, it_lhs);
-    if (langsam_consp(head) &&
-        LVEQ(langsam_car(head), unquote_splicing_symbol)) {
-      LV tail = langsam_cdr(head);
+    LV item = langsam_deref(vm, it_lhs);
+    if (langsam_consp(item) &&
+        LVEQ(langsam_car(item), unquote_splicing_symbol)) {
+      LV tail = langsam_cdr(item);
       if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "bind",
+        return langsam_exceptionf(vm, "syntax",
                                   "malformed unquote-splicing form: %s",
-                                  langsam_cstr(vm, head));
+                                  langsam_cstr(vm, item));
       }
       LV pat = langsam_car(tail);
       LV rhs_items = collect_rest(vm, it_rhs);
@@ -2167,7 +2181,7 @@ static LV bind_quasiquoted_seq(LangsamVM *vm, LV env, LV lhs, LV rhs) {
                                 langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
     }
     LV value = langsam_deref(vm, it_rhs);
-    LV bind_result = bind_quasiquoted(vm, env, head, value);
+    LV bind_result = bind_quasiquoted(vm, env, item, value);
     LANGSAM_CHECK(bind_result);
     it_lhs = langsam_next(vm, it_lhs);
     it_rhs = langsam_next(vm, it_rhs);
@@ -2182,7 +2196,7 @@ static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     if (LVEQ(head, unquote_symbol)) {
       LV tail = langsam_cdr(lhs);
       if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "bind", "malformed unquote form: %s",
+        return langsam_exceptionf(vm, "syntax", "malformed unquote form: %s",
                                   langsam_cstr(vm, lhs));
       }
       return langsam_bind(vm, env, langsam_car(tail), rhs);
@@ -2211,7 +2225,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (LVEQ(head, quote_symbol)) {
     LV tail = langsam_cdr(lhs);
     if (!langsam_consp(tail)) {
-      return langsam_exceptionf(vm, "bind", "malformed quote form: %s",
+      return langsam_exceptionf(vm, "syntax", "malformed quote form: %s",
                                 langsam_cstr(vm, lhs));
     }
     return bind_quoted(vm, env, langsam_car(tail), rhs);
@@ -2220,7 +2234,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (LVEQ(head, quasiquote_symbol)) {
     LV tail = langsam_cdr(lhs);
     if (!langsam_consp(tail)) {
-      return langsam_exceptionf(vm, "bind", "malformed quasiquote form: %s",
+      return langsam_exceptionf(vm, "syntax", "malformed quasiquote form: %s",
                                 langsam_cstr(vm, lhs));
     }
     return bind_quasiquoted(vm, env, langsam_car(tail), rhs);
@@ -2294,7 +2308,8 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     pred_form = langsam_cons(vm, rhs, pred_form);
     pred_form = langsam_cons(vm, pred_fn, pred_form);
     LV result = langsam_eval(vm, pred_form);
-    if (langsam_exceptionp(result) || !langsam_truthy(vm, result)) {
+    LANGSAM_CHECK(result);
+    if (!langsam_truthy(vm, result)) {
       return langsam_exceptionf(vm, "bind", "pattern failed: %s",
                                 langsam_cstr(vm, lhs));
     }
@@ -2309,7 +2324,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     LV result = langsam_eval(vm, expr);
     vm->curlet = oldlet;
     LANGSAM_CHECK(result);
-    if (langsam_exceptionp(result) || !langsam_truthy(vm, result)) {
+    if (!langsam_truthy(vm, result)) {
       return langsam_exceptionf(vm, "bind", "pattern failed: %s",
                                 langsam_cstr(vm, lhs));
     }
@@ -2325,14 +2340,12 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       LV tail = langsam_cdr(lhs);
       LANGSAM_ARG(pat, tail);
       LV bind_result = langsam_bind(vm, env, pat, rhs);
-      if (langsam_exceptionp(bind_result)) {
-        return langsam_exceptionf(vm, "bind", "pattern failed: %s",
-                                  langsam_cstr(vm, lhs));
-      }
+      LANGSAM_CHECK(bind_result);
       return env;
     }
   }
-  return langsam_exceptionf(vm, "bind", "invalid cons pattern: %s",
+  return langsam_exceptionf(vm, "syntax",
+                            "invalid cons pattern in bind form: %s",
                             langsam_cstr(vm, lhs));
 }
 
@@ -2390,21 +2403,21 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
             if (tail.type == LT_CONS) {
               symsetp = langsam_car(tail);
               if (symsetp.type != LT_SYMBOL) {
-                return langsam_exceptionf(vm, "bind",
+                return langsam_exceptionf(vm, "syntax",
                                           "symsetp should be Symbol, got %s",
                                           langsam_ctypename(vm, symsetp.type));
               }
             }
           } else {
             return langsam_exceptionf(
-                vm, "bind",
+                vm, "syntax",
                 "&opt parameter with default value should look like (sym "
                 "default) or (sym default symsetp), got %s",
                 langsam_cstr(vm, pat));
           }
         } else {
           return langsam_exceptionf(
-              vm, "bind", "&opt parameter must be Symbol or Cons, got %s",
+              vm, "syntax", "&opt parameter must be Symbol or Cons, got %s",
               langsam_cstr(vm, pat));
         }
         bool argsetp = false;
@@ -2430,7 +2443,7 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       break;
     case LANGSAM_BIND_REST:
       if (langsam_somep(rest)) {
-        return langsam_exceptionf(vm, "bind",
+        return langsam_exceptionf(vm, "syntax",
                                   "& must be followed by a single form");
       }
       rest = collect_rest(vm, it_rhs);
@@ -2459,7 +2472,7 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           LV sym = langsam_deref(vm, it_key);
           if (sym.type != LT_SYMBOL) {
             return langsam_exceptionf(
-                vm, "bind",
+                vm, "syntax",
                 "found value of type %s in iterable passed to :keys",
                 langsam_ctypename(vm, sym.type));
           }
@@ -2470,7 +2483,8 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           it_key = langsam_next(vm, it_key);
         }
       } else {
-        return langsam_exceptionf(vm, "bind", "invalid key in map pattern: %s",
+        return langsam_exceptionf(vm, "syntax",
+                                  "invalid key in map pattern: %s",
                                   langsam_cstr(vm, pat));
       }
     } else {
@@ -2493,11 +2507,7 @@ LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   } else if (lhs.type == LT_MAP) {
     return bind_map(vm, env, lhs, rhs);
   } else {
-    LV result = langsam_equal(vm, lhs, rhs);
-    if (langsam_falsep(result)) {
-      return langsam_exceptionf(vm, "bind", "literal mismatch: lhs=%s rhs=%s",
-                                langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
-    }
+    return bind_quoted(vm, env, lhs, rhs);
   }
   return env;
 }
@@ -2552,14 +2562,14 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
     if (LVEQ(head, unquote)) {
       LV tail = langsam_cdr(obj);
       if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "quasiquote", "unquote needs argument");
+        return langsam_exceptionf(vm, "syntax", "unquote needs argument");
       }
       LV form = langsam_car(tail);
       return langsam_eval(vm, form);
     } else if (LVEQ(head, unquote_splicing)) {
       LV tail = langsam_cdr(obj);
       if (!langsam_consp(tail)) {
-        return langsam_exceptionf(vm, "quasiquote",
+        return langsam_exceptionf(vm, "syntax",
                                   "unquote-splicing needs argument");
       }
       LV form = langsam_car(tail);
@@ -3293,7 +3303,7 @@ static LV process_bindings(LangsamVM *vm, LV bindings) {
     LV k = langsam_deref(vm, it);
     it = langsam_next(vm, it);
     if (!langsam_truthy(vm, it)) {
-      return langsam_exceptionf(vm, "let", "incomplete bindings");
+      return langsam_exceptionf(vm, "syntax", "incomplete let bindings");
     }
     LV v = langsam_deref(vm, it);
     v = langsam_eval(vm, v);
@@ -3328,6 +3338,9 @@ static LV eval_if_let(LangsamVM *vm, LV args) {
   LV bind_result = process_bindings(vm, bindings);
   if (langsam_exceptionp(bind_result)) {
     vm->curlet = oldlet;
+    if (!bind_exceptionp(vm, bind_result)) {
+      return bind_result;
+    }
     return langsam_eval(vm, else_expr);
   }
   LV result = langsam_eval(vm, if_expr);
@@ -3342,7 +3355,7 @@ static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
     LV pat = langsam_deref(vm, it);
     it = langsam_next(vm, it);
     if (!langsam_truthy(vm, it)) {
-      return langsam_exceptionf(vm, "catch", "incomplete clause");
+      return langsam_exceptionf(vm, "syntax", "incomplete catch clause");
     }
     LV oldlet = vm->curlet;
     vm->curlet = langsam_map(vm, vm->curlet, 64);
@@ -3352,6 +3365,8 @@ static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
       LV result = langsam_eval(vm, expr);
       vm->curlet = oldlet;
       return result;
+    } else if (!bind_exceptionp(vm, bind_result)) {
+      return bind_result;
     }
     vm->curlet = oldlet;
     it = langsam_next(vm, it);
