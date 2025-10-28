@@ -8,6 +8,9 @@
 
 LV langsam_os_module(LangsamVM *vm);
 
+extern int os_l_len;
+extern char os_l_bytes[];
+
 static struct LangsamT os_File_T;
 
 typedef struct {
@@ -175,5 +178,5 @@ LV langsam_os_module(LangsamVM *vm) {
   langsam_defn(vm, module, "write", os_write);
   langsam_defn(vm, module, "close", os_close);
   langsam_defn(vm, module, "unlink", os_unlink);
-  return module;
+  return langsam_loadstringn(vm, module, os_l_bytes, os_l_len);
 }

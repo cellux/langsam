@@ -7,10 +7,10 @@ CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
 LDFLAGS = -lm
 
-LIBS := langsam.a
-OBJS := os.o driver.o
+LIBS := langsam.a os.a
+OBJS := driver.o
 
-langsam: $(LIBS) $(OBJS)
+langsam: $(OBJS) $(LIBS)
 
 $(LIBS:.a=.o): langsam.h
 $(OBJS): langsam.h
