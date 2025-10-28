@@ -28,7 +28,7 @@ static LV os_File_cast(LangsamVM *vm, LV other) {
   if (other.type != LT_INTEGER) {
     return langsam_exceptionf(vm, "cast",
                               "File expects an integer file descriptor, got %s",
-                              langsam_typename(vm, other.type));
+                              langsam_ctypename(vm, other.type));
   }
   os_File *f = langsam_gcalloc(vm, &os_File_T, LANGSAM_SIZEOF(os_File));
   f->fd = other;

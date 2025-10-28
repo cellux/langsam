@@ -200,7 +200,7 @@ LV langsam_Type_apply(LangsamVM *vm, LV self, LV args);
 LV langsam_Type_repr(LangsamVM *vm, LV self);
 
 LV langsam_type(LangsamType t);
-char *langsam_typename(LangsamVM *vm, LangsamType t);
+char *langsam_ctypename(LangsamVM *vm, LangsamType t);
 
 // Nil
 
@@ -457,9 +457,10 @@ LV langsam_next(LangsamVM *vm, LV it);
 
 #define LANGSAM_ARG_TYPE(name, expected_type)                                  \
   if (name.type != expected_type) {                                            \
-    return langsam_exceptionf(                                                 \
-        vm, "type", "argument %s has type %s, expected %s", #name,             \
-        langsam_typename(vm, name.type), langsam_typename(vm, expected_type)); \
+    return langsam_exceptionf(vm, "type",                                      \
+                              "argument %s has type %s, expected %s", #name,   \
+                              langsam_ctypename(vm, name.type),                \
+                              langsam_ctypename(vm, expected_type));           \
   }
 
 // allocator
