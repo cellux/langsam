@@ -2318,11 +2318,13 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (head.type == LT_SYMBOL) {
     LV ev_head = langsam_eval(vm, head);
     if (ev_head.type == LT_TYPE) {
-      LV value = langsam_cast(vm, ev_head, rhs);
-      LANGSAM_CHECK(value);
+      if (ev_head.p != rhs.type) {
+        return langsam_exceptionf(vm, "bind", "type mismatch: %s",
+                                  langsam_cstr(vm, lhs));
+      }
       LV tail = langsam_cdr(lhs);
       LANGSAM_ARG(pat, tail);
-      LV bind_result = langsam_bind(vm, env, pat, value);
+      LV bind_result = langsam_bind(vm, env, pat, rhs);
       if (langsam_exceptionp(bind_result)) {
         return langsam_exceptionf(vm, "bind", "pattern failed: %s",
                                   langsam_cstr(vm, lhs));
