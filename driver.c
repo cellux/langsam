@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
         }
         opt_e = false;
       } else {
-        result = langsam_loadfile(&vm, argv[i]);
+        result = langsam_loadfile(&vm, langsam_nil, argv[i]);
       }
       if (langsam_exceptionp(result)) {
         char *error_message = langsam_cstr(&vm, result);
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     }
   } else {
     langsam_enable_repl_mode(&vm);
-    LV result = langsam_loadfd(&vm, 0);
+    LV result = langsam_loadfd(&vm, langsam_nil, 0);
     if (langsam_exceptionp(result)) {
       char *error_message = langsam_cstr(&vm, result);
       fprintf(stderr, "Error while loading from <stdin>: %s\n", error_message);

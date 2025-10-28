@@ -567,13 +567,13 @@ char *langsam_cstr(LangsamVM *vm, LV v);
 
 LV langsam_require(LangsamVM *vm, char *module_name);
 
-LV langsam_loadfile(LangsamVM *vm, const char *path);
-LV langsam_loadfd(LangsamVM *vm, int fd);
+LV langsam_loadfile(LangsamVM *vm, LV env, const char *path);
+LV langsam_loadfd(LangsamVM *vm, LV env, int fd);
 
 LV langsam_readstring(LangsamVM *vm, char *s);
 LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len);
 
-LV langsam_loadstring(LangsamVM *vm, char *s);
-LV langsam_loadstringn(LangsamVM *vm, char *s, LangsamSize len);
+LV langsam_loadstring(LangsamVM *vm, LV env, char *s);
+LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len);
 
 #endif // LANGSAM_H

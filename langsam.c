@@ -3581,7 +3581,7 @@ static LV import_langsam_core(LangsamVM *vm) {
   langsam_defn(vm, env, "require", eval_require);
   langsam_defn(vm, env, "read-string", eval_read_string);
   langsam_defn(vm, env, "gc", eval_gc);
-  return langsam_loadstringn(vm, langsam_l_bytes, langsam_l_len);
+  return langsam_loadstringn(vm, env, langsam_l_bytes, langsam_l_len);
 }
 
 // VM
@@ -4333,8 +4333,12 @@ static LV langsam_read(LangsamVM *vm, ByteReadFunc readbyte,
   return Reader_read(&r);
 }
 
-static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
+static LV langsam_load(LangsamVM *vm, LV env, ByteReadFunc readbyte,
                        void *readbyte_data) {
+  LV oldlet = vm->curlet;
+  if (env.type == LT_MAP) {
+    vm->curlet = env;
+  }
   Reader r;
   Reader_init(&r, vm, readbyte, readbyte_data);
   LV result = langsam_nil;
@@ -4350,6 +4354,7 @@ static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
         fflush(stderr);
         continue;
       } else {
+        vm->curlet = oldlet;
         return form;
       }
     }
@@ -4364,12 +4369,14 @@ static LV langsam_load(LangsamVM *vm, ByteReadFunc readbyte,
         fflush(stderr);
         result = langsam_nil;
       } else {
+        vm->curlet = oldlet;
         return result;
       }
     } else if (vm->repl) {
       fprintf(stdout, "%s\n", langsam_cstr(vm, result));
     }
   }
+  vm->curlet = oldlet;
   return result;
 }
 
@@ -4386,18 +4393,18 @@ static LV readbyte_fd(LangsamVM *vm, void *data) {
   return langsam_integer(c);
 }
 
-LV langsam_loadfd(LangsamVM *vm, int fd) {
-  return langsam_load(vm, readbyte_fd, (void *)(intptr_t)fd);
+LV langsam_loadfd(LangsamVM *vm, LV env, int fd) {
+  return langsam_load(vm, env, readbyte_fd, (void *)(intptr_t)fd);
 }
 
-LV langsam_loadfile(LangsamVM *vm, const char *path) {
+LV langsam_loadfile(LangsamVM *vm, LV env, const char *path) {
   langsam_debug(vm, "loading %s", path);
   int fd = open(path, O_RDONLY);
   if (fd == -1) {
     return langsam_exceptionf(vm, "io", "cannot open %s: %s", path,
                               strerror(errno));
   }
-  LV result = langsam_loadfd(vm, fd);
+  LV result = langsam_loadfd(vm, env, fd);
   close(fd);
   return result;
 }
@@ -4430,18 +4437,18 @@ LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len) {
   return langsam_read(vm, readbyte_string, &state);
 }
 
-LV langsam_loadstring(LangsamVM *vm, char *s) {
+LV langsam_loadstring(LangsamVM *vm, LV env, char *s) {
   LangsamSize len = (LangsamSize)strlen(s);
-  return langsam_loadstringn(vm, s, len);
+  return langsam_loadstringn(vm, env, s, len);
 }
 
-LV langsam_loadstringn(LangsamVM *vm, char *s, LangsamSize len) {
+LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len) {
   ReadByteStringState state = {
       .data = (uint8_t *)s,
       .len = len,
       .index = 0,
   };
-  return langsam_load(vm, readbyte_string, &state);
+  return langsam_load(vm, env, readbyte_string, &state);
 }
 
 void langsam_close(LangsamVM *vm) {
