@@ -1,4 +1,6 @@
 (def args nil)
 
 (defn nextarg []
-  (and args (car args)))
+  (when-let [[arg & rest] args]
+    (setq args rest)
+    arg))

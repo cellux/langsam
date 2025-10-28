@@ -135,6 +135,12 @@
 (defn even? [x] (= (mod x 2) 0))
 (defn odd? [x] (not (even? x)))
 
+(defmacro when-let [bindings & body]
+  `(if-let ,bindings (do ,@body)))
+
+(defmacro while-let [bindings & body]
+  `(while (if-let ,bindings (do ,@body true) false)))
+
 (defmacro case [item & clauses]
   (let [item# (gensym 'item)
         subcase (fn [clauses]

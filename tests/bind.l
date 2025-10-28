@@ -45,3 +45,16 @@
   (test-bind '(String s) "foo" {'s "foo"})
   (test-bind '(or (Integer s) (Vector s)) 5 {'s 5})
   (test-bind '(or (Integer s) (Vector s)) [:foo] {'s [:foo]}))
+
+(let [result nil]
+  (for [x [1 2 3 4 5 6 7 8]]
+    (when-let [(and (pred even?) z) x]
+      (setq result (cons z result))))
+  (assert (= result '(8 6 4 2))))
+
+(let [items '(1 2 3 4)
+      result nil]
+  (while-let [[first second] items]
+    (setq result (cons second result))
+    (setq items (cdr items)))
+  (assert (= result '(4 3 2))))

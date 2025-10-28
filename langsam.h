@@ -547,7 +547,7 @@ struct LangsamVM {
   int reprdepth;
 };
 
-typedef LV (*LangsamImportFn)(LangsamVM *vm);
+typedef LV (*LangsamImportFn)(LangsamVM *vm, LV env);
 
 void langsam_register_module(const char *name, LangsamImportFn import);
 

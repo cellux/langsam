@@ -6,7 +6,7 @@
 
 #include "langsam.h"
 
-LV langsam_os_module(LangsamVM *vm);
+LV langsam_os_module(LangsamVM *vm, LV env);
 
 extern int os_l_len;
 extern char os_l_bytes[];
@@ -152,31 +152,30 @@ static LV os_unlink(LangsamVM *vm, LV args) {
   return langsam_nil;
 }
 
-LV langsam_os_module(LangsamVM *vm) {
-  LV module = langsam_map(vm, langsam_nil, 64);
-  langsam_def(vm, module, "File", langsam_type(&os_File_T));
-  langsam_defn(vm, module, "open", os_open);
-  langsam_def(vm, module, "stdin", os_File_cast(vm, langsam_integer(0)));
-  langsam_def(vm, module, "stdout", os_File_cast(vm, langsam_integer(1)));
-  langsam_def(vm, module, "stderr", os_File_cast(vm, langsam_integer(2)));
-  langsam_def(vm, module, "O_APPEND", langsam_integer(O_APPEND));
-  langsam_def(vm, module, "O_ASYNC", langsam_integer(O_ASYNC));
-  langsam_def(vm, module, "O_CLOEXEC", langsam_integer(O_CLOEXEC));
-  langsam_def(vm, module, "O_CREAT", langsam_integer(O_CREAT));
-  langsam_def(vm, module, "O_DIRECTORY", langsam_integer(O_DIRECTORY));
-  langsam_def(vm, module, "O_DSYNC", langsam_integer(O_DSYNC));
-  langsam_def(vm, module, "O_EXCL", langsam_integer(O_EXCL));
-  langsam_def(vm, module, "O_NOCTTY", langsam_integer(O_NOCTTY));
-  langsam_def(vm, module, "O_NOFOLLOW", langsam_integer(O_NOFOLLOW));
-  langsam_def(vm, module, "O_NONBLOCK", langsam_integer(O_NONBLOCK));
-  langsam_def(vm, module, "O_RDONLY", langsam_integer(O_RDONLY));
-  langsam_def(vm, module, "O_RDWR", langsam_integer(O_RDWR));
-  langsam_def(vm, module, "O_SYNC", langsam_integer(O_SYNC));
-  langsam_def(vm, module, "O_TRUNC", langsam_integer(O_TRUNC));
-  langsam_def(vm, module, "O_WRONLY", langsam_integer(O_WRONLY));
-  langsam_defn(vm, module, "read", os_read);
-  langsam_defn(vm, module, "write", os_write);
-  langsam_defn(vm, module, "close", os_close);
-  langsam_defn(vm, module, "unlink", os_unlink);
-  return langsam_loadstringn(vm, module, os_l_bytes, os_l_len);
+LV langsam_os_module(LangsamVM *vm, LV env) {
+  langsam_def(vm, env, "File", langsam_type(&os_File_T));
+  langsam_defn(vm, env, "open", os_open);
+  langsam_def(vm, env, "stdin", os_File_cast(vm, langsam_integer(0)));
+  langsam_def(vm, env, "stdout", os_File_cast(vm, langsam_integer(1)));
+  langsam_def(vm, env, "stderr", os_File_cast(vm, langsam_integer(2)));
+  langsam_def(vm, env, "O_APPEND", langsam_integer(O_APPEND));
+  langsam_def(vm, env, "O_ASYNC", langsam_integer(O_ASYNC));
+  langsam_def(vm, env, "O_CLOEXEC", langsam_integer(O_CLOEXEC));
+  langsam_def(vm, env, "O_CREAT", langsam_integer(O_CREAT));
+  langsam_def(vm, env, "O_DIRECTORY", langsam_integer(O_DIRECTORY));
+  langsam_def(vm, env, "O_DSYNC", langsam_integer(O_DSYNC));
+  langsam_def(vm, env, "O_EXCL", langsam_integer(O_EXCL));
+  langsam_def(vm, env, "O_NOCTTY", langsam_integer(O_NOCTTY));
+  langsam_def(vm, env, "O_NOFOLLOW", langsam_integer(O_NOFOLLOW));
+  langsam_def(vm, env, "O_NONBLOCK", langsam_integer(O_NONBLOCK));
+  langsam_def(vm, env, "O_RDONLY", langsam_integer(O_RDONLY));
+  langsam_def(vm, env, "O_RDWR", langsam_integer(O_RDWR));
+  langsam_def(vm, env, "O_SYNC", langsam_integer(O_SYNC));
+  langsam_def(vm, env, "O_TRUNC", langsam_integer(O_TRUNC));
+  langsam_def(vm, env, "O_WRONLY", langsam_integer(O_WRONLY));
+  langsam_defn(vm, env, "read", os_read);
+  langsam_defn(vm, env, "write", os_write);
+  langsam_defn(vm, env, "close", os_close);
+  langsam_defn(vm, env, "unlink", os_unlink);
+  return langsam_loadstringn(vm, env, os_l_bytes, os_l_len);
 }

@@ -3,7 +3,7 @@
 
 #include "langsam.h"
 
-LV langsam_os_module(LangsamVM *vm);
+LV langsam_os_module(LangsamVM *vm, LV env);
 
 static void register_modules(void) {
   langsam_register_module("os", langsam_os_module);

@@ -3505,8 +3505,7 @@ static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 extern int langsam_l_len;
 extern char langsam_l_bytes[];
 
-static LV import_langsam_core(LangsamVM *vm) {
-  LV env = vm->rootlet;
+static LV import_langsam_core(LangsamVM *vm, LV env) {
   langsam_def(vm, env, "true", langsam_true);
   langsam_def(vm, env, "false", langsam_false);
   langsam_def(vm, env, "Type", langsam_type(LT_TYPE));
@@ -3606,10 +3605,10 @@ LV langsam_require(LangsamVM *vm, char *module_name) {
   LangsamModule *m = registered_modules;
   while (m) {
     if (strcmp(m->name, module_name) == 0) {
-      module = m->import(vm);
-      if (!langsam_exceptionp(module)) {
-        langsam_put(vm, modules, module_iname, module);
-      }
+      module = langsam_map(vm, vm->rootlet, 64);
+      LV import_result = m->import(vm, module);
+      LANGSAM_CHECK(import_result);
+      langsam_put(vm, modules, module_iname, module);
       return module;
     }
     m = m->next;
@@ -3725,7 +3724,7 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->loglevel = LANGSAM_INFO;
   vm->evaldepth = 0;
   vm->reprdepth = 0;
-  LV result = import_langsam_core(vm);
+  LV result = import_langsam_core(vm, vm->rootlet);
   LANGSAM_CHECK(result);
   LV mainlet = langsam_map(vm, vm->rootlet, 4096);
   vm->curlet = mainlet;
