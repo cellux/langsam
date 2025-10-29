@@ -2626,6 +2626,7 @@ LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   hash = langsam_hash(vm, f->body, hash);
   hash = hash_boolean(hash, f->evalargs);
   hash = hash_boolean(hash, f->evalresult);
+  hash = hash_boolean(hash, f->dynamic);
   return hash;
 }
 
@@ -2664,6 +2665,8 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
       vm, langsam_get(vm, other, langsam_keyword(vm, "evalargs")));
   f->evalresult = langsam_truthy(
       vm, langsam_get(vm, other, langsam_keyword(vm, "evalresult")));
+  f->dynamic = langsam_truthy(
+      vm, langsam_get(vm, other, langsam_keyword(vm, "dynamic")));
   return (LV){
       .type = LT_FUNCTION,
       .p = f,
@@ -2699,6 +2702,10 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   LV evalresult_key = langsam_keyword(vm, "evalresult");
   if (LVEQ(key, evalresult_key)) {
     return langsam_boolean(f->evalresult);
+  }
+  LV dynamic_key = langsam_keyword(vm, "dynamic");
+  if (LVEQ(key, dynamic_key)) {
+    return langsam_boolean(f->dynamic);
   }
   return langsam_nil;
 }
@@ -2737,7 +2744,7 @@ static LV fn_apply(LangsamVM *vm, LangsamFunction *f, LV args) {
     return f->fn(vm, args);
   } else {
     LV body = f->body;
-    LV fenv = langsam_map(vm, f->funclet, 64);
+    LV fenv = langsam_map(vm, f->dynamic ? vm->curlet : f->funclet, 64);
     LANGSAM_CHECK(langsam_pushlet(vm, fenv));
     LV bind_result = langsam_bind(vm, vm->curlet, f->params, args);
     if (langsam_exceptionp(bind_result)) {
@@ -3165,6 +3172,7 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
   LV name = langsam_nil;
   LV params = langsam_nil;
   LV doc = langsam_nil;
+  LV attrs = langsam_nil;
   while (langsam_nilp(params) && langsam_consp(tail)) {
     LV head = langsam_car(tail);
     if (head.type == LT_SYMBOL) {
@@ -3181,6 +3189,8 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
       }
     } else if (head.type == LT_VECTOR) {
       params = head;
+    } else if (head.type == LT_MAP) {
+      attrs = head;
     } else {
       break;
     }
@@ -3199,6 +3209,12 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
               langsam_boolean(evalargs));
   langsam_put(vm, desc, langsam_keyword(vm, "evalresult"),
               langsam_boolean(evalresult));
+  if (attrs.type == LT_MAP) {
+    LV dynamic_keyword = langsam_keyword(vm, "dynamic");
+    langsam_put(
+        vm, desc, dynamic_keyword,
+        langsam_Boolean_cast(vm, langsam_get(vm, attrs, dynamic_keyword)));
+  }
   return langsam_Function_cast(vm, desc);
 }
 

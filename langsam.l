@@ -220,11 +220,17 @@
        ,@(nreverse body)
        ,@finally-forms)))
 
-(defn macroexpand
+(defn macro-form?
+  {:dynamic true}
   [form]
-  (if-let [[(Symbol head) & rest] form
-           (pred macro?) (eval head)]
-      (macroexpand (macroexpand-1 form))
+  (if-let [[(Symbol head) & rest] form]
+    (macro? (eval head))))
+
+(defn macroexpand
+  {:dynamic true}
+  [form]
+  (if (macro-form? form)
+    (macroexpand (macroexpand-1 form))
     form))
 
 (def macroexpand-all
@@ -240,13 +246,15 @@
                       (Map x) (Map (map expand-qq x))
                       form))]
     (fn
+      {:dynamic true}
       [form]
       (case form
         (cons x y) (if (cons? y)
                      (case x
                        'quote form
                        'quasiquote (cons 'quasiquote (expand-qq y))
-                       (macroexpand (cons x (macroexpand-all y))))
+                       (pred macro-form?) (macroexpand-all form)
+                       (map macroexpand-all form))
                      (cons (macroexpand-all x) (macroexpand-all y)))
         (Vector x) (Vector (map macroexpand-all x))
         (Map x) (Map (map macroexpand-all x))

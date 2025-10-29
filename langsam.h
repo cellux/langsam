@@ -191,6 +191,7 @@ typedef struct {
   LangsamNativeFn fn;
   bool evalargs;
   bool evalresult;
+  bool dynamic;
 } LangsamFunction;
 
 // Type
