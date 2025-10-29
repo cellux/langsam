@@ -286,7 +286,7 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_eval(LangsamVM *vm, LV self) {
   if (vm->evaldepth == LANGSAM_MAX_EVAL_DEPTH) {
-    return langsam_exceptionf(vm, "eval", "detected infinite recursion");
+    return langsam_exceptionf(vm, "eval", "infinite recursion");
   }
   vm->evaldepth++;
   LANGSAM_CHECK(langsam_pushroot(vm, self));
@@ -303,7 +303,7 @@ LV langsam_eval(LangsamVM *vm, LV self) {
 
 LV langsam_repr(LangsamVM *vm, LV self) {
   if (vm->reprdepth == LANGSAM_MAX_REPR_DEPTH) {
-    return langsam_exceptionf(vm, "repr", "detected infinite recursion");
+    return langsam_exceptionf(vm, "repr", "infinite recursion");
   }
   LangsamType t = self.type;
   if (t->repr) {
