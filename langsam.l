@@ -222,10 +222,35 @@
 
 (defn macroexpand
   [form]
-  (if-let [[head & rest] form
+  (if-let [[(Symbol head) & rest] form
            (pred macro?) (eval head)]
       (macroexpand (macroexpand-1 form))
     form))
+
+(def macroexpand-all
+  (let [expand-qq (fn [form]
+                    (case form
+                      (cons x y) (if (cons? y)
+                                   (case x
+                                     'unquote (cons 'unquote (macroexpand-all y))
+                                     ,unquote-splicing (cons 'unquote-splicing (macroexpand-all y))
+                                     form)
+                                   (cons (expand-qq x) (expand-qq y)))
+                      (Vector x) (Vector (map expand-qq x))
+                      (Map x) (Map (map expand-qq x))
+                      form))]
+    (fn
+      [form]
+      (case form
+        (cons x y) (if (cons? y)
+                     (case x
+                       'quote form
+                       'quasiquote (cons 'quasiquote (expand-qq y))
+                       (macroexpand (cons x (macroexpand-all y))))
+                     (cons (macroexpand-all x) (macroexpand-all y)))
+        (Vector x) (Vector (map macroexpand-all x))
+        (Map x) (Map (map macroexpand-all x))
+        form))))
 
 (defmacro -> [head & rest]
   (case rest
