@@ -10,6 +10,10 @@
 #include "langsam.h"
 
 #define LANGSAM_MAX_ROOTS 4096
+#define LANGSAM_MAX_LETS 64
+
+#define LANGSAM_MAX_EVAL_DEPTH 256
+#define LANGSAM_MAX_REPR_DEPTH 16
 
 // hash functions
 
@@ -282,8 +286,6 @@ LV langsam_apply(LangsamVM *vm, LV self, LV args) {
   return t->apply(vm, self, args);
 }
 
-#define LANGSAM_MAX_EVAL_DEPTH 256
-
 LV langsam_eval(LangsamVM *vm, LV self) {
   if (vm->evaldepth == LANGSAM_MAX_EVAL_DEPTH) {
     return langsam_exceptionf(vm, "eval", "infinite recursion");
@@ -298,8 +300,6 @@ LV langsam_eval(LangsamVM *vm, LV self) {
   vm->evaldepth--;
   return result;
 }
-
-#define LANGSAM_MAX_REPR_DEPTH 16
 
 LV langsam_repr(LangsamVM *vm, LV self) {
   if (vm->reprdepth == LANGSAM_MAX_REPR_DEPTH) {
@@ -2319,10 +2319,9 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (LVEQ(head, when_symbol)) {
     LV tail = langsam_cdr(lhs);
     LANGSAM_ARG(expr, tail);
-    LV oldlet = vm->curlet;
-    vm->curlet = env;
+    LANGSAM_CHECK(langsam_pushlet(vm, env));
     LV result = langsam_eval(vm, expr);
-    vm->curlet = oldlet;
+    langsam_poplet(vm);
     LANGSAM_CHECK(result);
     if (!langsam_truthy(vm, result)) {
       return langsam_exceptionf(vm, "bind", "pattern failed: %s",
@@ -2426,10 +2425,9 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           val = langsam_deref(vm, it_rhs);
           it_rhs = langsam_next(vm, it_rhs);
         } else if (langsam_somep(val)) {
-          LV oldlet = vm->curlet;
-          vm->curlet = env;
+          LANGSAM_CHECK(langsam_pushlet(vm, env));
           val = langsam_eval(vm, val);
-          vm->curlet = oldlet;
+          langsam_poplet(vm);
           LANGSAM_CHECK(val);
         }
         LV bind_value_result = langsam_bind(vm, env, sym, val);
@@ -2739,15 +2737,15 @@ static LV fn_apply(LangsamVM *vm, LangsamFunction *f, LV args) {
     return f->fn(vm, args);
   } else {
     LV body = f->body;
-    LV oldlet = vm->curlet;
-    vm->curlet = langsam_map(vm, f->funclet, 64);
+    LV fenv = langsam_map(vm, f->funclet, 64);
+    LANGSAM_CHECK(langsam_pushlet(vm, fenv));
     LV bind_result = langsam_bind(vm, vm->curlet, f->params, args);
     if (langsam_exceptionp(bind_result)) {
-      vm->curlet = oldlet;
+      langsam_poplet(vm);
       return bind_result;
     }
     LV result = langsam_do(vm, body);
-    vm->curlet = oldlet;
+    langsam_poplet(vm);
     return result;
   }
 }
@@ -2898,8 +2896,10 @@ LV langsam_gc(LangsamVM *vm) {
   for (int i = 0; i < vm->numroots; i++) {
     mark_total += langsam_mark(vm, vm->roots[i]);
   }
+  for (int i = 0; i < vm->numlets; i++) {
+    mark_total += langsam_mark(vm, vm->lets[i]);
+  }
   mark_total += langsam_mark(vm, vm->strings);
-  mark_total += langsam_mark(vm, vm->curlet);
   LangsamGCHeader *prevgch = NULL;
   LangsamGCHeader *gch = vm->gcobjects;
   LangsamSize free_total = 0;
@@ -3317,15 +3317,15 @@ static LV process_bindings(LangsamVM *vm, LV bindings) {
 
 static LV eval_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
-  LV oldlet = vm->curlet;
-  vm->curlet = langsam_map(vm, vm->curlet, 64);
+  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LANGSAM_CHECK(langsam_pushlet(vm, letenv));
   LV bind_result = process_bindings(vm, bindings);
   if (langsam_exceptionp(bind_result)) {
-    vm->curlet = oldlet;
+    langsam_poplet(vm);
     return bind_result;
   }
   LV result = langsam_do(vm, args);
-  vm->curlet = oldlet;
+  langsam_poplet(vm);
   return result;
 }
 
@@ -3333,19 +3333,21 @@ static LV eval_if_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LANGSAM_ARG(if_expr, args);
   LANGSAM_ARG_OPT(else_expr, args);
-  LV oldlet = vm->curlet;
-  vm->curlet = langsam_map(vm, vm->curlet, 64);
+  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LANGSAM_CHECK(langsam_pushlet(vm, letenv));
   LV bind_result = process_bindings(vm, bindings);
   if (langsam_exceptionp(bind_result)) {
-    vm->curlet = oldlet;
+    langsam_poplet(vm);
     if (!bind_exceptionp(vm, bind_result)) {
       return bind_result;
+    } else {
+      return langsam_eval(vm, else_expr);
     }
-    return langsam_eval(vm, else_expr);
+  } else {
+    LV result = langsam_eval(vm, if_expr);
+    langsam_poplet(vm);
+    return result;
   }
-  LV result = langsam_eval(vm, if_expr);
-  vm->curlet = oldlet;
-  return result;
 }
 
 static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
@@ -3357,18 +3359,19 @@ static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
     if (!langsam_truthy(vm, it)) {
       return langsam_exceptionf(vm, "syntax", "incomplete catch clause");
     }
-    LV oldlet = vm->curlet;
-    vm->curlet = langsam_map(vm, vm->curlet, 64);
+    LV catchenv = langsam_map(vm, vm->curlet, 64);
+    LANGSAM_CHECK(langsam_pushlet(vm, catchenv));
     LV bind_result = langsam_bind(vm, vm->curlet, pat, payload);
     if (!langsam_exceptionp(bind_result)) {
       LV expr = langsam_deref(vm, it);
       LV result = langsam_eval(vm, expr);
-      vm->curlet = oldlet;
+      langsam_poplet(vm);
       return result;
     } else if (!bind_exceptionp(vm, bind_result)) {
+      langsam_poplet(vm);
       return bind_result;
     }
-    vm->curlet = oldlet;
+    langsam_poplet(vm);
     it = langsam_next(vm, it);
   }
   return langsam_exception(vm, payload);
@@ -3418,6 +3421,7 @@ static LV eval_int3(LangsamVM *vm, LV args) {
 }
 
 static LV eval_curlet(LangsamVM *vm, LV args) { return vm->curlet; }
+static LV eval_rootlet(LangsamVM *vm, LV args) { return vm->rootlet; }
 
 static LV eval_bind(LangsamVM *vm, LV args) {
   LANGSAM_ARG(env, args);
@@ -3582,6 +3586,7 @@ static LV import_langsam_core(LangsamVM *vm, LV env) {
   langsam_defspecial(vm, env, "assert", eval_assert);
   langsam_defspecial(vm, env, "int3", eval_int3);
   langsam_defspecial(vm, env, "curlet", eval_curlet);
+  langsam_defspecial(vm, env, "rootlet", eval_rootlet);
   langsam_defn(vm, env, "bind", eval_bind);
   langsam_defn(vm, env, "macro?", eval_macrop);
   langsam_defn(vm, env, "macroexpand-1", eval_macroexpand_1);
@@ -3653,7 +3658,7 @@ static void langsam_unregister_modules(void) {
 LV langsam_pushroot(LangsamVM *vm, LV root) {
   if (vm->numroots == LANGSAM_MAX_ROOTS) {
     return langsam_exceptionf(vm, "pushroot",
-                              "number of roots reached maximum of %d",
+                              "number of roots reached maximum (%d)",
                               LANGSAM_MAX_ROOTS);
   }
   vm->roots[vm->numroots++] = root;
@@ -3666,6 +3671,25 @@ LV langsam_poproot(LangsamVM *vm) {
   }
   vm->numroots--;
   return langsam_nil;
+}
+
+LV langsam_pushlet(LangsamVM *vm, LV env) {
+  if (vm->numlets == LANGSAM_MAX_LETS) {
+    return langsam_exceptionf(vm, "pushlet", "env stack overflow",
+                              LANGSAM_MAX_LETS);
+  }
+  vm->lets[vm->numlets++] = env;
+  vm->curlet = env;
+  return env;
+}
+
+LV langsam_poplet(LangsamVM *vm) {
+  if (vm->numlets < 2) {
+    return langsam_exceptionf(vm, "poplet", "env stack underflow");
+  }
+  vm->numlets--;
+  vm->curlet = vm->lets[vm->numlets - 1];
+  return vm->curlet;
 }
 
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value) {
@@ -3730,19 +3754,21 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->gcmarkcolor = LANGSAM_GC_BLACK;
   vm->roots = langsam_alloc(vm, LANGSAM_MAX_ROOTS * sizeof(LV));
   vm->numroots = 0;
+  vm->lets = langsam_alloc(vm, LANGSAM_MAX_LETS * sizeof(LV));
+  vm->numlets = 0;
   vm->strings = langsam_map(vm, langsam_nil, 4096);
   vm->rootlet = langsam_map(vm, langsam_nil, 4096);
+  langsam_pushlet(vm, vm->rootlet);
   LV modules = langsam_map(vm, langsam_nil, 64);
-  langsam_def(vm, vm->rootlet, "modules", modules);
-  vm->curlet = vm->rootlet;
+  langsam_def(vm, vm->curlet, "modules", modules);
   vm->repl = false;
   vm->loglevel = LANGSAM_INFO;
   vm->evaldepth = 0;
   vm->reprdepth = 0;
-  LV result = import_langsam_core(vm, vm->rootlet);
+  LV result = import_langsam_core(vm, vm->curlet);
   LANGSAM_CHECK(result);
-  LV mainlet = langsam_map(vm, vm->rootlet, 4096);
-  vm->curlet = mainlet;
+  LV mainlet = langsam_map(vm, vm->curlet, 4096);
+  langsam_pushlet(vm, mainlet);
   return langsam_nil;
 }
 
@@ -4351,10 +4377,10 @@ static LV langsam_read(LangsamVM *vm, ByteReadFunc readbyte,
 
 static LV langsam_load(LangsamVM *vm, LV env, ByteReadFunc readbyte,
                        void *readbyte_data) {
-  LV oldlet = vm->curlet;
-  if (env.type == LT_MAP) {
-    vm->curlet = env;
+  if (langsam_nilp(env)) {
+    env = vm->curlet;
   }
+  LANGSAM_CHECK(langsam_pushlet(vm, env));
   Reader r;
   Reader_init(&r, vm, readbyte, readbyte_data);
   LV result = langsam_nil;
@@ -4370,7 +4396,7 @@ static LV langsam_load(LangsamVM *vm, LV env, ByteReadFunc readbyte,
         fflush(stderr);
         continue;
       } else {
-        vm->curlet = oldlet;
+        langsam_poplet(vm);
         return form;
       }
     }
@@ -4385,14 +4411,14 @@ static LV langsam_load(LangsamVM *vm, LV env, ByteReadFunc readbyte,
         fflush(stderr);
         result = langsam_nil;
       } else {
-        vm->curlet = oldlet;
+        langsam_poplet(vm);
         return result;
       }
     } else if (vm->repl) {
       fprintf(stdout, "%s\n", langsam_cstr(vm, result));
     }
   }
-  vm->curlet = oldlet;
+  langsam_poplet(vm);
   return result;
 }
 
@@ -4474,4 +4500,5 @@ void langsam_close(LangsamVM *vm) {
   langsam_gcfree_all(vm);
   langsam_unregister_modules();
   langsam_free(vm, vm->roots);
+  langsam_free(vm, vm->lets);
 }

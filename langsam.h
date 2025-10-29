@@ -542,6 +542,8 @@ struct LangsamVM {
   LangsamGCColor gcmarkcolor;
   LV rootlet;
   LV curlet;
+  LV *lets;
+  int numlets;
   bool repl;
   LangsamLogLevel loglevel;
   int evaldepth;
@@ -558,6 +560,9 @@ void langsam_close(LangsamVM *vm);
 
 LV langsam_pushroot(LangsamVM *vm, LV root);
 LV langsam_poproot(LangsamVM *vm);
+
+LV langsam_pushlet(LangsamVM *vm, LV env);
+LV langsam_poplet(LangsamVM *vm);
 
 void langsam_def(LangsamVM *vm, LV env, char *name, LV value);
 void langsam_defn(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
