@@ -150,9 +150,9 @@
                          ,result
                          ,(subcase clauses))
                       (if-let [[result] clauses]
-                        result))))]
-    `(do
-       (def ,item# ,item)
+                        result))
+                    `(throw (cons 'case "no match"))))]
+    `(let [,item# ,item]
        ,(subcase clauses))))
 
 (defmacro prog1 [head & rest]
