@@ -31,9 +31,9 @@
   (assert (= m/do do))
   (assert (= (type m/do) Function)))
 
-(let [f (fn foo [x & rest] (str x . rest))]
+(let [f (fn foo [x & rest] (apply str x rest))]
   (assert (= (get f :name) 'foo))
   (assert (= (get f :params) '[x & rest]))
-  (assert (= (get f :body) '((str x . rest))))
+  (assert (= (get f :body) '((apply str x rest))))
   (assert (= (get f :evalargs) true))
   (assert (= (get f :evalresult) false)))

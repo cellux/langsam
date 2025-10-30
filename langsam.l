@@ -19,7 +19,7 @@
   (if x false true))
 
 (defn not= [x & rest]
-  (not (= x . rest)))
+  (not (apply = x rest)))
 
 (defn special? [x]
   (and (function? x)
@@ -42,7 +42,7 @@
 
 (defn update [x k f & rest]
   (let [oldv (get x k)
-        newv (f oldv . rest)]
+        newv (apply f oldv rest)]
     (put x k newv)))
 
 (defmacro comment [& body])
@@ -53,7 +53,7 @@
   `(reset (gep (curlet) ',x) ,val))
 
 (defn swap [ref f & rest]
-  (reset ref (f @ref . rest)))
+  (reset ref (apply f @ref rest)))
 
 (defmacro swapq [x f & rest]
   `(swap (gep (curlet) ',x) ,f ,@rest))
@@ -248,17 +248,17 @@
     (fn
       {:dynamic true}
       [form]
-      (case form
-        (cons x y) (if (cons? y)
-                     (case x
-                       'quote form
-                       'quasiquote (cons 'quasiquote (expand-qq y))
-                       (pred macro-form?) (macroexpand-all form)
-                       (map macroexpand-all form))
-                     (cons (macroexpand-all x) (macroexpand-all y)))
-        (Vector x) (Vector (map macroexpand-all x))
-        (Map x) (Map (map macroexpand-all x))
-        form))))
+      (let [form (macroexpand form)]
+        (case form
+          (cons x y) (if (cons? y)
+                       (case x
+                         'quote form
+                         'quasiquote (cons x (expand-qq (car y)))
+                         (map macroexpand-all form))
+                       (cons (macroexpand-all x) (macroexpand-all y)))
+          (Vector x) (Vector (map macroexpand-all x))
+          (Map x) (Map (map macroexpand-all x))
+          form)))))
 
 (defmacro -> [head & rest]
   (case rest

@@ -1,6 +1,13 @@
-(let [m (macro [x] `(+ ,x 1))
-      y 5]
+(let [m (macro m [x] `(+ ,x 1))
+      w (macro w [y] `(m (* ,y 2)))
+      z 5]
   (assert (macro? m))
   (assert (macro-form? '(m 3)))
-  (assert (= (m (* y 3)) 16))
-  (assert (= (macroexpand '(m 3)) '(+ 3 1))))
+  (assert (= (repr m) "<Macro:m>"))
+  (assert (= (m (* z 3)) 16))
+  (assert (= (w (* z 3)) 31))
+  (assert (= (macroexpand-1 '(m (* z 3))) '(+ (* z 3) 1)))
+  (assert (= (macroexpand-1 '(w (* z 3))) '(m (* (* z 3) 2))))
+  (assert (= (macroexpand '(m (* z 3))) '(+ (* z 3) 1)))
+  (assert (= (macroexpand '(w (* z 3))) '(+ (* (* z 3) 2) 1)))
+  (assert (= (macroexpand-all '(m (* z 3))) '(+ (* z 3) 1))))

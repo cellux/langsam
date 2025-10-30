@@ -2743,13 +2743,13 @@ static LV fn_evalargs(LangsamVM *vm, LV args) {
     l = langsam_cdr(l);
   }
   if (langsam_somep(l)) {
-    LV dotted_args = langsam_eval(vm, l);
-    LANGSAM_CHECK(dotted_args);
-    LV it = langsam_iter(vm, dotted_args);
+    LV rest_arg = langsam_eval(vm, l);
+    LANGSAM_CHECK(rest_arg);
+    LV it = langsam_iter(vm, rest_arg);
     if (langsam_exceptionp(it)) {
       return langsam_exceptionf(vm, "apply",
-                                "dotted args should be iterable, got %s",
-                                langsam_ctypename(vm, dotted_args.type));
+                                "rest arg should be iterable, got %s",
+                                langsam_ctypename(vm, rest_arg.type));
     }
     while (langsam_truthy(vm, it)) {
       LV ev_arg = langsam_deref(vm, it);
@@ -3173,6 +3173,21 @@ static LV eval_quote(LangsamVM *vm, LV args) {
 static LV eval_quasiquote(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return langsam_quasiquote(vm, obj);
+}
+
+static LV eval_apply(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(f, args);
+  f = langsam_eval(vm, f);
+  LANGSAM_CHECK(f);
+  LV reversed_args = langsam_nil;
+  while (langsam_consp(args)) {
+    LV arg = langsam_car(args);
+    reversed_args = langsam_cons(vm, arg, reversed_args);
+    args = langsam_cdr(args);
+  }
+  LANGSAM_ARG(rest, reversed_args);
+  LV dotted_args = langsam_nreverse_with_last(reversed_args, rest);
+  return langsam_apply(vm, f, dotted_args);
 }
 
 static LV eval_def(LangsamVM *vm, LV args) {
@@ -3610,6 +3625,7 @@ static LV import_langsam_core(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "next", eval_next);
   langsam_defspecial(vm, env, "quote", eval_quote);
   langsam_defspecial(vm, env, "quasiquote", eval_quasiquote);
+  langsam_defspecial(vm, env, "apply", eval_apply);
   langsam_defspecial(vm, env, "def", eval_def);
   langsam_defspecial(vm, env, "defn", eval_defn);
   langsam_defspecial(vm, env, "fn", eval_fn);

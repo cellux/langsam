@@ -6,5 +6,5 @@
 
 (assert (= (str 'alpha) "alpha"))
 (assert (= (str 'alpha 'bravo) "alphabravo"))
-(let [dotted-args '(charlie delta)]
-  (assert (= (str 'alpha 'bravo . dotted-args) "alphabravocharliedelta")))
+(let [rest '(charlie delta)]
+  (assert (= (apply str 'alpha 'bravo rest) "alphabravocharliedelta")))

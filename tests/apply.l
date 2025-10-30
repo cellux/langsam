@@ -78,3 +78,9 @@
                      :evalargs false
                      :evalresult true})]
   (assert (= (foo 3 4) 7)))
+
+;  apply
+(assert (= (apply + 3 4 nil) 7))
+(assert (throws? '(apply . "rest arg should be iterable, got Integer") (apply + 3 4) 7))
+(let [rest '(3 4 5)]
+  (assert (= (apply + 1 2 rest) 15)))
