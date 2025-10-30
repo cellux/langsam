@@ -228,6 +228,7 @@ LV langsam_exception(LangsamVM *vm, LV payload);
 LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...);
 
 bool langsam_exceptionp(LV v);
+bool langsam_exceptionpk(LangsamVM *vm, LV v, char *kind);
 
 #define LANGSAM_CHECK(result)                                                  \
   {                                                                            \

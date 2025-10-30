@@ -450,6 +450,19 @@ LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...) {
 
 bool langsam_exceptionp(LV v) { return (v.type == LT_EXCEPTION); }
 
+bool langsam_exceptionpk(LangsamVM *vm, LV v, char *kind) {
+  if (!langsam_exceptionp(v)) {
+    return false;
+  }
+  LangsamException *ex = v.p;
+  if (!langsam_consp(ex->payload)) {
+    return false;
+  }
+  LV ex_kind = langsam_car(ex->payload);
+  LV in_kind = langsam_symbol(vm, kind);
+  return LVEQ(ex_kind, in_kind);
+}
+
 static struct LangsamT LANGSAM_T_EXCEPTION = {
     .name = "Exception",
     .gcmanaged = true,
@@ -2130,16 +2143,7 @@ static LV collect_rest(LangsamVM *vm, LV it) {
 }
 
 static bool bind_exceptionp(LangsamVM *vm, LV obj) {
-  if (!langsam_exceptionp(obj)) {
-    return false;
-  }
-  LangsamException *ex = obj.p;
-  if (!langsam_consp(ex->payload)) {
-    return false;
-  }
-  LV exception_kind = langsam_car(ex->payload);
-  LV bind = langsam_symbol(vm, "bind");
-  return LVEQ(exception_kind, bind);
+  return langsam_exceptionpk(vm, obj, "bind");
 }
 
 static LV bind_quoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
@@ -2358,6 +2362,11 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV it_lhs = langsam_iter(vm, lhs);
   LANGSAM_CHECK(it_lhs);
   LV it_rhs = langsam_iter(vm, rhs);
+  if (langsam_exceptionpk(vm, it_rhs, "iter")) {
+    return langsam_exceptionf(
+        vm, "bind", "attempt to bind non-iterable type %s to %s",
+        langsam_ctypename(vm, rhs.type), langsam_ctypename(vm, lhs.type));
+  }
   LANGSAM_CHECK(it_rhs);
   LV opt_symbol = langsam_symbol(vm, "&opt");
   LV amp_symbol = langsam_symbol(vm, "&");
@@ -2476,6 +2485,13 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           }
           LV k = langsam_Keyword_cast(vm, sym);
           LV v = langsam_get(vm, rhs, k);
+          if (langsam_exceptionpk(vm, v, "get")) {
+            return langsam_exceptionf(
+                vm, "bind", "attempt to bind non-associative type %s to %s",
+                langsam_ctypename(vm, rhs.type),
+                langsam_ctypename(vm, lhs.type));
+          }
+          LANGSAM_CHECK(v);
           LV result = langsam_bind(vm, env, sym, v);
           LANGSAM_CHECK(result);
           it_key = langsam_next(vm, it_key);
@@ -2487,6 +2503,12 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       }
     } else {
       LV value = langsam_get(vm, rhs, key);
+      if (langsam_exceptionpk(vm, value, "get")) {
+        return langsam_exceptionf(
+            vm, "bind", "attempt to bind non-associative type %s to %s",
+            langsam_ctypename(vm, rhs.type), langsam_ctypename(vm, lhs.type));
+      }
+      LANGSAM_CHECK(value);
       LV result = langsam_bind(vm, env, pat, value);
       LANGSAM_CHECK(result);
     }
