@@ -10,4 +10,6 @@
   (assert (= (macroexpand-1 '(w (* z 3))) '(m (* (* z 3) 2))))
   (assert (= (macroexpand '(m (* z 3))) '(+ (* z 3) 1)))
   (assert (= (macroexpand '(w (* z 3))) '(+ (* (* z 3) 2) 1)))
-  (assert (= (macroexpand-all '(m (* z 3))) '(+ (* z 3) 1))))
+  (assert (= (macroexpand-all '(m (* z 3))) '(+ (* z 3) 1)))
+  (assert (= (macroexpand-all '(w (* z 3))) '(+ (* (* z 3) 2) 1)))
+  (assert (= (macroexpand-all '(w (* z (m 3)))) '(+ (* (* z (+ 3 1)) 2) 1))))

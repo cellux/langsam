@@ -220,45 +220,54 @@
        ,@(nreverse body)
        ,@finally-forms)))
 
-(defn macro-form?
-  {:dynamic true}
-  [form]
+(defn macro-form?*
+  [form env]
   (if-let [[(Symbol head) & rest] form]
-    (macro? (eval head))))
+    (macro? (eval head env))))
 
-(defn macroexpand
-  {:dynamic true}
+(defmacro macro-form?
   [form]
-  (if (macro-form? form)
-    (macroexpand (macroexpand-1 form))
+  `(macro-form?* ,form (curlet)))
+
+(defn macroexpand*
+  [form env]
+  (if (macro-form?* form env)
+    (macroexpand* (macroexpand-1 form env) env)
     form))
 
-(def macroexpand-all
-  (let [expand-qq (fn [form]
+(defmacro macroexpand
+  [form]
+  `(macroexpand* ,form (curlet)))
+
+(def macroexpand-all*
+  (let [expand-qq (fn [form env]
                     (case form
                       (cons x y) (if (cons? y)
                                    (case x
-                                     'unquote (cons 'unquote (macroexpand-all y))
-                                     ,unquote-splicing (cons 'unquote-splicing (macroexpand-all y))
+                                     'unquote (cons 'unquote (macroexpand-all* y env))
+                                     ,unquote-splicing (cons 'unquote-splicing (macroexpand-all* y env))
                                      form)
-                                   (cons (expand-qq x) (expand-qq y)))
-                      (Vector x) (Vector (map expand-qq x))
-                      (Map x) (Map (map expand-qq x))
+                                   (cons (expand-qq x env) (expand-qq y env)))
+                      (Vector x) (Vector (map (fn [form] (expand-qq form env)) x))
+                      (Map x) (Map (map (fn [form] (expand-qq form env)) x))
                       form))]
     (fn
-      {:dynamic true}
-      [form]
-      (let [form (macroexpand form)]
+      [form env]
+      (let [form (macroexpand* form env)]
         (case form
           (cons x y) (if (cons? y)
                        (case x
                          'quote form
-                         'quasiquote (cons x (expand-qq (car y)))
-                         (map macroexpand-all form))
-                       (cons (macroexpand-all x) (macroexpand-all y)))
-          (Vector x) (Vector (map macroexpand-all x))
-          (Map x) (Map (map macroexpand-all x))
+                         'quasiquote (cons x (expand-qq (car y) env))
+                         (map (fn [form] (macroexpand-all* form env)) form))
+                       (cons (macroexpand-all* x env) (macroexpand-all* y env)))
+          (Vector x) (Vector (map (fn [form] (macroexpand-all* form env)) x))
+          (Map x) (Map (map (fn [form] (macroexpand-all* form env)) x))
           form)))))
+
+(defmacro macroexpand-all
+  [form]
+  `(macroexpand-all* ,form (curlet)))
 
 (defmacro -> [head & rest]
   (case rest
