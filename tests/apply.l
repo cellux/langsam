@@ -13,7 +13,7 @@
   (assert (= (:value x) 10))
   (assert (= ((cons x 'add) 7 8) (+ 10 7 8)))
   (assert (= (x.add 7 8) (+ 10 7 8)))
-  (assert (throws? '(apply . "cannot find method `sub` in value of type Map") (x.sub 7 8))))
+  (assert (throws? '(invoke . "cannot find method `sub` in value of type Map") (x.sub 7 8))))
 
 ; ConsIterator
 (let [c '(a b c)
@@ -24,7 +24,7 @@
     (setq it (it))
     (setq c (cdr c)))
   (assert (throws? '(deref . "attempt to deref consumed ConsIterator") @it))
-  (assert (throws? '(apply . "attempt to advance consumed ConsIterator") (it))))
+  (assert (throws? '(invoke . "attempt to advance consumed ConsIterator") (it))))
 
 ; Vector
 (let [v [1 2 3]]
@@ -42,7 +42,7 @@
     (setq it (it))
     (inc index))
   (assert (throws? '(deref . "attempt to deref consumed VectorIterator") @it))
-  (assert (throws? '(apply . "attempt to advance consumed VectorIterator") (it))))
+  (assert (throws? '(invoke . "attempt to advance consumed VectorIterator") (it))))
 
 ; Map
 (let [m {:a 5 :b 8 :c 3}]
@@ -58,7 +58,7 @@
     (setq it (it)))
   (assert (= (Map items) m))
   (assert (throws? '(deref . "attempt to deref consumed MapIterator") @it))
-  (assert (throws? '(apply . "attempt to advance consumed MapIterator") (it))))
+  (assert (throws? '(invoke . "attempt to advance consumed MapIterator") (it))))
 
 ; Function
 (let [foo (Function {:params '[a b]
@@ -81,6 +81,6 @@
 
 ;  apply
 (assert (= (apply + 3 4 nil) 7))
-(assert (throws? '(apply . "rest arg should be iterable, got Integer") (apply + 3 4) 7))
+(assert (throws? '(invoke . "rest arg should be iterable, got Integer") (apply + 3 4) 7))
 (let [rest '(3 4 5)]
   (assert (= (apply + 1 2 rest) 15)))

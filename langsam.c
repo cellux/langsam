@@ -276,14 +276,14 @@ LV langsam_deref(LangsamVM *vm, LV self) {
   return t->deref(vm, self);
 }
 
-LV langsam_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_invoke(LangsamVM *vm, LV self, LV args) {
   LangsamType t = self.type;
-  if (t->apply == NULL) {
+  if (t->invoke == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    return langsam_exceptionf(vm, "apply", "type %s does not support apply",
+    return langsam_exceptionf(vm, "invoke", "type %s does not support invoke",
                               self_type_name);
   }
-  return t->apply(vm, self, args);
+  return t->invoke(vm, self, args);
 }
 
 LV langsam_eval(LangsamVM *vm, LV self) {
@@ -331,7 +331,7 @@ LangsamHash langsam_Type_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_ptr(hash, self.p);
 }
 
-LV langsam_Type_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Type_invoke(LangsamVM *vm, LV self, LV args) {
   if (langsam_nilp(args)) {
     return langsam_exceptionf(vm, "syntax", "%s constructor with no arguments",
                               langsam_cstr(vm, self));
@@ -363,7 +363,7 @@ static struct LangsamT LANGSAM_T_TYPE = {
     .name = "Type",
     .gcmanaged = false,
     .hash = langsam_Type_hash,
-    .apply = langsam_Type_apply,
+    .invoke = langsam_Type_invoke,
     .repr = langsam_Type_repr,
 };
 
@@ -1070,7 +1070,7 @@ LV langsam_Keyword_cast(LangsamVM *vm, LV other) {
                             langsam_ctypename(vm, other.type));
 }
 
-LV langsam_Keyword_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Keyword_invoke(LangsamVM *vm, LV self, LV args) {
   LANGSAM_ARG(coll, args);
   coll = langsam_eval(vm, coll);
   LANGSAM_CHECK(coll);
@@ -1093,7 +1093,7 @@ static struct LangsamT LANGSAM_T_KEYWORD = {
     .gcmanaged = false,
     .hash = langsam_String_hash,
     .cast = langsam_Keyword_cast,
-    .apply = langsam_Keyword_apply,
+    .invoke = langsam_Keyword_invoke,
     .repr = langsam_Keyword_repr,
 };
 
@@ -1133,7 +1133,7 @@ static struct LangsamT LANGSAM_T_OPWORD = {
     .gcmanaged = false,
     .hash = langsam_String_hash,
     .cast = langsam_Opword_cast,
-    .apply = langsam_Keyword_apply,
+    .invoke = langsam_Keyword_invoke,
     .repr = langsam_Opword_repr,
 };
 
@@ -1237,18 +1237,18 @@ LV langsam_Cons_iter(LangsamVM *vm, LV self) {
 
 LV langsam_Cons_deref(LangsamVM *vm, LV self) { return langsam_cdr(self); }
 
-LV langsam_Cons_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Cons_invoke(LangsamVM *vm, LV self, LV args) {
   LV obj = langsam_car(self);
   LV key = langsam_cdr(self);
   LV method = langsam_get(vm, obj, key);
   LANGSAM_CHECK(method);
   if (langsam_nilp(method)) {
     return langsam_exceptionf(
-        vm, "apply", "cannot find method `%s` in value of type %s",
+        vm, "invoke", "cannot find method `%s` in value of type %s",
         langsam_cstr(vm, key), langsam_ctypename(vm, obj.type));
   }
   args = langsam_cons(vm, langsam_quote(vm, obj), args);
-  return langsam_apply(vm, method, args);
+  return langsam_invoke(vm, method, args);
 }
 
 LV langsam_Cons_eval(LangsamVM *vm, LV self) {
@@ -1259,7 +1259,7 @@ LV langsam_Cons_eval(LangsamVM *vm, LV self) {
     return langsam_exceptionf(vm, "eval", "unknown operator: %s",
                               langsam_cstr(vm, head));
   }
-  return langsam_apply(vm, op, langsam_cdr(self));
+  return langsam_invoke(vm, op, langsam_cdr(self));
 }
 
 LV langsam_Cons_repr(LangsamVM *vm, LV self) {
@@ -1345,7 +1345,7 @@ static struct LangsamT LANGSAM_T_CONS = {
     .put = langsam_Cons_put,
     .iter = langsam_Cons_iter,
     .deref = langsam_Cons_deref,
-    .apply = langsam_Cons_apply,
+    .invoke = langsam_Cons_invoke,
     .eval = langsam_Cons_eval,
     .repr = langsam_Cons_repr,
 };
@@ -1373,10 +1373,10 @@ LV langsam_ConsIterator_deref(LangsamVM *vm, LV self) {
   return langsam_car(it->cur);
 }
 
-LV langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args) {
   LangsamConsIterator *it = self.p;
   if (!langsam_consp(it->cur)) {
-    return langsam_exceptionf(vm, "apply",
+    return langsam_exceptionf(vm, "invoke",
                               "attempt to advance consumed ConsIterator");
   }
   it->cur = langsam_cdr(it->cur);
@@ -1389,7 +1389,7 @@ static struct LangsamT LANGSAM_T_CONSITERATOR = {
     .gcmark = langsam_ConsIterator_gcmark,
     .truthy = langsam_ConsIterator_truthy,
     .deref = langsam_ConsIterator_deref,
-    .apply = langsam_ConsIterator_apply,
+    .invoke = langsam_ConsIterator_invoke,
 };
 
 const LangsamType LT_CONSITERATOR = &LANGSAM_T_CONSITERATOR;
@@ -1527,7 +1527,7 @@ LV langsam_Vector_iter(LangsamVM *vm, LV self) {
   };
 }
 
-LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Vector_invoke(LangsamVM *vm, LV self, LV args) {
   LANGSAM_ARG(index, args);
   index = langsam_eval(vm, index);
   LANGSAM_CHECK(index);
@@ -1613,7 +1613,7 @@ static struct LangsamT LANGSAM_T_VECTOR = {
     .put = langsam_Vector_put,
     .len = langsam_Vector_len,
     .iter = langsam_Vector_iter,
-    .apply = langsam_Vector_apply,
+    .invoke = langsam_Vector_invoke,
     .eval = langsam_Vector_eval,
     .repr = langsam_Vector_repr,
 };
@@ -1643,11 +1643,11 @@ LV langsam_VectorIterator_deref(LangsamVM *vm, LV self) {
   return v->items[it->i];
 }
 
-LV langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args) {
   LangsamVectorIterator *it = self.p;
   LangsamVector *v = it->v.p;
   if (it->i >= v->len) {
-    return langsam_exceptionf(vm, "apply",
+    return langsam_exceptionf(vm, "invoke",
                               "attempt to advance consumed VectorIterator");
   }
   it->i++;
@@ -1660,7 +1660,7 @@ static struct LangsamT LANGSAM_T_VECTORITERATOR = {
     .gcmark = langsam_VectorIterator_gcmark,
     .truthy = langsam_VectorIterator_truthy,
     .deref = langsam_VectorIterator_deref,
-    .apply = langsam_VectorIterator_apply,
+    .invoke = langsam_VectorIterator_invoke,
 };
 
 const LangsamType LT_VECTORITERATOR = &LANGSAM_T_VECTORITERATOR;
@@ -1911,7 +1911,7 @@ LV langsam_Map_iter(LangsamVM *vm, LV self) {
   };
 }
 
-LV langsam_Map_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args) {
   LANGSAM_ARG(key, args);
   key = langsam_eval(vm, key);
   LANGSAM_CHECK(key);
@@ -2078,7 +2078,7 @@ static struct LangsamT LANGSAM_T_MAP = {
     .del = langsam_Map_del,
     .len = langsam_Map_len,
     .iter = langsam_Map_iter,
-    .apply = langsam_Map_apply,
+    .invoke = langsam_Map_invoke,
     .eval = langsam_Map_eval,
     .repr = langsam_Map_repr,
 };
@@ -2109,10 +2109,10 @@ LV langsam_MapIterator_deref(LangsamVM *vm, LV self) {
   return langsam_car(it->items);
 }
 
-LV langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_MapIterator_invoke(LangsamVM *vm, LV self, LV args) {
   LangsamMapIterator *it = self.p;
   if (langsam_nilp(it->items)) {
-    return langsam_exceptionf(vm, "apply",
+    return langsam_exceptionf(vm, "invoke",
                               "attempt to advance consumed MapIterator");
   }
   it->items = langsam_cdr(it->items);
@@ -2125,7 +2125,7 @@ static struct LangsamT LANGSAM_T_MAPITERATOR = {
     .gcmark = langsam_MapIterator_gcmark,
     .truthy = langsam_MapIterator_truthy,
     .deref = langsam_MapIterator_deref,
-    .apply = langsam_MapIterator_apply,
+    .invoke = langsam_MapIterator_invoke,
 };
 
 const LangsamType LT_MAPITERATOR = &LANGSAM_T_MAPITERATOR;
@@ -2624,7 +2624,7 @@ LV langsam_do(LangsamVM *vm, LV forms) {
 }
 
 LV langsam_next(LangsamVM *vm, LV it) {
-  return langsam_apply(vm, it, langsam_nil);
+  return langsam_invoke(vm, it, langsam_nil);
 }
 
 // Function
@@ -2747,7 +2747,7 @@ static LV fn_evalargs(LangsamVM *vm, LV args) {
     LANGSAM_CHECK(rest_arg);
     LV it = langsam_iter(vm, rest_arg);
     if (langsam_exceptionp(it)) {
-      return langsam_exceptionf(vm, "apply",
+      return langsam_exceptionf(vm, "invoke",
                                 "rest arg should be iterable, got %s",
                                 langsam_ctypename(vm, rest_arg.type));
     }
@@ -2761,7 +2761,7 @@ static LV fn_evalargs(LangsamVM *vm, LV args) {
   return langsam_nreverse(ev_args);
 }
 
-static LV fn_apply(LangsamVM *vm, LangsamFunction *f, LV args) {
+static LV fn_invoke(LangsamVM *vm, LangsamFunction *f, LV args) {
   if (f->fn != NULL) {
     return f->fn(vm, args);
   } else {
@@ -2779,13 +2779,13 @@ static LV fn_apply(LangsamVM *vm, LangsamFunction *f, LV args) {
   }
 }
 
-LV langsam_Function_apply(LangsamVM *vm, LV self, LV args) {
+LV langsam_Function_invoke(LangsamVM *vm, LV self, LV args) {
   LangsamFunction *f = self.p;
   if (f->evalargs) {
     args = fn_evalargs(vm, args);
     LANGSAM_CHECK(args);
   }
-  LV result = fn_apply(vm, f, args);
+  LV result = fn_invoke(vm, f, args);
   LANGSAM_CHECK(result);
   if (f->evalresult) {
     result = langsam_eval(vm, result);
@@ -2818,7 +2818,7 @@ static struct LangsamT LANGSAM_T_FUNCTION = {
     .hash = langsam_Function_hash,
     .cast = langsam_Function_cast,
     .get = langsam_Function_get,
-    .apply = langsam_Function_apply,
+    .invoke = langsam_Function_invoke,
     .repr = langsam_Function_repr,
 };
 
@@ -3187,7 +3187,7 @@ static LV eval_apply(LangsamVM *vm, LV args) {
   }
   LANGSAM_ARG(rest, reversed_args);
   LV dotted_args = langsam_nreverse_with_last(reversed_args, rest);
-  return langsam_apply(vm, f, dotted_args);
+  return langsam_invoke(vm, f, dotted_args);
 }
 
 static LV eval_def(LangsamVM *vm, LV args) {
@@ -3310,7 +3310,8 @@ static LV eval_macroexpand_1(LangsamVM *vm, LV args) {
   if (f == NULL) {
     return macro_call;
   }
-  return fn_apply(vm, f, macro_call);
+  LV result = fn_invoke(vm, f, macro_call);
+  return result;
 }
 
 static LV eval_throw(LangsamVM *vm, LV args) {

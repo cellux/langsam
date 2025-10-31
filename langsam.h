@@ -77,7 +77,7 @@ struct LangsamT {
   LV (*len)(LangsamVM *vm, LV self);
   LV (*iter)(LangsamVM *vm, LV self);
   LV (*deref)(LangsamVM *vm, LV self);
-  LV (*apply)(LangsamVM *vm, LV self, LV args);
+  LV (*invoke)(LangsamVM *vm, LV self, LV args);
   LV (*eval)(LangsamVM *vm, LV self);
   LV (*repr)(LangsamVM *vm, LV self);
   LV (*str)(LangsamVM *vm, LV self);
@@ -101,7 +101,7 @@ LV langsam_del(LangsamVM *vm, LV self, LV key);
 LV langsam_len(LangsamVM *vm, LV self);
 LV langsam_iter(LangsamVM *vm, LV self);
 LV langsam_deref(LangsamVM *vm, LV self);
-LV langsam_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_eval(LangsamVM *vm, LV self);
 LV langsam_repr(LangsamVM *vm, LV self);
 LV langsam_str(LangsamVM *vm, LV self);
@@ -197,7 +197,7 @@ typedef struct {
 // Type
 
 LangsamHash langsam_Type_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
-LV langsam_Type_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Type_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Type_repr(LangsamVM *vm, LV self);
 
 LV langsam_type(LangsamType t);
@@ -321,7 +321,7 @@ LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len);
 // Keyword
 
 LV langsam_Keyword_cast(LangsamVM *vm, LV other);
-LV langsam_Keyword_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Keyword_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Keyword_repr(LangsamVM *vm, LV self);
 
 LV langsam_keyword(LangsamVM *vm, char *name);
@@ -343,7 +343,7 @@ LV langsam_Cons_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Cons_iter(LangsamVM *vm, LV self);
 LV langsam_Cons_deref(LangsamVM *vm, LV self);
-LV langsam_Cons_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Cons_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Cons_eval(LangsamVM *vm, LV self);
 LV langsam_Cons_repr(LangsamVM *vm, LV self);
 
@@ -363,7 +363,7 @@ LV langsam_nreverse_with_last(LV cons, LV last);
 LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p);
 bool langsam_ConsIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_ConsIterator_deref(LangsamVM *vm, LV self);
-LV langsam_ConsIterator_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 // Vector
 
@@ -378,7 +378,7 @@ LV langsam_Vector_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Vector_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Vector_len(LangsamVM *vm, LV self);
 LV langsam_Vector_iter(LangsamVM *vm, LV self);
-LV langsam_Vector_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Vector_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Vector_eval(LangsamVM *vm, LV self);
 LV langsam_Vector_repr(LangsamVM *vm, LV self);
 
@@ -388,7 +388,7 @@ LV langsam_vector(LangsamVM *vm, LangsamSize len);
 LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
 bool langsam_VectorIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_VectorIterator_deref(LangsamVM *vm, LV self);
-LV langsam_VectorIterator_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 // Map
 
@@ -404,7 +404,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key);
 LV langsam_Map_len(LangsamVM *vm, LV self);
 LV langsam_Map_iter(LangsamVM *vm, LV self);
-LV langsam_Map_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Map_eval(LangsamVM *vm, LV self);
 LV langsam_Map_repr(LangsamVM *vm, LV self);
 
@@ -422,7 +422,7 @@ LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems);
 LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
 bool langsam_MapIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_MapIterator_deref(LangsamVM *vm, LV self);
-LV langsam_MapIterator_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_MapIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 // Function
 
@@ -430,7 +430,7 @@ LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p);
 LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Function_cast(LangsamVM *vm, LV other);
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key);
-LV langsam_Function_apply(LangsamVM *vm, LV self, LV args);
+LV langsam_Function_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Function_repr(LangsamVM *vm, LV self);
 
 // core functions and helpers
