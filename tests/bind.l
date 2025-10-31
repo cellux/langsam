@@ -96,3 +96,9 @@
   (assert (= (case x 3 :three 5 :five 4 :four) :five))
   (assert (= (case x 3 :three 4 :four :none) :none))
   (assert (= (case x 3 :three (Integer x) (+ x 1)) 6)))
+
+(let [z 8
+      f (fn [x &opt (y (+ z 1))] (cons x y))]
+  (let [z 7]
+    (assert (= (f 5) '(5 . 9)))))
+
