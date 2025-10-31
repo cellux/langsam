@@ -3127,7 +3127,14 @@ static LV eval_deref(LangsamVM *vm, LV args) {
 
 static LV eval_eval(LangsamVM *vm, LV args) {
   LANGSAM_ARG(form, args);
-  return langsam_eval(vm, form);
+  LANGSAM_ARG_OPT(env, args);
+  if (langsam_nilp(env)) {
+    env = vm->curlet;
+  }
+  LANGSAM_CHECK(langsam_pushlet(vm, env));
+  LV result = langsam_eval(vm, form);
+  langsam_poplet(vm);
+  return result;
 }
 
 static LV eval_repr(LangsamVM *vm, LV args) {
