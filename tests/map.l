@@ -39,3 +39,6 @@
       m2 {:a 5 :b 3}]
   (assert (not= m1 m2))
   (assert (not= m2 m1)))
+
+(assert (= (Map {:a 3 :b 5})) {:a 3 :b 5})
+(assert (= (Map (map (fn [x] x) {:a 3 :b 5})) {:a 3 :b 5}))

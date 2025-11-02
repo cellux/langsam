@@ -1,8 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <math.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -1667,6 +1665,9 @@ const LangsamType LT_VECTORITERATOR = &LANGSAM_T_VECTORITERATOR;
 
 // Map
 
+#define langsam_MapIteratorItem_k(item) (((LangsamVector *)item.p)->items[0])
+#define langsam_MapIteratorItem_v(item) (((LangsamVector *)item.p)->items[1])
+
 LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
   LangsamSize total = m->nbuckets * LANGSAM_SIZEOF(LV);
@@ -1729,11 +1730,11 @@ LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
   if (m1->nitems != m2->nitems) {
     return langsam_false;
   }
-  LV items = langsam_Map_items(vm, self);
-  while (langsam_somep(items)) {
-    LV item = langsam_car(items);
-    LV k = langsam_car(item);
-    LV v1 = langsam_cdr(item);
+  LV it = langsam_iter(vm, self);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV k = langsam_MapIteratorItem_k(item);
+    LV v1 = langsam_MapIteratorItem_v(item);
     LV v2item = langsam_Map_gep(vm, other, k);
     LANGSAM_CHECK(v2item);
     if (langsam_nilp(v2item)) {
@@ -1745,7 +1746,7 @@ LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
     if (langsam_falsep(eq)) {
       return langsam_false;
     }
-    items = langsam_cdr(items);
+    it = langsam_next(vm, it);
   }
   return langsam_true;
 }
@@ -1755,21 +1756,21 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
   LangsamMap *m2 = other.p;
   LangsamSize nitems = m1->nitems + m2->nitems;
   LV result = langsam_map(vm, m1->proto, nitems);
-  LV items = langsam_Map_items(vm, self);
-  while (langsam_consp(items)) {
-    LV item = langsam_car(items);
-    LV k = langsam_car(item);
-    LV v = langsam_cdr(item);
+  LV it1 = langsam_iter(vm, self);
+  while (langsam_truthy(vm, it1)) {
+    LV item = langsam_deref(vm, it1);
+    LV k = langsam_MapIteratorItem_k(item);
+    LV v = langsam_MapIteratorItem_v(item);
     langsam_put(vm, result, k, v);
-    items = langsam_cdr(items);
+    it1 = langsam_next(vm, it1);
   }
-  LV otheritems = langsam_Map_items(vm, other);
-  while (langsam_consp(otheritems)) {
-    LV otheritem = langsam_car(otheritems);
-    LV k = langsam_car(otheritem);
-    LV v = langsam_cdr(otheritem);
+  LV it2 = langsam_iter(vm, other);
+  while (langsam_truthy(vm, it2)) {
+    LV otheritem = langsam_deref(vm, it2);
+    LV k = langsam_MapIteratorItem_k(otheritem);
+    LV v = langsam_MapIteratorItem_v(otheritem);
     langsam_put(vm, result, k, v);
-    otheritems = langsam_cdr(otheritems);
+    it2 = langsam_next(vm, it2);
   }
   return result;
 }
@@ -1830,8 +1831,8 @@ static void resize_map(LangsamVM *vm, LV self, LangsamSize nbuckets) {
   LV it = langsam_iter(vm, self);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
-    LV k = langsam_car(item);
-    LV v = langsam_cdr(item);
+    LV k = langsam_MapIteratorItem_k(item);
+    LV v = langsam_MapIteratorItem_v(item);
     langsam_put(vm, newm, k, v);
     it = langsam_next(vm, it);
   }
@@ -1921,33 +1922,33 @@ LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args) {
 LV langsam_Map_eval(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   LV result = langsam_map(vm, m->proto, m->nitems);
-  LV items = langsam_Map_items(vm, self);
-  while (langsam_consp(items)) {
-    LV item = langsam_car(items);
-    LV k = langsam_car(item);
-    LV v = langsam_cdr(item);
+  LV it = langsam_iter(vm, self);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV k = langsam_MapIteratorItem_k(item);
     k = langsam_eval(vm, k);
     LANGSAM_CHECK(k);
+    LV v = langsam_MapIteratorItem_v(item);
     v = langsam_eval(vm, v);
     LANGSAM_CHECK(v);
     langsam_put(vm, result, k, v);
-    items = langsam_cdr(items);
+    it = langsam_next(vm, it);
   }
   return result;
 }
 
 LV langsam_Map_repr(LangsamVM *vm, LV self) {
-  LV items = langsam_Map_items(vm, self);
   LV reprs = langsam_nil;
   LangsamSize total_length = 0;
-  while (langsam_consp(items)) {
-    LV item = langsam_car(items);
-    LV k = langsam_car(item);
-    LV v = langsam_cdr(item);
+  LV it = langsam_iter(vm, self);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV k = langsam_MapIteratorItem_k(item);
     LV krepr = langsam_repr(vm, k);
     LANGSAM_CHECK(krepr);
     LV kreprlen = langsam_len(vm, krepr);
     LANGSAM_CHECK(kreprlen);
+    LV v = langsam_MapIteratorItem_v(item);
     LV vrepr = langsam_repr(vm, v);
     LANGSAM_CHECK(vrepr);
     LV vreprlen = langsam_len(vm, vrepr);
@@ -1958,7 +1959,7 @@ LV langsam_Map_repr(LangsamVM *vm, LV self) {
     total_length += kreprlen.i + 1 + vreprlen.i;
     reprs = langsam_cons(vm, krepr, reprs);
     reprs = langsam_cons(vm, vrepr, reprs);
-    items = langsam_cdr(items);
+    it = langsam_next(vm, it);
   }
   LangsamIndex index = total_length + 2 + 1;
   char *result = langsam_alloc(vm, index);
@@ -1985,7 +1986,10 @@ LV langsam_Map_items(LangsamVM *vm, LV self) {
     LV bucket = m->buckets[i];
     while (langsam_consp(bucket)) {
       LV item = langsam_car(bucket);
-      result = langsam_cons(vm, item, result);
+      LV v = langsam_vector_uninitialized(vm, 2);
+      langsam_put(vm, v, langsam_integer(0), langsam_car(item));
+      langsam_put(vm, v, langsam_integer(1), langsam_cdr(item));
+      result = langsam_cons(vm, v, result);
       bucket = langsam_cdr(bucket);
     }
   }
@@ -2468,8 +2472,8 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LANGSAM_CHECK(it_lhs);
   while (langsam_truthy(vm, it_lhs)) {
     LV item = langsam_deref(vm, it_lhs);
-    LV pat = langsam_car(item);
-    LV key = langsam_cdr(item);
+    LV pat = langsam_MapIteratorItem_k(item);
+    LV key = langsam_MapIteratorItem_v(item);
     if (pat.type == LT_KEYWORD) {
       LV keys = langsam_keyword(vm, "keys");
       if (LVEQ(pat, keys)) {
@@ -3486,10 +3490,12 @@ static LV eval_assert(LangsamVM *vm, LV args) {
   return result;
 }
 
-static LV eval_int3(LangsamVM *vm, LV args) {
+static LV eval_debug(LangsamVM *vm, LV args) {
   LANGSAM_ARG_OPT(arg, args);
-  raise(SIGTRAP);
-  return langsam_eval(vm, arg);
+  if (!langsam_nilp(arg)) {
+    return langsam_eval(vm, arg);
+  }
+  return langsam_nil;
 }
 
 static LV eval_curlet(LangsamVM *vm, LV args) { return vm->curlet; }
@@ -3596,7 +3602,7 @@ static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 extern int langsam_l_len;
 extern char langsam_l_bytes[];
 
-static LV import_langsam_core(LangsamVM *vm, LV env) {
+static LV langsam_import_core(LangsamVM *vm, LV env) {
   langsam_def(vm, env, "true", langsam_true);
   langsam_def(vm, env, "false", langsam_false);
   langsam_def(vm, env, "Type", langsam_type(LT_TYPE));
@@ -3657,7 +3663,7 @@ static LV import_langsam_core(LangsamVM *vm, LV env) {
   langsam_defspecial(vm, env, "if-let", eval_if_let);
   langsam_defspecial(vm, env, "catch", eval_catch);
   langsam_defspecial(vm, env, "assert", eval_assert);
-  langsam_defspecial(vm, env, "int3", eval_int3);
+  langsam_defspecial(vm, env, "debug", eval_debug);
   langsam_defspecial(vm, env, "curlet", eval_curlet);
   langsam_defspecial(vm, env, "rootlet", eval_rootlet);
   langsam_defn(vm, env, "bind", eval_bind);
@@ -3838,7 +3844,7 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->loglevel = LANGSAM_INFO;
   vm->evaldepth = 0;
   vm->reprdepth = 0;
-  LV result = import_langsam_core(vm, vm->curlet);
+  LV result = langsam_import_core(vm, vm->curlet);
   LANGSAM_CHECK(result);
   LV mainlet = langsam_map(vm, vm->curlet, 4096);
   langsam_pushlet(vm, mainlet);

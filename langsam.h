@@ -1,15 +1,12 @@
 #ifndef LANGSAM_H
 #define LANGSAM_H
 
-#include <assert.h>
 #include <float.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 
 typedef struct LangsamVM LangsamVM;
 
