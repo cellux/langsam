@@ -265,10 +265,9 @@ Displays a one-line preview in the minibuffer and an overlay at point."
   '((def . defun) (defn . defun) (defmacro . defun)
     (defmulti . defun) (defmethod . defun)
     (fn . defun) (macro . defun)
-    (let . 1)
-    (if . 1) (when . 1) (unless . 1)
-    (case . 1) (doseq . 1) (for . 1)
-    (cond . 0) (do . 0))
+    (let . 1) (setq . 1)
+    (if . 1) (if-let . 1) (when . 1) (unless . 1)
+    (case . 1) (for . 1) (do . 0))
   "Indent rules for Langsam forms.
 Value `defun` means defun-style indentation (name + args special).
 An integer N means: indent the first N forms by one step; rest align.")
