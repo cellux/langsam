@@ -1506,7 +1506,7 @@ LV langsam_Vector_put(LangsamVM *vm, LV self, LV key, LV value) {
                               index, v->len - 1);
   }
   v->items[index] = value;
-  return langsam_nil;
+  return self;
 }
 
 LV langsam_Vector_len(LangsamVM *vm, LV self) {
@@ -1855,7 +1855,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   LANGSAM_CHECK(item);
   if (langsam_consp(item)) {
     langsam_setcdr(item, value);
-    return langsam_nil;
+    return self;
   }
   LangsamMap *m = self.p;
   LangsamSize limit = (LangsamSize)(m->load_factor * (LangsamFloat)m->nbuckets);
@@ -1867,7 +1867,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   item = langsam_cons(vm, key, value);
   m->buckets[bucket_index] = langsam_cons(vm, item, m->buckets[bucket_index]);
   m->nitems++;
-  return langsam_nil;
+  return self;
 }
 
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key) {
