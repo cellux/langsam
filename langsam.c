@@ -2736,6 +2736,43 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   return langsam_nil;
 }
 
+LV langsam_Function_put(LangsamVM *vm, LV self, LV key, LV value) {
+  LangsamFunction *f = self.p;
+  LV name_key = langsam_keyword(vm, "name");
+  if (LVEQ(key, name_key)) {
+    f->name = value;
+  }
+  LV params_key = langsam_keyword(vm, "params");
+  if (LVEQ(key, params_key)) {
+    f->params = value;
+  }
+  LV doc_key = langsam_keyword(vm, "doc");
+  if (LVEQ(key, doc_key)) {
+    f->doc = value;
+  }
+  LV funclet_key = langsam_keyword(vm, "funclet");
+  if (LVEQ(key, funclet_key)) {
+    f->funclet = value;
+  }
+  LV body_key = langsam_keyword(vm, "body");
+  if (LVEQ(key, body_key)) {
+    f->body = value;
+  }
+  LV evalargs_key = langsam_keyword(vm, "evalargs");
+  if (LVEQ(key, evalargs_key)) {
+    f->evalargs = langsam_truep(value);
+  }
+  LV evalresult_key = langsam_keyword(vm, "evalresult");
+  if (LVEQ(key, evalresult_key)) {
+    f->evalresult = langsam_truep(value);
+  }
+  LV dynamic_key = langsam_keyword(vm, "dynamic");
+  if (LVEQ(key, dynamic_key)) {
+    f->dynamic = langsam_truep(value);
+  }
+  return self;
+}
+
 static LV fn_evalargs(LangsamVM *vm, LV args) {
   LV l = args;
   LV ev_args = langsam_nil;
@@ -2822,6 +2859,7 @@ static struct LangsamT LANGSAM_T_FUNCTION = {
     .hash = langsam_Function_hash,
     .cast = langsam_Function_cast,
     .get = langsam_Function_get,
+    .put = langsam_Function_put,
     .invoke = langsam_Function_invoke,
     .repr = langsam_Function_repr,
 };

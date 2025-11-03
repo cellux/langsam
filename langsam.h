@@ -427,6 +427,7 @@ LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p);
 LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Function_cast(LangsamVM *vm, LV other);
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key);
+LV langsam_Function_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Function_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Function_repr(LangsamVM *vm, LV self);
 
