@@ -44,3 +44,8 @@
   (assert (= (macroexpand-all '`(+ ,x 1)) '`(+ ,x 1)))
   (assert (= (macroexpand-all '(`(+ ,x 1))) '(`(+ ,x 1))))
   (assert (= (macroexpand-all '`(if 5 (throw '(foo . "bar"))) '`(if 5 (throw '(foo . "bar")))))))
+
+(let [m (macro [] `(throw '(syntax . "foo")))]
+  (assert (= (macroexpand-1 '(m)) '(throw '(syntax . "foo"))))
+  (assert (= (macroexpand '(m)) '(throw '(syntax . "foo"))))
+  (assert (= (macroexpand-all '(m)) '(throw '(syntax . "foo")))))

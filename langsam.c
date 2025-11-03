@@ -2544,35 +2544,54 @@ LV langsam_quote(LangsamVM *vm, LV obj) {
   return result;
 }
 
-static LV quasiquote_collect(LangsamVM *vm, LV coll) {
+static LV quasiquote_collect_item(LangsamVM *vm, LV item, LV *result,
+                                  LV splice) {
+  LV qqitem = langsam_quasiquote(vm, item);
+  if (langsam_exceptionp(qqitem)) {
+    bool throw = true;
+    LV payload = langsam_deref(vm, qqitem);
+    if (langsam_consp(payload)) {
+      LV head = langsam_car(payload);
+      if (LVEQ(head, splice)) {
+        throw = false;
+        LV splice_items = langsam_cdr(payload);
+        while (langsam_consp(splice_items)) {
+          LV splice_item = langsam_car(splice_items);
+          *result = langsam_cons(vm, splice_item, *result);
+          splice_items = langsam_cdr(splice_items);
+        }
+      }
+    }
+    if (throw) {
+      return qqitem;
+    }
+  } else {
+    *result = langsam_cons(vm, qqitem, *result);
+  }
+  return langsam_nil;
+}
+
+static LV quasiquote_collect_cons(LangsamVM *vm, LV list) {
+  LV splice = langsam_opword(vm, "splice");
+  LV result = langsam_nil;
+  while (langsam_consp(list)) {
+    LV item = langsam_car(list);
+    LV item_result = quasiquote_collect_item(vm, item, &result, splice);
+    LANGSAM_CHECK(item_result);
+    list = langsam_cdr(list);
+  }
+  return langsam_nreverse_with_last(result, list);
+}
+
+static LV quasiquote_collect_iterable(LangsamVM *vm, LV coll) {
   LV splice = langsam_opword(vm, "splice");
   LV result = langsam_nil;
   LV it = langsam_iter(vm, coll);
   LANGSAM_CHECK(it);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
-    LV qqitem = langsam_quasiquote(vm, item);
-    if (langsam_exceptionp(qqitem)) {
-      bool throw = true;
-      LV payload = langsam_deref(vm, qqitem);
-      if (langsam_consp(payload)) {
-        LV head = langsam_car(payload);
-        if (LVEQ(head, splice)) {
-          throw = false;
-          LV splice_items = langsam_cdr(payload);
-          while (langsam_consp(splice_items)) {
-            LV splice_item = langsam_car(splice_items);
-            result = langsam_cons(vm, splice_item, result);
-            splice_items = langsam_cdr(splice_items);
-          }
-        }
-      }
-      if (throw) {
-        return qqitem;
-      }
-    } else {
-      result = langsam_cons(vm, qqitem, result);
-    }
+    LV item_result = quasiquote_collect_item(vm, item, &result, splice);
+    LANGSAM_CHECK(item_result);
     it = langsam_next(vm, it);
   }
   return langsam_nreverse(result);
@@ -2605,10 +2624,10 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
       LV splice = langsam_opword(vm, "splice");
       return langsam_exception(vm, langsam_cons(vm, splice, result));
     } else {
-      return quasiquote_collect(vm, obj);
+      return quasiquote_collect_cons(vm, obj);
     }
   } else if (obj.type == LT_VECTOR || obj.type == LT_MAP) {
-    LV items = quasiquote_collect(vm, obj);
+    LV items = quasiquote_collect_iterable(vm, obj);
     LANGSAM_CHECK(items);
     return langsam_cast(vm, langsam_type(obj.type), items);
   } else {
