@@ -245,20 +245,20 @@
                       (cons x y) (if (cons? y)
                                    (case x
                                      'unquote (cons 'unquote (macroexpand-all* y env))
-                                     ,unquote-splicing (cons 'unquote-splicing (macroexpand-all* y env))
+                                     'unquote-splicing (cons 'unquote-splicing (macroexpand-all* y env))
                                      form)
                                    (cons (expand-qq x env) (expand-qq y env)))
                       (Vector x) (Vector (map (fn [form] (expand-qq form env)) x))
                       (Map x) (Map (map (fn [form] (expand-qq form env)) x))
                       form))]
-    (fn
+    (fn macroexpand-all*
       [form env]
       (let [form (macroexpand* form env)]
         (case form
           (cons x y) (if (cons? y)
                        (case x
                          'quote form
-                         'quasiquote (cons x (expand-qq (car y) env))
+                         'quasiquote (cons 'quasiquote (expand-qq y env))
                          (map (fn [form] (macroexpand-all* form env)) form))
                        (cons (macroexpand-all* x env) (macroexpand-all* y env)))
           (Vector x) (Vector (map (fn [form] (macroexpand-all* form env)) x))

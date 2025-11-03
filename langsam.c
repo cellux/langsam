@@ -8,7 +8,7 @@
 #include "langsam.h"
 
 #define LANGSAM_MAX_ROOTS 4096
-#define LANGSAM_MAX_LETS 64
+#define LANGSAM_MAX_LETS 256
 
 #define LANGSAM_MAX_EVAL_DEPTH 256
 #define LANGSAM_MAX_REPR_DEPTH 16
