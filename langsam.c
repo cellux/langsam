@@ -3531,7 +3531,10 @@ static LV eval_assert(LangsamVM *vm, LV args) {
 static LV eval_debug(LangsamVM *vm, LV args) {
   LANGSAM_ARG_OPT(arg, args);
   if (!langsam_nilp(arg)) {
-    return langsam_eval(vm, arg);
+    LV result = langsam_eval(vm, arg);
+    langsam_log(vm, vm->loglevel, "DEBUG: %s -> %s", langsam_cstr(vm, arg),
+                langsam_cstr(vm, result));
+    return result;
   }
   return langsam_nil;
 }
