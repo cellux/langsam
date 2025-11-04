@@ -142,16 +142,13 @@
          ,result#)))
 
 (defmacro for [bindings & body]
-  (if-let [[var coll & rest] bindings]
-    (let [it# (gensym 'it)
-          coll# (gensym 'coll)]
-      `(let [,coll# ,coll
-             ,it# (iter ,coll#)
-             ,var nil]
+  (if-let [[pat coll & rest] bindings]
+    (let [it# (gensym 'it)]
+      `(let [,it# (iter ,coll)]
          (while ,it#
-           (setq ,var @,it#)
-           (for ,rest ,@body)
-           (setq ,it# (next ,it#)))))
+           (let [,pat @,it#]
+             (for ,rest ,@body)
+             (setq ,it# (next ,it#))))))
     `(do ,@body)))
 
 (defn group-by [keyfn coll]

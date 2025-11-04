@@ -17,3 +17,9 @@
     (setq result (cons @it result))
     (setq it (next it)))
   (assert (= result '(4 3 2 1))))
+
+(let [result nil]
+  (for [[k v] {:a 3 :b 5 :c 8}]
+    (setq result (cons k result))
+    (setq result (cons v result)))
+  (assert (= (Map (partition 2 result)) {3 :a 5 :b 8 :c})))
