@@ -176,6 +176,22 @@
       (setq it (next it)))
     [(nreverse left) (nreverse right)]))
 
+(defn partition [n coll]
+  (let [groups nil
+        it (iter coll)]
+    (while it
+      (let [group nil
+            remaining n]
+        (while (and it (> remaining 0))
+          (setq group (cons @it group))
+          (setq it (next it))
+          (decq remaining))
+        (setq groups (cons (Vector (nreverse group)) groups))))
+    (nreverse groups)))
+
+(defn comp [f g]
+  (fn [& rest] (f (apply g rest))))
+
 (defn iterable? [x]
   (if-let [it (iter x)]
     true false))
