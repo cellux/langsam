@@ -290,51 +290,6 @@
   [form]
   `(macroexpand-all* ,form (curlet)))
 
-(let [old-macro macro
-      old-fn fn
-      expand-body (old-fn [body env]
-                    (map (old-fn [x] (macroexpand-all* x env)) body))]
-
-  (setq macro
-    (old-macro macro [& rest]
-      (let [m# (gensym 'm)
-            env# (gensym 'env)]
-        `(let [,m# (,old-macro ,@rest)
-               ,env# (getproto (curlet))]
-           (update ,m# :body ,expand-body ,env#)))))
-
-  (setq defmacro
-    (old-macro defmacro [& rest]
-      (let [m# (gensym 'm)
-            name# (gensym 'name)
-            env# (gensym 'env)]
-        `(let [,m# (macro ,@rest)
-               ,name# (:name ,m#)
-               ,env# (getproto (curlet))]
-           (if ,name#
-             (put ,env# ,name# ,m#)
-             (throw '(syntax . "missing macro name")))))))
-
-  (setq fn
-    (old-macro fn [& rest]
-      (let [f# (gensym 'f)
-            env# (gensym 'env)]
-        `(let [,f# (,old-fn ,@rest)
-               ,env# (getproto (curlet))]
-           (update ,f# :body ,expand-body ,env#)))))
-
-  (setq defn
-    (old-macro defn [& rest]
-      (let [f# (gensym 'f)
-            name# (gensym 'name)
-            env# (gensym 'env)]
-        `(let [,f# (fn ,@rest)
-               ,name# (:name ,f#)
-               ,env# (getproto (curlet))]
-           (if ,name#
-             (put ,env# ,name# ,f#)
-             (throw '(syntax . "missing function name"))))))))
-
 (defmacro -> [head & rest]
   (case rest
     [[beg & end] & tail] `(-> (,beg ,head ,@end) ,@tail)
