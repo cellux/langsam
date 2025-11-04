@@ -59,8 +59,10 @@
   `(swap (gep (curlet) ',x) ,f ,@rest))
 
 (defn inc [x] (+ x 1))
-
 (defmacro incq [x] `(swapq ,x ,inc))
+
+(defn dec [x] (- x 1))
+(defmacro decq [x] `(swapq ,x ,dec))
 
 (defn even? [x] (= (mod x 2) 0))
 (defn odd? [x] (not= (mod x 2) 0))
