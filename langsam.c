@@ -3627,9 +3627,12 @@ static LV eval_setcdr(LangsamVM *vm, LV args) {
 }
 
 static LV eval_nreverse(LangsamVM *vm, LV args) {
-  LANGSAM_ARG(cons, args);
-  LANGSAM_ARG_TYPE(cons, LT_CONS);
-  return langsam_nreverse(cons);
+  LANGSAM_ARG(arg, args);
+  if (langsam_nilp(arg)) {
+    return arg;
+  }
+  LANGSAM_ARG_TYPE(arg, LT_CONS);
+  return langsam_nreverse(arg);
 }
 
 static LV eval_require(LangsamVM *vm, LV args) {

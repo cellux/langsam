@@ -1,5 +1,6 @@
-(assert (= (nreverse '(1 2 3))
-           '(3 2 1)))
+(assert (nil? (nreverse nil)))
+
+(assert (= (nreverse '(1 2 3)) '(3 2 1)))
 
 (assert (= (group-by car '((foo bar) (bar goo) (foo baz)))
            {'foo '((foo baz) (foo bar)) 'bar '((bar goo))}))
