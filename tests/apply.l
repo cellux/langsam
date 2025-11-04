@@ -40,7 +40,7 @@
     (assert (= (type it) VectorIterator))
     (assert (= @it (v index)))
     (setq it (it))
-    (inc index))
+    (incq index))
   (assert (throws? '(deref . "attempt to deref consumed VectorIterator") @it))
   (assert (throws? '(invoke . "attempt to advance consumed VectorIterator") (it))))
 

@@ -84,7 +84,7 @@
     (let [addn (fn [x amount] (+ x amount))]
       (swapq x addn 9))
     (assert (= x 16))
-    (inc x)
+    (incq x)
     (assert (= x 17)))
   (assert (= x 5))
   (assert (= y 3)))

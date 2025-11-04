@@ -30,7 +30,7 @@
   `(if ,cond (do ,@body)))
 
 (defmacro unless [cond & body]
-  `(when (not ,cond) ,@body))
+  `(if (not ,cond) (do ,@body)))
 
 (defn sublet [proto &opt (size 64)]
   (let [sublet (Map size)]
@@ -58,6 +58,13 @@
 (defmacro swapq [x f & rest]
   `(swap (gep (curlet) ',x) ,f ,@rest))
 
+(defn inc [x] (+ x 1))
+
+(defmacro incq [x] `(swapq ,x ,inc))
+
+(defn even? [x] (= (mod x 2) 0))
+(defn odd? [x] (not= (mod x 2) 0))
+
 (defn map [f coll]
   (let [result nil
         it (iter coll)]
@@ -84,16 +91,11 @@
       (setq it (next it)))
     (nreverse result)))
 
-(def inc
-  (let [add1 (fn [x] (+ x 1))]
-    (macro inc [x]
-      `(swapq ,x ,add1))))
-
 (def gensym
   (let [counter 0]
     (fn gensym [&opt (prefix 'gensym)]
       (let [sym (Symbol (str prefix "#" counter))]
-        (inc counter)
+        (incq counter)
         sym))))
 
 (defmacro and [x & rest]
@@ -109,6 +111,46 @@
       `(let [,val# ,x]
          (if ,val# ,val# (or ,@rest))))
     x))
+
+(defmacro when-let [bindings & body]
+  `(if-let ,bindings (do ,@body)))
+
+(defmacro while-let [bindings & body]
+  `(while (if-let ,bindings (do ,@body true) false)))
+
+(def case
+  (let [subcase (fn [item# clauses]
+                  (if clauses
+                    (if-let [[pattern result & clauses] clauses]
+                      `(if-let [,pattern ,item#]
+                         ,result
+                         ,(subcase item# clauses))
+                      (let [[result] clauses]
+                        result))
+                    `(throw (cons 'case "no match"))))]
+    (macro case [item & clauses]
+      (let [item# (gensym 'item)]
+        `(let [,item# ,item]
+           ,(subcase item# clauses))))))
+
+(defmacro prog1 [head & rest]
+  (let [result# (gensym 'result)]
+    `(do (def ,result# ,head)
+         ,@rest
+         ,result#)))
+
+(defmacro for [bindings & body]
+  (if-let [[var coll & rest] bindings]
+    (let [it# (gensym 'it)
+          coll# (gensym 'coll)]
+      `(let [,coll# ,coll
+             ,it# (iter ,coll#)
+             ,var nil]
+         (while ,it#
+           (setq ,var @,it#)
+           (for ,rest ,@body)
+           (setq ,it# (next ,it#)))))
+    `(do ,@body)))
 
 (defn group-by [keyfn coll]
   (let [groups {}
@@ -132,60 +174,18 @@
       (setq it (next it)))
     [(nreverse left) (nreverse right)]))
 
-(defn even? [x] (= (mod x 2) 0))
-(defn odd? [x] (not (even? x)))
-
-(defmacro when-let [bindings & body]
-  `(if-let ,bindings (do ,@body)))
-
-(defmacro while-let [bindings & body]
-  `(while (if-let ,bindings (do ,@body true) false)))
-
-(defmacro case [item & clauses]
-  (let [item# (gensym 'item)
-        subcase (fn [clauses]
-                  (if clauses
-                    (if-let [[pattern result & clauses] clauses]
-                      `(if-let [,pattern ,item#]
-                         ,result
-                         ,(subcase clauses))
-                      (if-let [[result] clauses]
-                        result))
-                    `(throw (cons 'case "no match"))))]
-    `(let [,item# ,item]
-       ,(subcase clauses))))
-
-(defmacro prog1 [head & rest]
-  (let [result# (gensym 'result)]
-    `(do (def ,result# ,head)
-         ,@rest
-         ,result#)))
-
-(defmacro for [bindings & body]
-  (if-let [[var coll & rest] bindings]
-    (let [it# (gensym 'it)
-          coll# (gensym 'coll)]
-      `(let [,coll# ,coll
-             ,it# (iter ,coll#)
-             ,var nil]
-         (while ,it#
-           (setq ,var @,it#)
-           (for ,rest ,@body)
-           (setq ,it# (next ,it#)))))
-    `(do ,@body)))
+(defn iterable? [x]
+  (if-let [it (iter x)]
+    true false))
 
 (defn flatten [coll]
   (def result nil)
   (for [item coll]
-    (if-let [flattened (flatten item)]
-      (for [x flattened]
+    (if (iterable? item)
+      (for [x (flatten item)]
         (setq result (cons x result)))
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
-
-(defn iterable? [x]
-  (if-let [it (iter x)]
-    true false))
 
 (defn flatten1 [coll]
   (def result nil)
@@ -240,16 +240,22 @@
   `(macroexpand* ,form (curlet)))
 
 (def macroexpand-all*
-  (let [expand-qq (fn [form env]
+  (let [old-fn fn
+        map-env (old-fn [f coll env]
+                  (map (old-fn [x] (f x env)) coll))
+        expand-qq (fn [form env]
                     (case form
                       (cons x y) (if (cons? y)
                                    (case x
-                                     'unquote (cons 'unquote (macroexpand-all* y env))
-                                     'unquote-splicing (cons 'unquote-splicing (macroexpand-all* y env))
+                                     'unquote (cons 'unquote
+                                                    (macroexpand-all* y env))
+                                     'unquote-splicing (cons 'unquote-splicing
+                                                             (macroexpand-all* y env))
                                      form)
-                                   (cons (expand-qq x env) (expand-qq y env)))
-                      (Vector x) (Vector (map (fn [form] (expand-qq form env)) x))
-                      (Map x) (Map (map (fn [form] (expand-qq form env)) x))
+                                   (cons (expand-qq x env)
+                                         (expand-qq y env)))
+                      (Vector x) (Vector (map-env expand-qq x env))
+                      (Map x) (Map (map-env expand-qq x env))
                       form))]
     (fn macroexpand-all*
       [form env]
@@ -259,15 +265,60 @@
                        (case x
                          'quote form
                          'quasiquote (cons 'quasiquote (expand-qq y env))
-                         (map (fn [form] (macroexpand-all* form env)) form))
+                         (map-env macroexpand-all* form env))
                        (cons (macroexpand-all* x env) (macroexpand-all* y env)))
-          (Vector x) (Vector (map (fn [form] (macroexpand-all* form env)) x))
-          (Map x) (Map (map (fn [form] (macroexpand-all* form env)) x))
+          (Vector x) (Vector (map-env macroexpand-all* x env))
+          (Map x) (Map (map-env macroexpand-all* x env))
           form)))))
 
 (defmacro macroexpand-all
   [form]
   `(macroexpand-all* ,form (curlet)))
+
+(let [old-macro macro
+      old-fn fn
+      expand-body (old-fn [body env]
+                    (map (old-fn [x] (macroexpand-all* x env)) body))]
+
+  (setq macro
+    (old-macro macro [& rest]
+      (let [m# (gensym 'm)
+            env# (gensym 'env)]
+        `(let [,m# (,old-macro ,@rest)
+               ,env# (getproto (curlet))]
+           (update ,m# :body ,expand-body ,env#)))))
+
+  (setq defmacro
+    (old-macro defmacro [& rest]
+      (let [m# (gensym 'm)
+            name# (gensym 'name)
+            env# (gensym 'env)]
+        `(let [,m# (macro ,@rest)
+               ,name# (:name ,m#)
+               ,env# (getproto (curlet))]
+           (if ,name#
+             (put ,env# ,name# ,m#)
+             (throw '(syntax . "missing macro name")))))))
+
+  (setq fn
+    (old-macro fn [& rest]
+      (let [f# (gensym 'f)
+            env# (gensym 'env)]
+        `(let [,f# (,old-fn ,@rest)
+               ,env# (getproto (curlet))]
+           (update ,f# :body ,expand-body ,env#)))))
+
+  (setq defn
+    (old-macro defn [& rest]
+      (let [f# (gensym 'f)
+            name# (gensym 'name)
+            env# (gensym 'env)]
+        `(let [,f# (fn ,@rest)
+               ,name# (:name ,f#)
+               ,env# (getproto (curlet))]
+           (if ,name#
+             (put ,env# ,name# ,f#)
+             (throw '(syntax . "missing function name"))))))))
 
 (defmacro -> [head & rest]
   (case rest
