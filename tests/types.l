@@ -45,3 +45,6 @@
 
 (assert (macro? when))
 (assert (special? do))
+
+(assert (and (function? do) (special? do)))
+(assert (and (function? when) (macro? when)))

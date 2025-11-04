@@ -457,9 +457,8 @@ LV langsam_next(LangsamVM *vm, LV it);
 
 #define LANGSAM_ARG_TYPE(name, expected_type)                                  \
   if (name.type != expected_type) {                                            \
-    return langsam_exceptionf(vm, "type",                                      \
-                              "argument %s has type %s, expected %s", #name,   \
-                              langsam_ctypename(vm, name.type),                \
+    return langsam_exceptionf(vm, "type", "argument %s is %s, expected %s",    \
+                              #name, langsam_ctypename(vm, name.type),         \
                               langsam_ctypename(vm, expected_type));           \
   }
 

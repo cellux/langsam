@@ -1,6 +1,6 @@
 (let [s "foo"]
   (assert (= (get s 1) 0x6f))
-  (assert (throws? '(get . "attempt to index String with non-integer index of type Keyword")
+  (assert (throws? '(get . "attempt to index String with Keyword")
                    (get s :zero)))
   (assert (throws? '(get . "String index 3 out of range (0..2)")
                    (get s 3))))
@@ -8,14 +8,14 @@
 (let [c (cons :a :b)]
   (assert (= (get c 0) :a))
   (assert (= (get c 1) :b))
-  (assert (throws? '(get . "attempt to index Cons with non-integer index of type Keyword")
+  (assert (throws? '(get . "attempt to index Cons with Keyword")
                    (get c :car)))
   (assert (throws? '(get . "Cons index -2 out of range (0..1)")
                    (get c -2))))
 
 (let [v [1 2 3]]
   (assert (= (get v 1) 2))
-  (assert (throws? '(get . "attempt to index Vector with non-integer index of type Keyword")
+  (assert (throws? '(get . "attempt to index Vector with Keyword")
                    (get v :zero)))
   (assert (throws? '(get . "Vector index 3 out of range (0..2)")
                    (get v 3))))
