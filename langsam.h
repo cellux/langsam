@@ -8,6 +8,70 @@
 #include <stdint.h>
 #include <string.h>
 
+// OS
+
+#if defined(_WIN32)
+#define LANGSAM_OS_WINDOWS 1
+#define LANGSAM_OS "windows"
+#elif defined(__APPLE__) && defined(__MACH__)
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#define LANGSAM_OS_IOS 1
+#define LANGSAM_OS "ios"
+#else
+#define LANGSAM_OS_MACOS 1
+#define LANGSAM_OS "macos"
+#endif
+#elif defined(__linux__)
+#define LANGSAM_OS_LINUX 1
+#define LANGSAM_OS "linux"
+#elif defined(__unix__)
+#define LANGSAM_OS_UNIX 1
+#define LANGSAM_OS "unix"
+#elif defined(__FreeBSD__)
+#define LANGSAM_OS_FREEBSD 1
+#define LANGSAM_OS "freebsd"
+#elif defined(__ANDROID__)
+#define LANGSAM_OS_ANDROID 1
+#define LANGSAM_OS "android"
+#else
+#define LANGSAM_OS_UNKNOWN 1
+#define LANGSAM_OS "unknown"
+#endif
+
+// processor architecture
+
+#if defined(__x86_64__) || defined(_M_X64)
+#define LANGSAM_ARCH_X86_64 1
+#define LANGSAM_ARCH "x86_64"
+#elif defined(__i386__) || defined(_M_IX86)
+#define LANGSAM_ARCH_X86 1
+#define LANGSAM_ARCH "x86"
+#elif defined(__aarch64__) || defined(_M_ARM64)
+#define LANGSAM_ARCH_ARM64 1
+#define LANGSAM_ARCH "arm64"
+#elif defined(__arm__) || defined(_M_ARM)
+#define LANGSAM_ARCH_ARM 1
+#define LANGSAM_ARCH "arm"
+#elif defined(__riscv)
+#define LANGSAM_ARCH_RISCV 1
+#define LANGSAM_ARCH "riscv"
+#elif defined(__mips__) || defined(__mips) || defined(_M_MRX000)
+#define LANGSAM_ARCH_MIPS 1
+#define LANGSAM_ARCH "mips"
+#elif defined(__powerpc64__) || defined(__ppc64__) || defined(_M_PPC)
+#define LANGSAM_ARCH_PPC64 1
+#define LANGSAM_ARCH "ppc64"
+#elif defined(__powerpc__) || defined(__ppc__)
+#define LANGSAM_ARCH_PPC 1
+#define LANGSAM_ARCH "ppc"
+#else
+#define LANGSAM_ARCH_UNKNOWN 1
+#define LANGSAM_ARCH "unknown"
+#endif
+
+// core types
+
 typedef struct LangsamVM LangsamVM;
 
 #if INTPTR_MAX == LLONG_MAX
@@ -510,21 +574,44 @@ void langsam_loglevel(LangsamVM *vm, LangsamLogLevel level);
 void langsam_log(LangsamVM *vm, LangsamLogLevel level, const char *fmt, ...);
 
 #define langsam_emergency(vm, fmt, ...)                                        \
-  langsam_log(vm, LANGSAM_EMERGENCY, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_EMERGENCY) {                                     \
+    langsam_log(vm, LANGSAM_EMERGENCY, fmt, ##__VA_ARGS__);                    \
+  }
+
 #define langsam_alert(vm, fmt, ...)                                            \
-  langsam_log(vm, LANGSAM_ALERT, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_ALERT) {                                         \
+    langsam_log(vm, LANGSAM_ALERT, fmt, ##__VA_ARGS__);                        \
+  }
+
 #define langsam_critical(vm, fmt, ...)                                         \
-  langsam_log(vm, LANGSAM_CRITICAL, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_CRITICAL) {                                      \
+    langsam_log(vm, LANGSAM_CRITICAL, fmt, ##__VA_ARGS__);                     \
+  }
+
 #define langsam_error(vm, fmt, ...)                                            \
-  langsam_log(vm, LANGSAM_ERROR, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_ERROR) {                                         \
+    langsam_log(vm, LANGSAM_ERROR, fmt, ##__VA_ARGS__);                        \
+  }
+
 #define langsam_warning(vm, fmt, ...)                                          \
-  langsam_log(vm, LANGSAM_WARNING, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_WARNING) {                                       \
+    langsam_log(vm, LANGSAM_WARNING, fmt, ##__VA_ARGS__);                      \
+  }
+
 #define langsam_notice(vm, fmt, ...)                                           \
-  langsam_log(vm, LANGSAM_NOTICE, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_NOTICE) {                                        \
+    langsam_log(vm, LANGSAM_NOTICE, fmt, ##__VA_ARGS__);                       \
+  }
+
 #define langsam_info(vm, fmt, ...)                                             \
-  langsam_log(vm, LANGSAM_INFO, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_INFO) {                                          \
+    langsam_log(vm, LANGSAM_INFO, fmt, ##__VA_ARGS__);                         \
+  }
+
 #define langsam_debug(vm, fmt, ...)                                            \
-  langsam_log(vm, LANGSAM_DEBUG, fmt, ##__VA_ARGS__)
+  if (vm->loglevel >= LANGSAM_DEBUG) {                                         \
+    langsam_log(vm, LANGSAM_DEBUG, fmt, ##__VA_ARGS__);                        \
+  }
 
 // VM
 
