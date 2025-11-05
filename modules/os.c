@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "langsam.h"
+#include "../langsam.h"
 
 LV langsam_os_module(LangsamVM *vm, LV env);
 

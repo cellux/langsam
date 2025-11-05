@@ -7,11 +7,18 @@ CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
 LDFLAGS = -lm
 
-LIBS := langsam.a os.a
+MODULE_SRCS := $(wildcard modules/*.c)
+MODULE_SRCS += $(wildcard modules/os/*.c)
+MODULE_SRCS += $(wildcard modules/arch/*.c)
+
+MODULE_LIBS := $(MODULE_SRCS:.c=.a)
+
+LIBS := langsam.a $(MODULE_LIBS)
 OBJS := driver.o
 
 langsam: $(OBJS) $(LIBS)
 
+$(MODULE_LIBS:.a=.o): langsam.h
 $(LIBS:.a=.o): langsam.h
 $(OBJS): langsam.h
 
@@ -19,7 +26,7 @@ $(OBJS): langsam.h
 %.c: %.l
 
 %.lc: %.l bin2c.py
-	python3 bin2c.py $< $@ $(basename $<)_l
+	python3 bin2c.py $< $@ $(notdir $(basename $<))_l
 
 %.lo: %.lc
 	$(CC) -c -o $@ -x c $<
@@ -41,4 +48,8 @@ gdb: langsam
 
 .PHONY: clean
 clean:
-	rm -fv *.a *.o *.lo *.lc langsam
+	find -type f -name '*.a' -print -delete
+	find -type f -name '*.o' -print -delete
+	find -type f -name '*.lo' -print -delete
+	find -type f -name '*.lc' -print -delete
+	rm -fv langsam
