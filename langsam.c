@@ -786,11 +786,14 @@ LV langsam_String_get(LangsamVM *vm, LV self, LV key) {
   }
   LangsamIndex index = key.i;
   LangsamString *s = self.p;
-  if (index >= s->len) {
+  if (index < 0) {
+    index = s->len + index;
+  }
+  if (index < 0 || index >= s->len) {
     return langsam_exceptionf(vm, "get",
                               "String index " LANGSAM_INTEGER_FMT
                               " out of range (0.." LANGSAM_INTEGER_FMT ")",
-                              index, s->len - 1);
+                              key.i, s->len - 1);
   }
   return langsam_integer(s->p[index]);
 }
@@ -1467,11 +1470,14 @@ LV langsam_Vector_get(LangsamVM *vm, LV self, LV key) {
   }
   LangsamIndex index = key.i;
   LangsamVector *v = self.p;
-  if (index >= v->len) {
+  if (index < 0) {
+    index = v->len + index;
+  }
+  if (index < 0 || index >= v->len) {
     return langsam_exceptionf(vm, "get",
                               "Vector index " LANGSAM_INTEGER_FMT
                               " out of range (0.." LANGSAM_INTEGER_FMT ")",
-                              index, v->len - 1);
+                              key.i, v->len - 1);
   }
   return v->items[index];
 }
@@ -1484,11 +1490,14 @@ LV langsam_Vector_put(LangsamVM *vm, LV self, LV key, LV value) {
   }
   LangsamIndex index = key.i;
   LangsamVector *v = self.p;
-  if (index >= v->len) {
+  if (index < 0) {
+    index = v->len + index;
+  }
+  if (index < 0 || index >= v->len) {
     return langsam_exceptionf(vm, "put",
                               "Vector index " LANGSAM_INTEGER_FMT
                               " out of range (0.." LANGSAM_INTEGER_FMT ")",
-                              index, v->len - 1);
+                              key.i, v->len - 1);
   }
   v->items[index] = value;
   return self;

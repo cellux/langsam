@@ -1,9 +1,13 @@
 (let [s "foo"]
   (assert (= (get s 1) 0x6f))
+  (assert (= (get s -1) 0x6f))
+  (assert (= (get s -3) 0x66))
   (assert (throws? '(get . "attempt to index String with Keyword")
                    (get s :zero)))
   (assert (throws? '(get . "String index 3 out of range (0..2)")
-                   (get s 3))))
+                   (get s 3)))
+  (assert (throws? '(get . "String index -4 out of range (0..2)")
+                   (get s -4))))
 
 (let [c (cons :a :b)]
   (assert (= (get c 0) :a))
@@ -15,10 +19,14 @@
 
 (let [v [1 2 3]]
   (assert (= (get v 1) 2))
+  (assert (= (get v -1) 3))
+  (assert (= (get v -3) 1))
   (assert (throws? '(get . "attempt to index Vector with Keyword")
                    (get v :zero)))
   (assert (throws? '(get . "Vector index 3 out of range (0..2)")
-                   (get v 3))))
+                   (get v 3)))
+  (assert (throws? '(get . "Vector index -4 out of range (0..2)")
+                   (get v -4))))
 
 (let [m {:a 3 :b 5 :c 8}]
   (assert (= (get m :b) 5))
