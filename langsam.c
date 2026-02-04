@@ -4259,7 +4259,8 @@ static LV Reader_read_string(Reader *r) {
       StringBuilder_reset(&sb);
       return result;
     } else if (langsam_nilp(result)) {
-      return StringBuilder_result_as_string(&sb);
+      StringBuilder_reset(&sb);
+      return langsam_exceptionf(r->vm, "read", "incomplete string");
     }
     uint8_t c = (uint8_t)result.i;
     if (c == '"') {

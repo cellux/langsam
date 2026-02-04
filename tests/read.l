@@ -41,6 +41,12 @@
   (assert (= s "foo"))
   (assert (= (type s) String)))
 
+(assert (throws? '(read . "incomplete string")
+                 (read-string "\"foo")))
+
+(assert (throws? '(read . "incomplete character escape sequence")
+                 (read-string "\"foo\\")))
+
 (let [s (read-string "\"foo\a\b\f\n\r\t\vbar\"")]
   (assert (= s "foo\a\b\f\n\r\t\vbar"))
   (assert (= (get s 3) 0x07))
