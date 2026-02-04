@@ -123,9 +123,8 @@ LV langsam_cmp(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->cmp == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "cmp", "%s does not support cmp",
-                              self_type_name, other_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
@@ -138,9 +137,8 @@ LV langsam_add(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->add == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "add", "%s does not support add",
-                              other_type_name, self_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
@@ -154,9 +152,8 @@ LV langsam_sub(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->sub == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "sub", "%s does not support sub",
-                              other_type_name, self_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
@@ -170,9 +167,8 @@ LV langsam_mul(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->mul == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "mul", "%s does not support mul",
-                              self_type_name, other_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
@@ -186,9 +182,8 @@ LV langsam_div(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->div == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "div", "%s does not support div",
-                              self_type_name, other_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
@@ -202,9 +197,8 @@ LV langsam_mod(LangsamVM *vm, LV self, LV other) {
   LangsamType t1 = self.type;
   if (t1->mod == NULL) {
     char *self_type_name = langsam_ctypename(vm, self.type);
-    char *other_type_name = langsam_ctypename(vm, other.type);
     return langsam_exceptionf(vm, "mod", "%s does not support mod",
-                              self_type_name, other_type_name, self_type_name);
+                              self_type_name);
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
