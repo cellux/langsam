@@ -9,11 +9,11 @@
 (assert (= (cmp 5 3) 1))
 (assert (= (cmp 5 5) 0))
 
-(assert (not= (cmp 5 5.0) 0))
-(assert (not= (cmp 5.0 5) 0))
-(assert (not= (cmp "foo" 'foo) 0))
-(assert (not= (cmp "foo" :foo) 0))
-(assert (not= (cmp "foo" %foo) 0))
+(assert (throws? '(cmp . "cannot cmp Integer and Float") (cmp 5 5.0)))
+(assert (throws? '(cmp . "cannot cmp Float and Integer") (cmp 5.0 5)))
+(assert (throws? '(cmp . "cannot cmp String and Symbol") (cmp "foo" 'foo)))
+(assert (throws? '(cmp . "cannot cmp String and Keyword") (cmp "foo" :foo)))
+(assert (throws? '(cmp . "cannot cmp String and Opword") (cmp "foo" %foo)))
 
 (assert (< 3 5))
 (assert (<= 3 5))

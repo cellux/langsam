@@ -128,7 +128,10 @@ LV langsam_cmp(LangsamVM *vm, LV self, LV other) {
   }
   LangsamType t2 = other.type;
   if (t1 != t2) {
-    return langsam_integer(t1 - t2);
+    char *t1_name = langsam_ctypename(vm, t1);
+    char *t2_name = langsam_ctypename(vm, t2);
+    return langsam_exceptionf(vm, "cmp", "cannot cmp %s and %s", t1_name,
+                              t2_name);
   }
   return t1->cmp(vm, self, other);
 }
