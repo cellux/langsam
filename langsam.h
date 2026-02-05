@@ -229,11 +229,11 @@ typedef struct {
 } LangsamVectorIterator;
 
 typedef struct {
-  LV proto;
   LV *buckets;
   LangsamSize nbuckets;
   LangsamSize nitems;
-  LangsamFloat load_factor;
+  LangsamFloat loadfactor;
+  LV proto;
 } LangsamMap;
 
 typedef struct {
@@ -252,7 +252,6 @@ typedef struct {
   LangsamNativeFn fn;
   bool evalargs;
   bool evalresult;
-  bool dynamic;
 } LangsamFunction;
 
 // Type
