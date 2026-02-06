@@ -6,5 +6,17 @@
 
 (assert (= (str 'alpha) "alpha"))
 (assert (= (str 'alpha 'bravo) "alphabravo"))
-(let [rest '(charlie delta)]
-  (assert (= (apply str 'alpha 'bravo rest) "alphabravocharliedelta")))
+(assert (= (apply str 'alpha 'bravo '(charlie delta)) "alphabravocharliedelta"))
+
+(assert (< "alpha" "bravo"))
+(assert (< "alpha" "charlie"))
+(assert (< "charlie" "delta"))
+(assert (> "delta" "charlie"))
+
+(assert (= (+ "foo" "bar") "foobar"))
+
+(assert (= (get "foobar" 3) 98))
+(assert (= (get "foobar" -1) 114))
+(assert (= (get "foobar" -2) 97))
+
+(assert (= (len "foobar") 6))

@@ -328,11 +328,11 @@ LangsamHash langsam_Type_hash(LangsamVM *vm, LV self, LangsamHash hash) {
 
 LV langsam_Type_invoke(LangsamVM *vm, LV self, LV args) {
   if (langsam_nilp(args)) {
-    return langsam_exceptionf(vm, "syntax", "%s constructor with no arguments",
+    return langsam_exceptionf(vm, "syntax", "%s constructor with no argument",
                               langsam_cstr(vm, self));
   }
   LV tail = langsam_cdr(args);
-  if (langsam_consp(tail)) {
+  if (!langsam_nilp(tail)) {
     return langsam_exceptionf(vm, "syntax",
                               "%s constructor requires a single argument",
                               langsam_cstr(vm, self));
@@ -443,8 +443,10 @@ LV langsam_exceptionf(LangsamVM *vm, char *kind, const char *fmt, ...) {
   return langsam_exception(vm, payload);
 }
 
+// langsam_exceptionp determines if `v` is an exception
 bool langsam_exceptionp(LV v) { return (v.type == LT_EXCEPTION); }
 
+// langsam_exceptionpk determines if `v` is an exception of `kind`
 bool langsam_exceptionpk(LangsamVM *vm, LV v, char *kind) {
   if (!langsam_exceptionp(v)) {
     return false;
@@ -760,13 +762,7 @@ LV langsam_String_cast(LangsamVM *vm, LV other) {
 LV langsam_String_cmp(LangsamVM *vm, LV self, LV other) {
   LangsamString *s1 = (LangsamString *)self.p;
   LangsamString *s2 = (LangsamString *)other.p;
-  if (s1->len < s2->len) {
-    return langsam_integer(-1);
-  }
-  if (s1->len > s2->len) {
-    return langsam_integer(1);
-  }
-  size_t cmplen = (size_t)s1->len;
+  size_t cmplen = (size_t)((s1->len < s2->len) ? s1->len : s2->len);
   return langsam_integer(memcmp(s1->p, s2->p, cmplen));
 }
 

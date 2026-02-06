@@ -1,5 +1,5 @@
 ; Type
-(assert (throws? '(syntax . "Cons constructor with no arguments") (Cons)))
+(assert (throws? '(syntax . "Cons constructor with no argument") (Cons)))
 (assert (throws? '(syntax . "Cons constructor requires a single argument") (Cons [:a :b] [:c :d])))
 (assert (= (Cons [:a :b]) '(:a . :b)))
 
