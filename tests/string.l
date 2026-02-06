@@ -8,6 +8,13 @@
 (assert (= (str 'alpha 'bravo) "alphabravo"))
 (assert (= (apply str 'alpha 'bravo '(charlie delta)) "alphabravocharliedelta"))
 
+(assert (= (repr "") "\"\""))
+(assert (= (repr "foo") "\"foo\""))
+(assert (= (repr "foo\"bar") "\"foo\\\"bar\""))
+(assert (= (repr "foo\\bar") "\"foo\\\\bar\""))
+(assert (= (repr "foo\a\b\f\n\r\t\vbar")
+           "\"foo\\a\\b\\f\\n\\r\\t\\vbar\""))
+
 (assert (< "alpha" "bravo"))
 (assert (< "alpha" "charlie"))
 (assert (< "charlie" "delta"))
