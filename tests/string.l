@@ -12,6 +12,7 @@
 (assert (< "alpha" "charlie"))
 (assert (< "charlie" "delta"))
 (assert (> "delta" "charlie"))
+(assert (> "deltaforce" "delta"))
 
 (assert (= (+ "foo" "bar") "foobar"))
 

@@ -763,7 +763,14 @@ LV langsam_String_cmp(LangsamVM *vm, LV self, LV other) {
   LangsamString *s1 = (LangsamString *)self.p;
   LangsamString *s2 = (LangsamString *)other.p;
   size_t cmplen = (size_t)((s1->len < s2->len) ? s1->len : s2->len);
-  return langsam_integer(memcmp(s1->p, s2->p, cmplen));
+  int result = memcmp(s1->p, s2->p, cmplen);
+  if (result != 0) {
+    return langsam_integer(result);
+  }
+  if (s1->len == s2->len) {
+    return langsam_integer(0);
+  }
+  return langsam_integer((s1->len < s2->len) ? -1 : 1);
 }
 
 LV langsam_String_add(LangsamVM *vm, LV self, LV other) {
