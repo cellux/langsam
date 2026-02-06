@@ -23,6 +23,7 @@
 (assert (= (Boolean "") false))
 (assert (= (Boolean "0") true))
 (assert (= (Boolean 0) false))
+(assert (= (Boolean 1) true))
 (assert (= (Boolean -1) true))
 (assert (= (Boolean 0.0) false))
 (assert (= (Boolean 0.5) true))
@@ -31,6 +32,8 @@
 (assert (= (Boolean :foo) true))
 (assert (= (Boolean +) true))
 (assert (= (Boolean '(:a . :b)) true))
+
+(for [x [true false]] (assert (= (Boolean x) x)))
 
 (assert (= (str true) "true"))
 (assert (= (str false) "false"))

@@ -1,3 +1,22 @@
+(assert (= (Map 8) {}))
+
+(let [m {:a 3 :b 5 :c 8}]
+  (assert (= (Map m) m))
+  (assert (= (Map [[:a 3] [:b 5] [:c 8]]) m))
+  (assert (= (Map '((:a . 3) (:b . 5) (:c . 8))) m))
+  (assert (= (Map '((:a 3) (:b 5) (:c 8))) {:a '(3) :b '(5) :c '(8)})))
+
+(let [m {:a 3 :b 5 :c 8}]
+  (assert (= (get m :b) 5))
+  (assert (= (m :b) 5))
+  (assert (= (:b m) 5))
+  (assert (= (:d m) nil))
+  (assert (= (get m 'do) nil))
+  (setproto m (curlet))
+  (assert (= (get m 'do) do))
+  (assert (= m/do do))
+  (assert (= (type m/do) Function)))
+
 (let [m {:foo 5 :bar 8}]
   (assert (= (m :foo) 5))
   (assert (= (m :bar) 8))
@@ -42,3 +61,18 @@
 
 (assert (= (Map {:a 3 :b 5})) {:a 3 :b 5})
 (assert (= (Map (map (fn [x] x) {:a 3 :b 5})) {:a 3 :b 5}))
+
+(let [m {:a 5 :b 8 :c 3}]
+  (assert (= (m :b) 8)))
+
+; MapIterator
+(let [m {:a 5 :b 8 :c 3}
+      it (iter m)
+      items nil]
+  (while it
+    (assert (= (type it) MapIterator))
+    (setq items (cons @it items))
+    (setq it (it)))
+  (assert (= (Map items) m))
+  (assert (throws? '(deref . "attempt to deref consumed MapIterator") @it))
+  (assert (throws? '(invoke . "attempt to advance consumed MapIterator") (it))))

@@ -12,3 +12,7 @@
               (%finally (swapq f * 4)))]
   (assert (= f 32))
   (assert (= result "caught exception with message: division by zero")))
+
+(let [thrown-payload :foo
+      caught-payload (catch [x x] (Exception thrown-payload))]
+  (assert (= caught-payload thrown-payload)))

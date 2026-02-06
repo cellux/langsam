@@ -1,3 +1,25 @@
+(assert (= (String "foo") "foo"))
+(assert (= (String String) "String"))
+(assert (= (String nil) "nil"))
+(assert (= (String true) "true"))
+(assert (= (String false) "false"))
+(assert (= (String 1234) "1234"))
+(assert (= (String 1234.375) "1234.375"))
+(assert (= (String -1234.375) "-1234.375"))
+(assert (= (String 0x100) "256"))
+(assert (= (String 'foo) "foo"))
+(assert (= (String :foo) ":foo"))
+(assert (= (String %foo) "%foo"))
+(assert (= (String (cons :a :b)) "(:a . :b)"))
+(assert (= (String (cons :a (cons :b nil))) "(:a :b)"))
+(assert (= (String [1 2 3]) "[1 2 3]"))
+(assert (= (String do) "<Special:do>"))
+(assert (= (String unless) "<Macro:unless>"))
+(assert (= (String map) "<Function:map>"))
+
+(let [m {:a 3 :b 5 :c 8}]
+  (assert (= (read-string (String m)) m)))
+
 (assert (= (type "foo") String))
 (assert (= (String "foo") "foo"))
 (assert (= (str "foo") "foo"))
@@ -28,3 +50,14 @@
 (assert (= (get "foobar" -2) 97))
 
 (assert (= (len "foobar") 6))
+
+(let [s "foo"]
+  (assert (= (get s 1) 0x6f))
+  (assert (= (get s -1) 0x6f))
+  (assert (= (get s -3) 0x66))
+  (assert (throws? '(get . "attempt to index String with Keyword")
+                   (get s :zero)))
+  (assert (throws? '(get . "String index 3 out of range (0..2)")
+                   (get s 3)))
+  (assert (throws? '(get . "String index -4 out of range (0..2)")
+                   (get s -4))))

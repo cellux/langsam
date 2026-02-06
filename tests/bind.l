@@ -101,4 +101,3 @@
       f (fn [x &opt (y (+ z 1))] (cons x y))]
   (let [z 7]
     (assert (= (f 5) '(5 . 9)))))
-
