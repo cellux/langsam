@@ -734,6 +734,12 @@ const LangsamType LT_FLOAT = &LANGSAM_T_FLOAT;
 
 // String
 
+static LangsamString EMPTY_STRING = {.p = NULL, .len = 0};
+
+static LV langsam_empty_string(void) {
+  return (LV){.type = LT_STRING, .p = &EMPTY_STRING};
+}
+
 LangsamSize langsam_String_gcmark(LangsamVM *vm, void *p) {
   LangsamString *s = p;
   return s->len + 1;
@@ -913,6 +919,9 @@ LV langsam_string(LangsamVM *vm, const char *s) {
 }
 
 LV langsam_stringn(LangsamVM *vm, const char *s, LangsamSize len) {
+  if (len == 0) {
+    return langsam_empty_string();
+  }
   char *p = langsam_alloc(vm, len + 1);
   memcpy(p, s, (size_t)len);
   p[len] = 0;
