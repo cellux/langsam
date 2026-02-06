@@ -531,7 +531,8 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
     LangsamFloat f = other.f;
     if (isnan(f) || isinf(f) || (f < (LangsamFloat)LANGSAM_INTEGER_MIN) ||
         (f > (LangsamFloat)LANGSAM_INTEGER_MAX)) {
-      return langsam_exceptionf(vm, "cast", "Float->Integer conversion failed");
+      return langsam_exceptionf(vm, "cast",
+                                "conversion from Float to Integer failed");
     }
 #if INTPTR_MAX == LLONG_MAX
     long long result = llround(f);
@@ -555,11 +556,11 @@ LV langsam_Integer_cast(LangsamVM *vm, LV other) {
 #endif
     if (endptr == s->p || errno != 0) {
       return langsam_exceptionf(
-          vm, "cast", "String->Integer conversion failed for: %s", s->p);
+          vm, "cast", "conversion from String to Integer failed for: %s", s->p);
     }
     return langsam_integer(i);
   }
-  return langsam_exceptionf(vm, "cast", "Cannot cast %s to Integer",
+  return langsam_exceptionf(vm, "cast", "cannot cast %s to Integer",
                             langsam_ctypename(vm, other.type));
 }
 
@@ -642,7 +643,8 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
     LangsamInteger i = other.i;
     LangsamFloat f = (LangsamFloat)i;
     if (f > limit || f < -limit) {
-      return langsam_exceptionf(vm, "cast", "Integer->Float conversion failed");
+      return langsam_exceptionf(vm, "cast",
+                                "conversion from Integer to Float failed");
     }
     return langsam_float(f);
   } else if (other.type == LT_STRING) {
@@ -658,12 +660,13 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
 #error "Cannot find a suitable implementation for String->Float conversion"
 #endif
     if (endptr == s->p || errno != 0) {
-      return langsam_exceptionf(
-          vm, "cast", "String->Float conversion failed for: %s", s->p);
+      return langsam_exceptionf(vm, "cast",
+                                "conversion from String to Float failed for: %s",
+                                s->p);
     }
     return langsam_float(f);
   }
-  return langsam_exceptionf(vm, "cast", "Cannot cast %s to Float",
+  return langsam_exceptionf(vm, "cast", "cannot cast %s to Float",
                             langsam_ctypename(vm, other.type));
 }
 
@@ -1022,7 +1025,7 @@ LV langsam_Symbol_cast(LangsamVM *vm, LV other) {
     LangsamString *s = other.p;
     return langsam_symbol(vm, s->p);
   }
-  return langsam_exceptionf(vm, "cast", "Cannot cast %s to Symbol",
+  return langsam_exceptionf(vm, "cast", "cannot cast %s to Symbol",
                             langsam_ctypename(vm, other.type));
 }
 
@@ -1072,7 +1075,7 @@ LV langsam_Keyword_cast(LangsamVM *vm, LV other) {
         .p = other.p,
     };
   }
-  return langsam_exceptionf(vm, "cast", "Cannot cast %s to Keyword",
+  return langsam_exceptionf(vm, "cast", "cannot cast %s to Keyword",
                             langsam_ctypename(vm, other.type));
 }
 
@@ -1118,7 +1121,7 @@ LV langsam_Opword_cast(LangsamVM *vm, LV other) {
         .p = other.p,
     };
   }
-  return langsam_exceptionf(vm, "cast", "Cannot cast %s to Opword",
+  return langsam_exceptionf(vm, "cast", "cannot cast %s to Opword",
                             langsam_ctypename(vm, other.type));
 }
 
@@ -2684,7 +2687,7 @@ LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
 
 LV langsam_Function_cast(LangsamVM *vm, LV other) {
   if (other.type != LT_MAP) {
-    return langsam_exceptionf(vm, "cast", "Cannot cast %s to <Function>",
+    return langsam_exceptionf(vm, "cast", "cannot cast %s to Function",
                               langsam_ctypename(vm, other.type));
   }
   LangsamFunction *f =

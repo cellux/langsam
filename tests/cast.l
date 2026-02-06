@@ -14,8 +14,8 @@
 (assert (= (Integer 1.5) 2))
 (assert (= (Integer "1234") 1234))
 (assert (= (Integer "-1234") -1234))
-(assert (throws? '(cast . "String->Integer conversion failed for: foo") (Integer "foo")))
-(assert (throws? '(cast . "Cannot cast Symbol to Integer") (Integer 'foo)))
+(assert (throws? '(cast . "conversion from String to Integer failed for: foo") (Integer "foo")))
+(assert (throws? '(cast . "cannot cast Symbol to Integer") (Integer 'foo)))
 
 (for [x [-5.0 0.0 5.0]] (assert (= (Float x) x)))
 (assert (= (Float nil) 0.0))
@@ -26,8 +26,8 @@
 (assert (= (Float "1234") 1234.0))
 (assert (= (Float "1234.375") 1234.375))
 (assert (= (Float "-1234.375") -1234.375))
-(assert (throws? '(cast . "String->Float conversion failed for: foo") (Float "foo")))
-(assert (throws? '(cast . "Cannot cast Symbol to Float") (Float 'foo)))
+(assert (throws? '(cast . "conversion from String to Float failed for: foo") (Float "foo")))
+(assert (throws? '(cast . "cannot cast Symbol to Float") (Float 'foo)))
 
 (assert (= (String "foo") "foo"))
 (assert (= (String String) "String"))
@@ -52,17 +52,17 @@
 
 (assert (= (Symbol 'foo) 'foo))
 (assert (= (Symbol "foo") 'foo))
-(assert (throws? '(cast . "Cannot cast Integer to Symbol") (Symbol 1234)))
+(assert (throws? '(cast . "cannot cast Integer to Symbol") (Symbol 1234)))
 
 (assert (= (Keyword :foo) :foo))
 (assert (= (Keyword "foo") :foo))
 (assert (= (Keyword 'foo) :foo))
-(assert (throws? '(cast . "Cannot cast Integer to Keyword") (Keyword 1234)))
+(assert (throws? '(cast . "cannot cast Integer to Keyword") (Keyword 1234)))
 
 (assert (= (Opword %foo) %foo))
 (assert (= (Opword "foo") %foo))
 (assert (= (Opword 'foo) %foo))
-(assert (throws? '(cast . "Cannot cast Integer to Opword") (Opword 1234)))
+(assert (throws? '(cast . "cannot cast Integer to Opword") (Opword 1234)))
 
 (assert (= (Cons '(a . b)) '(a . b)))
 (assert (= (Cons '(a b c)) '(a b c)))
