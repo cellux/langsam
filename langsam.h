@@ -595,7 +595,8 @@ void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
 // returned string is managed by GC, no need to free
 char *langsam_cstr(LangsamVM *vm, LV v);
 
-LV langsam_require(LangsamVM *vm, char *module_name, LV load_target);
+LV langsam_import(LangsamVM *vm, char *module_name, LV env);
+LV langsam_require(LangsamVM *vm, char *module_name);
 
 LV langsam_loadfile(LangsamVM *vm, LV env, const char *path);
 LV langsam_loadfd(LangsamVM *vm, LV env, int fd);

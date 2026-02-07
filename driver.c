@@ -10,7 +10,7 @@ static void set_os_args(LangsamVM *vm, int argc, char **argv) {
     args = langsam_cons(vm, arg, args);
   }
   args = langsam_nreverse(args);
-  LV os = langsam_require(vm, "os", langsam_nil);
+  LV os = langsam_require(vm, "os");
   langsam_put(vm, os, langsam_symbol(vm, "args"), args);
 }
 
