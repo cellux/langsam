@@ -4571,15 +4571,15 @@ static LV Reader_read(Reader *r) {
   }
 }
 
-static LV langsam_read(LangsamVM *vm, ByteReadFunc readbyte,
-                       void *readbyte_data) {
+static LV langsam_read_bytes(LangsamVM *vm, ByteReadFunc readbyte,
+                             void *readbyte_data) {
   Reader r;
   Reader_init(&r, vm, readbyte, readbyte_data);
   return Reader_read(&r);
 }
 
-static LV langsam_load(LangsamVM *vm, LV env, ByteReadFunc readbyte,
-                       void *readbyte_data) {
+static LV langsam_load_bytes(LangsamVM *vm, LV env, ByteReadFunc readbyte,
+                             void *readbyte_data) {
   if (langsam_nilp(env)) {
     env = vm->curlet;
   }
@@ -4639,7 +4639,7 @@ static LV readbyte_fd(LangsamVM *vm, void *data) {
 }
 
 LV langsam_loadfd(LangsamVM *vm, LV env, int fd) {
-  return langsam_load(vm, env, readbyte_fd, (void *)(intptr_t)fd);
+  return langsam_load_bytes(vm, env, readbyte_fd, (void *)(intptr_t)fd);
 }
 
 LV langsam_loadfile(LangsamVM *vm, LV env, const char *path) {
@@ -4679,7 +4679,7 @@ LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len) {
       .len = len,
       .index = 0,
   };
-  return langsam_read(vm, readbyte_string, &state);
+  return langsam_read_bytes(vm, readbyte_string, &state);
 }
 
 LV langsam_loadstring(LangsamVM *vm, LV env, char *s) {
@@ -4693,7 +4693,7 @@ LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len) {
       .len = len,
       .index = 0,
   };
-  return langsam_load(vm, env, readbyte_string, &state);
+  return langsam_load_bytes(vm, env, readbyte_string, &state);
 }
 
 void langsam_close(LangsamVM *vm) {
