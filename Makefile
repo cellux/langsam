@@ -20,8 +20,15 @@ include config.mk
 $(info LANGSAM_OS=$(LANGSAM_OS))
 $(info LANGSAM_ARCH=$(LANGSAM_ARCH))
 
-MODULE_C_SRCS := $(shell find modules -name '*.c')
-MODULE_L_SRCS := $(shell find modules -name '*.l')
+MODULE_C_SRCS := \
+	$(wildcard modules/*.c) \
+	$(wildcard platform/os/$(LANGSAM_OS)/*.c) \
+	$(wildcard platform/arch/$(LANGSAM_ARCH)/*.c)
+
+MODULE_L_SRCS := \
+	$(wildcard modules/*.l) \
+	$(wildcard platform/os/$(LANGSAM_OS)/*.l) \
+	$(wildcard platform/arch/$(LANGSAM_ARCH)/*.l)
 
 MODULE_C_OBJS := $(MODULE_C_SRCS:.c=.o)
 MODULE_L_OBJS := $(MODULE_L_SRCS:.l=.lo)
