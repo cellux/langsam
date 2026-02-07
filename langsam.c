@@ -3750,104 +3750,6 @@ static LangsamImportFn langsam_dlsym_importfn(char *importfn_name) {
   return sym.importfn;
 }
 
-// langsam_import loads module `module_name` into `env`
-// if the load was successful, returns `env`
-LV langsam_import(LangsamVM *vm, char *module_name, LV env) {
-  size_t module_name_length = strlen(module_name);
-  char *mangled_module_name =
-      strcpy(alloca(module_name_length + 1), module_name);
-  langsam_mangle(mangled_module_name);
-
-  char *load_symbol_name;
-  if (asprintf(&load_symbol_name, "langsam_module_%s_load",
-               mangled_module_name) < 0) {
-    return langsam_exceptionf(vm, "require",
-                              "cannot allocate load_symbol_name for module: %s",
-                              module_name);
-  }
-
-  char *data_symbol_name;
-  if (asprintf(&data_symbol_name, "langsam_module_%s_data",
-               mangled_module_name) < 0) {
-    return langsam_exceptionf(vm, "require",
-                              "cannot allocate data_symbol_name for module: %s",
-                              module_name);
-  }
-
-  char *size_symbol_name;
-  if (asprintf(&size_symbol_name, "langsam_module_%s_size",
-               mangled_module_name) < 0) {
-    return langsam_exceptionf(vm, "require",
-                              "cannot allocate size_symbol_name for module: %s",
-                              module_name);
-  }
-
-  LangsamImportFn import = langsam_dlsym_importfn(load_symbol_name);
-  bool has_load = import != NULL;
-
-  char *module_data = dlsym(RTLD_DEFAULT, data_symbol_name);
-  bool has_data = module_data != NULL;
-
-  int *module_size = dlsym(RTLD_DEFAULT, size_symbol_name);
-  bool has_size = module_size != NULL;
-
-  if (!has_load && !has_data && !has_size) {
-    return langsam_exceptionf(vm, "require", "cannot find module: %s",
-                              module_name);
-  }
-
-  if (has_data && !has_size) {
-    return langsam_exceptionf(vm, "require",
-                              "module %s has %s but is missing %s", module_name,
-                              data_symbol_name, size_symbol_name);
-  }
-
-  if (has_size && !has_data) {
-    return langsam_exceptionf(vm, "require",
-                              "module %s has %s but is missing %s", module_name,
-                              size_symbol_name, data_symbol_name);
-  }
-
-  if (has_load) {
-    import(vm, env);
-  }
-
-  if (has_data) {
-    if (*module_size < 0) {
-      return langsam_exceptionf(vm, "require",
-                                "module %s has negative source size: %d",
-                                module_name, *module_size);
-    }
-    LV load_result =
-        langsam_loadstringn(vm, env, module_data, (LangsamSize)*module_size);
-    if (langsam_exceptionp(load_result)) {
-      return langsam_exceptionf(vm, "require", "failed to load module %s: %s",
-                                module_name, langsam_cstr(vm, load_result));
-    }
-  }
-
-  return env;
-}
-
-LV langsam_require(LangsamVM *vm, char *module_name) {
-  LV module_iname = langsam_istring(vm, module_name);
-  LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
-  LV module = langsam_get(vm, modules, module_iname);
-  if (langsam_somep(module)) {
-    return module;
-  }
-
-  module = langsam_map(vm, vm->rootlet, 64);
-  LV result = langsam_put(vm, modules, module_iname, module);
-  LANGSAM_CHECK(result);
-
-  result = langsam_import(vm, module_name, module);
-  if (langsam_exceptionp(result)) {
-    langsam_del(vm, modules, module_iname);
-  }
-  return result;
-}
-
 LV langsam_pushroot(LangsamVM *vm, LV root) {
   if (vm->numroots == LANGSAM_MAX_ROOTS) {
     return langsam_exceptionf(vm, "pushroot",
@@ -3958,7 +3860,7 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->loglevel = LANGSAM_INFO;
   vm->evaldepth = 0;
   vm->reprdepth = 0;
-  LV import_result = langsam_import(vm, "langsam", vm->curlet);
+  LV import_result = langsam_loadmodule(vm, vm->curlet, "langsam");
   LANGSAM_CHECK(import_result);
   LV mainlet = langsam_map(vm, vm->curlet, 4096);
   langsam_pushlet(vm, mainlet);
@@ -4685,6 +4587,105 @@ LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len) {
       .index = 0,
   };
   return langsam_load_bytes(vm, env, readbyte_string, &state);
+}
+
+// langsam_loadmodule loads module `module_name` into `env`
+// if the load was successful, returns `env`
+LV langsam_loadmodule(LangsamVM *vm, LV env, char *module_name) {
+  size_t module_name_length = strlen(module_name);
+  char *mangled_module_name =
+      strcpy(alloca(module_name_length + 1), module_name);
+  langsam_mangle(mangled_module_name);
+
+  char *load_symbol_name;
+  if (asprintf(&load_symbol_name, "langsam_module_%s_load",
+               mangled_module_name) < 0) {
+    return langsam_exceptionf(vm, "require",
+                              "cannot allocate load_symbol_name for module: %s",
+                              module_name);
+  }
+
+  char *data_symbol_name;
+  if (asprintf(&data_symbol_name, "langsam_module_%s_data",
+               mangled_module_name) < 0) {
+    return langsam_exceptionf(vm, "require",
+                              "cannot allocate data_symbol_name for module: %s",
+                              module_name);
+  }
+
+  char *size_symbol_name;
+  if (asprintf(&size_symbol_name, "langsam_module_%s_size",
+               mangled_module_name) < 0) {
+    return langsam_exceptionf(vm, "require",
+                              "cannot allocate size_symbol_name for module: %s",
+                              module_name);
+  }
+
+  LangsamImportFn import = langsam_dlsym_importfn(load_symbol_name);
+  bool has_load = import != NULL;
+
+  char *module_data = dlsym(RTLD_DEFAULT, data_symbol_name);
+  bool has_data = module_data != NULL;
+
+  int *module_size = dlsym(RTLD_DEFAULT, size_symbol_name);
+  bool has_size = module_size != NULL;
+
+  if (!has_load && !has_data && !has_size) {
+    return langsam_exceptionf(vm, "require", "cannot find module: %s",
+                              module_name);
+  }
+
+  if (has_data && !has_size) {
+    return langsam_exceptionf(vm, "require",
+                              "module %s has %s but is missing %s", module_name,
+                              data_symbol_name, size_symbol_name);
+  }
+
+  if (has_size && !has_data) {
+    return langsam_exceptionf(vm, "require",
+                              "module %s has %s but is missing %s", module_name,
+                              size_symbol_name, data_symbol_name);
+  }
+
+  if (has_load) {
+    import(vm, env);
+  }
+
+  if (has_data) {
+    if (*module_size < 0) {
+      return langsam_exceptionf(vm, "require",
+                                "module %s has negative source size: %d",
+                                module_name, *module_size);
+    }
+    LV load_result =
+        langsam_loadstringn(vm, env, module_data, (LangsamSize)*module_size);
+    if (langsam_exceptionp(load_result)) {
+      return langsam_exceptionf(vm, "require", "failed to load module %s: %s",
+                                module_name, langsam_cstr(vm, load_result));
+    }
+  }
+
+  return env;
+}
+
+LV langsam_require(LangsamVM *vm, char *module_name) {
+  LV module_iname = langsam_istring(vm, module_name);
+  LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
+  LV module = langsam_get(vm, modules, module_iname);
+  if (langsam_somep(module)) {
+    return module;
+  }
+
+  module = langsam_map(vm, vm->rootlet, 64);
+  LV result = langsam_put(vm, modules, module_iname, module);
+  LANGSAM_CHECK(result);
+
+  result = langsam_loadmodule(vm, module, module_name);
+  if (langsam_exceptionp(result)) {
+    langsam_del(vm, modules, module_iname);
+  }
+
+  return module;
 }
 
 void langsam_close(LangsamVM *vm) {
