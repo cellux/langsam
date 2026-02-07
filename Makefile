@@ -45,7 +45,7 @@ $(MODULE_C_OBJS): langsam.h
 %.c: %.l
 
 modules/%.lc: modules/%.l bin2c.py
-	python3 bin2c.py $< $@ langsam_module_$(subst /,_,$*)
+	python3 bin2c.py $< $@ langsam_module_$(basename $(notdir $<))
 
 %.lo: %.lc
 	$(CC) -c -o $@ -x c $<
