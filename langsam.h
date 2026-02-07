@@ -635,9 +635,10 @@ struct LangsamVM {
   int reprdepth;
 };
 
-typedef LV (*LangsamImportFn)(LangsamVM *vm, LV env);
+typedef void (*LangsamImportFn)(LangsamVM *vm, LV env);
 
-void langsam_register_module(const char *name, LangsamImportFn import);
+// LangsamImportFn for langsam core
+void langsam_module_langsam_load(LangsamVM *vm, LV env);
 
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts);
 void langsam_enable_repl_mode(LangsamVM *vm);
@@ -656,7 +657,7 @@ void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
 // returned string is managed by GC, no need to free
 char *langsam_cstr(LangsamVM *vm, LV v);
 
-LV langsam_require(LangsamVM *vm, char *module_name);
+LV langsam_require(LangsamVM *vm, char *module_name, LV load_target);
 
 LV langsam_loadfile(LangsamVM *vm, LV env, const char *path);
 LV langsam_loadfd(LangsamVM *vm, LV env, int fd);

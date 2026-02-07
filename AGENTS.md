@@ -10,7 +10,7 @@ This file helps agents and contributors get oriented quickly in this repo.
 - `langsam.h` exposes the public API, core types, and VM utilities.
 - `driver.c` is the CLI entry point for the `langsam` executable.
 - `driver.l` appears to be unused by the current build (no references in `Makefile` or code).
-- `langsam.l` is the core standard library written in Langsam and embedded into the binary.
+- `modules/langsam.l` is the core standard library written in Langsam and embedded into the binary.
 
 **Build and Test**
 - Build: `make`
@@ -26,11 +26,11 @@ This file helps agents and contributors get oriented quickly in this repo.
 - Native modules live in `modules/*.c`.
 - `modules/os.c` provides the `os` module with file IO and process arguments.
 - Langsam-side module code lives in `modules/*.l`.
-- The CLI registers modules in `driver.c` via `langsam_register_module`.
+- Modules are resolved at runtime by `langsam_require` via exported `langsam_module_*` symbols.
 
 **Embedding Langsam Code**
 - `bin2c.py` converts `.l` files to `.lc` C blobs.
-- `Makefile` builds `langsam.lc` from `langsam.l`, then compiles and links it into the binary.
+- `Makefile` builds `*.lc` blobs from module `.l` files (including `modules/langsam.l`), compiles them to `.lo`, then links them into the binary.
 
 **Conventions and Notes**
 - C is compiled with strict warnings (`-Wall -Wextra -Wpedantic -Wconversion -Wshadow`).

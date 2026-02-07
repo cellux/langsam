@@ -3,12 +3,6 @@
 
 #include "langsam.h"
 
-LV langsam_os_module(LangsamVM *vm, LV env);
-
-static void register_modules(void) {
-  langsam_register_module("os", langsam_os_module);
-}
-
 static void set_os_args(LangsamVM *vm, int argc, char **argv) {
   LV args = langsam_nil;
   for (int i = 0; i < argc; i++) {
@@ -16,13 +10,12 @@ static void set_os_args(LangsamVM *vm, int argc, char **argv) {
     args = langsam_cons(vm, arg, args);
   }
   args = langsam_nreverse(args);
-  LV os = langsam_require(vm, "os");
+  LV os = langsam_require(vm, "os", langsam_nil);
   langsam_put(vm, os, langsam_symbol(vm, "args"), args);
 }
 
 int main(int argc, char **argv) {
   LangsamVM vm;
-  register_modules();
   LV init_result = langsam_init(&vm, NULL);
   if (langsam_exceptionp(init_result)) {
     char *error_message = langsam_cstr(&vm, init_result);

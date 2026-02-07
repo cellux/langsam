@@ -1,38 +1,34 @@
-CFLAGS = -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
+CFLAGS += -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
 CFLAGS += -g -O0 -fno-omit-frame-pointer
 CFLAGS += -Wall -Wextra -Wpedantic
 CFLAGS += -Wno-unused-parameter
 CFLAGS += -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
-LDFLAGS = -lm
+LDFLAGS += -rdynamic -Wl,--export-dynamic -ldl -lm
 
-MODULE_SRCS := $(wildcard modules/*.c)
-MODULE_SRCS += $(wildcard modules/os/*.c)
-MODULE_SRCS += $(wildcard modules/arch/*.c)
+MODULE_C_SRCS := $(shell find modules -name '*.c')
+MODULE_L_SRCS := $(shell find modules -name '*.l')
 
-MODULE_LIBS := $(MODULE_SRCS:.c=.a)
+MODULE_C_OBJS := $(MODULE_C_SRCS:.c=.o)
+MODULE_L_OBJS := $(MODULE_L_SRCS:.l=.lo)
 
-LIBS := langsam.a $(MODULE_LIBS)
-OBJS := driver.o
+CORE_OBJS := langsam.o driver.o
 
-langsam: $(OBJS) $(LIBS)
+langsam: $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS)
+	$(CC) -o $@ $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS) $(LDFLAGS)
 
-$(MODULE_LIBS:.a=.o): langsam.h
-$(LIBS:.a=.o): langsam.h
-$(OBJS): langsam.h
+$(CORE_OBJS): langsam.h
+$(MODULE_C_OBJS): langsam.h
 
 # disable Make builtin which would process *.l with lex
 %.c: %.l
 
-%.lc: %.l bin2c.py
-	python3 bin2c.py $< $@ $(notdir $(basename $<))_l
+modules/%.lc: modules/%.l bin2c.py
+	python3 bin2c.py $< $@ langsam_module_$(subst /,_,$*)
 
 %.lo: %.lc
 	$(CC) -c -o $@ -x c $<
-
-%.a: %.o %.lo
-	$(AR) r -o $@ $^
 
 .PHONY: test
 test: langsam

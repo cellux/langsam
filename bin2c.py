@@ -10,8 +10,8 @@ with open(infile, "rb") as f:
     data = f.read()
 
 with open(outfile, "w") as f:
-    f.write(f"int {symbol}_len = {len(data)};\n")
-    f.write(f"unsigned char {symbol}_bytes[] = {{")
+    f.write(f"int {symbol}_size = {len(data)};\n")
+    f.write(f"char {symbol}_data[] = {{")
     i = 0
     while i < len(data):
         if i % 16 == 0:

@@ -6,10 +6,7 @@
 
 #include "../langsam.h"
 
-LV langsam_os_module(LangsamVM *vm, LV env);
-
-extern int os_l_len;
-extern char os_l_bytes[];
+void langsam_module_os_load(LangsamVM *vm, LV env);
 
 static struct LangsamT os_File_T;
 
@@ -152,7 +149,7 @@ static LV os_unlink(LangsamVM *vm, LV args) {
   return langsam_nil;
 }
 
-LV langsam_os_module(LangsamVM *vm, LV env) {
+void langsam_module_os_load(LangsamVM *vm, LV env) {
   langsam_def(vm, env, "File", langsam_type(&os_File_T));
   langsam_defn(vm, env, "open", os_open);
   langsam_def(vm, env, "stdin", os_File_cast(vm, langsam_integer(0)));
@@ -177,5 +174,4 @@ LV langsam_os_module(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "write", os_write);
   langsam_defn(vm, env, "close", os_close);
   langsam_defn(vm, env, "unlink", os_unlink);
-  return langsam_loadstringn(vm, env, os_l_bytes, os_l_len);
 }
