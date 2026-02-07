@@ -3,3 +3,5 @@
 *.lo
 *.lc
 langsam
+probe
+config.mk

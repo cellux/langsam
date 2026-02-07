@@ -8,68 +8,6 @@
 #include <stdint.h>
 #include <string.h>
 
-// OS
-
-#if defined(_WIN32)
-#define LANGSAM_OS_WINDOWS 1
-#define LANGSAM_OS "windows"
-#elif defined(__APPLE__) && defined(__MACH__)
-#include <TargetConditionals.h>
-#if TARGET_OS_IPHONE
-#define LANGSAM_OS_IOS 1
-#define LANGSAM_OS "ios"
-#else
-#define LANGSAM_OS_MACOS 1
-#define LANGSAM_OS "macos"
-#endif
-#elif defined(__linux__)
-#define LANGSAM_OS_LINUX 1
-#define LANGSAM_OS "linux"
-#elif defined(__unix__)
-#define LANGSAM_OS_UNIX 1
-#define LANGSAM_OS "unix"
-#elif defined(__FreeBSD__)
-#define LANGSAM_OS_FREEBSD 1
-#define LANGSAM_OS "freebsd"
-#elif defined(__ANDROID__)
-#define LANGSAM_OS_ANDROID 1
-#define LANGSAM_OS "android"
-#else
-#define LANGSAM_OS_UNKNOWN 1
-#define LANGSAM_OS "unknown"
-#endif
-
-// processor architecture
-
-#if defined(__x86_64__) || defined(_M_X64)
-#define LANGSAM_ARCH_X86_64 1
-#define LANGSAM_ARCH "x86_64"
-#elif defined(__i386__) || defined(_M_IX86)
-#define LANGSAM_ARCH_X86 1
-#define LANGSAM_ARCH "x86"
-#elif defined(__aarch64__) || defined(_M_ARM64)
-#define LANGSAM_ARCH_ARM64 1
-#define LANGSAM_ARCH "arm64"
-#elif defined(__arm__) || defined(_M_ARM)
-#define LANGSAM_ARCH_ARM 1
-#define LANGSAM_ARCH "arm"
-#elif defined(__riscv)
-#define LANGSAM_ARCH_RISCV 1
-#define LANGSAM_ARCH "riscv"
-#elif defined(__mips__) || defined(__mips) || defined(_M_MRX000)
-#define LANGSAM_ARCH_MIPS 1
-#define LANGSAM_ARCH "mips"
-#elif defined(__powerpc64__) || defined(__ppc64__) || defined(_M_PPC)
-#define LANGSAM_ARCH_PPC64 1
-#define LANGSAM_ARCH "ppc64"
-#elif defined(__powerpc__) || defined(__ppc__)
-#define LANGSAM_ARCH_PPC 1
-#define LANGSAM_ARCH "ppc"
-#else
-#define LANGSAM_ARCH_UNKNOWN 1
-#define LANGSAM_ARCH "unknown"
-#endif
-
 // core types
 
 typedef struct LangsamVM LangsamVM;

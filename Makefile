@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := langsam
+
 CFLAGS += -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
 CFLAGS += -g -O0 -fno-omit-frame-pointer
 CFLAGS += -Wall -Wextra -Wpedantic
@@ -6,6 +8,17 @@ CFLAGS += -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
 
 LDFLAGS += -rdynamic -Wl,--export-dynamic -ldl -lm
+
+probe: probe.c
+	$(CC) -o $@ $<
+
+config.mk: probe
+	./probe > config.mk
+
+include config.mk
+
+$(info LANGSAM_OS=$(LANGSAM_OS))
+$(info LANGSAM_ARCH=$(LANGSAM_ARCH))
 
 MODULE_C_SRCS := $(shell find modules -name '*.c')
 MODULE_L_SRCS := $(shell find modules -name '*.l')
@@ -48,4 +61,4 @@ clean:
 	find -type f -name '*.o' -print -delete
 	find -type f -name '*.lo' -print -delete
 	find -type f -name '*.lc' -print -delete
-	rm -fv langsam
+	rm -fv langsam probe
