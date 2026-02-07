@@ -3869,6 +3869,15 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
 
 void langsam_enable_repl_mode(LangsamVM *vm) { vm->repl = true; }
 
+void langsam_close(LangsamVM *vm) {
+  vm->strings = langsam_nil;
+  vm->rootlet = langsam_nil;
+  vm->curlet = langsam_nil;
+  langsam_gcfree_all(vm);
+  langsam_free(vm, vm->roots);
+  langsam_free(vm, vm->lets);
+}
+
 typedef struct {
   LangsamVM *vm;
   void *buf;
@@ -4686,13 +4695,4 @@ LV langsam_require(LangsamVM *vm, char *module_name) {
   }
 
   return module;
-}
-
-void langsam_close(LangsamVM *vm) {
-  vm->strings = langsam_nil;
-  vm->rootlet = langsam_nil;
-  vm->curlet = langsam_nil;
-  langsam_gcfree_all(vm);
-  langsam_free(vm, vm->roots);
-  langsam_free(vm, vm->lets);
 }
