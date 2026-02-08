@@ -105,10 +105,9 @@
     ((btc (memq :base r11 :disp 0x10) 0x78) [0x49 0x0F 0xBA 0x7B 0x10 0x78])))
 
 (for [[instruction expected-encoding] expected-instruction-encodings]
-  (let [actual-encoding (catch [e (throw (cons 'x86_64
-                                                (str "encode failed for "
-                                                     instruction
-                                                     ": "
-                                                     e)))]
+  (let [actual-encoding (catch [e (raise 'x86_64
+                                         "encode failed for %s: %s"
+                                         instruction
+                                         e)]
                           (x86_64/encode-instruction instruction))]
     (assert (= actual-encoding expected-encoding))))

@@ -15,6 +15,9 @@
 (defn map? [x] (= (type x) Map))
 (defn function? [x] (= (type x) Function))
 
+(defn raise [kind fmt & args]
+  (throw (cons kind (apply format fmt args))))
+
 (defn not [x]
   (if x false true))
 
@@ -159,7 +162,7 @@
                          ,(subcond clauses))
                       (let [[result] clauses]
                         result))
-                    `(throw (cons 'cond-let "no match"))))]
+                    `(raise 'cond-let "no match")))]
     (macro cond-let [& clauses]
       (subcond clauses))))
 
@@ -172,7 +175,7 @@
                          ,(subcond item# clauses))
                       (let [[result] clauses]
                         result))
-                    `(throw (cons 'cond-match "no match"))))]
+                    `(raise 'cond-match "no match")))]
     (macro cond-match [item & clauses]
       (let [item# (gensym 'item)]
         `(let [,item# ,item]
@@ -187,7 +190,7 @@
                          ,(subcase item# clauses))
                       (let [[result] clauses]
                         result))
-                    `(throw (cons 'case "no match"))))]
+                    `(raise 'case "no match")))]
     (macro case [item & clauses]
       (let [item# (gensym 'item)]
         `(let [,item# ,item]
