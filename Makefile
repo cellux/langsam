@@ -1,11 +1,15 @@
 .DEFAULT_GOAL := langsam
 
-CFLAGS += -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
-CFLAGS += -g -O0 -fno-omit-frame-pointer
-CFLAGS += -Wall -Wextra -Wpedantic
-CFLAGS += -Wno-unused-parameter
-CFLAGS += -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
-CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
+BASE_CFLAGS := -std=c17 -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L
+WARN_CFLAGS := -Wall -Wextra -Wpedantic -Wno-unused-parameter
+WARN_CFLAGS += -Wshadow -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes
+WARN_CFLAGS += -Wformat=2 -Wconversion -Wsign-conversion -Wundef -Wpointer-arith
+
+DEBUG_CFLAGS := -O0 -g -fno-omit-frame-pointer
+RELEASE_CFLAGS := -O2
+PROFILE_CFLAGS := -O2 -g -fno-omit-frame-pointer
+
+CFLAGS ?= $(BASE_CFLAGS) $(DEBUG_CFLAGS) $(WARN_CFLAGS)
 
 LDFLAGS += -rdynamic -Wl,--export-dynamic -ldl -lm
 
@@ -54,6 +58,13 @@ modules/%.lc: modules/%.l bin2c.py
 test: langsam
 	./langsam tests/*.l
 
+.PHONY: bench
+bench: langsam
+	@echo "bench/perf_smoke.l x10"
+	@bash -lc 'time -p for i in $$(seq 1 10); do ./langsam bench/perf_smoke.l >/dev/null; done'
+	@echo "tests/*.l x20"
+	@bash -lc 'time -p for i in $$(seq 1 20); do ./langsam tests/*.l >/dev/null; done'
+
 .PHONY: vtest
 vtest: langsam
 	valgrind --leak-check=full --show-leak-kinds=all ./langsam tests/*.l
@@ -61,6 +72,21 @@ vtest: langsam
 .PHONY: gdb
 gdb: langsam
 	gdb -x langsam.gdb --args ./langsam tests/*.l
+
+.PHONY: debug
+debug:
+	$(MAKE) clean
+	$(MAKE) CFLAGS='$(BASE_CFLAGS) $(DEBUG_CFLAGS) $(WARN_CFLAGS)'
+
+.PHONY: release
+release:
+	$(MAKE) clean
+	$(MAKE) CFLAGS='$(BASE_CFLAGS) $(RELEASE_CFLAGS) $(WARN_CFLAGS)'
+
+.PHONY: profile
+profile:
+	$(MAKE) clean
+	$(MAKE) CFLAGS='$(BASE_CFLAGS) $(PROFILE_CFLAGS) $(WARN_CFLAGS)'
 
 .PHONY: clean
 clean:

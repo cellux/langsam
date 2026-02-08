@@ -1254,6 +1254,9 @@ LV langsam_Cons_eval(LangsamVM *vm, LV self) {
     return langsam_exceptionf(vm, "eval", "unknown operator: %s",
                               langsam_cstr(vm, head));
   }
+  if (op.type == LT_FUNCTION) {
+    return langsam_Function_invoke(vm, op, langsam_cdr(self));
+  }
   return langsam_invoke(vm, op, langsam_cdr(self));
 }
 
@@ -1759,11 +1762,15 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
 static LV langsam_Map_rawgep(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
   LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
+  LangsamIndex bucket_index =
+      (LangsamIndex)(hash & (LangsamHash)(m->nbuckets - 1));
   LV bucket = m->buckets[bucket_index];
   while (langsam_consp(bucket)) {
     LV item = langsam_car(bucket);
     LV k = langsam_car(item);
+    if (LVEQ(k, key)) {
+      return item;
+    }
     LV eq = langsam_equal(vm, k, key);
     LANGSAM_CHECK(eq);
     if (langsam_truep(eq)) {
@@ -1844,7 +1851,8 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
     resize_map(vm, self, next_power_of_two(m->nbuckets * 2));
   }
   LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
+  LangsamIndex bucket_index =
+      (LangsamIndex)(hash & (LangsamHash)(m->nbuckets - 1));
   item = langsam_cons(vm, key, value);
   m->buckets[bucket_index] = langsam_cons(vm, item, m->buckets[bucket_index]);
   m->nitems++;
@@ -1854,7 +1862,8 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key) {
   LangsamMap *m = self.p;
   LangsamHash hash = langsam_hash(vm, key, HASH_SEED);
-  LangsamIndex bucket_index = (LangsamIndex)(hash % (LangsamHash)m->nbuckets);
+  LangsamIndex bucket_index =
+      (LangsamIndex)(hash & (LangsamHash)(m->nbuckets - 1));
   LV bucket = m->buckets[bucket_index];
   LV prev = langsam_nil;
   while (langsam_consp(bucket)) {
@@ -2036,6 +2045,7 @@ LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
 }
 
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {
+  // Keep `nbuckets` as a power of two so bucket selection can use a bitmask.
   LangsamSize nbuckets = next_power_of_two(nitems);
   LangsamMap *m = langsam_gcalloc(vm, LT_MAP, LANGSAM_SIZEOF(LangsamMap));
   m->proto = proto;
