@@ -3141,6 +3141,30 @@ static LV eval_mod(LangsamVM *vm, LV args) {
   return result;
 }
 
+static LV eval_bit_and(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(x, args);
+  LANGSAM_ARG_TYPE(x, LT_INTEGER);
+  LV result = x;
+  while (langsam_consp(args)) {
+    LANGSAM_ARG(y, args);
+    LANGSAM_ARG_TYPE(y, LT_INTEGER);
+    result = langsam_integer(result.i & y.i);
+  }
+  return result;
+}
+
+static LV eval_bit_or(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(x, args);
+  LANGSAM_ARG_TYPE(x, LT_INTEGER);
+  LV result = x;
+  while (langsam_consp(args)) {
+    LANGSAM_ARG(y, args);
+    LANGSAM_ARG_TYPE(y, LT_INTEGER);
+    result = langsam_integer(result.i | y.i);
+  }
+  return result;
+}
+
 static LV eval_bit_shift_left(LangsamVM *vm, LV args) {
   LANGSAM_ARG(x, args);
   LANGSAM_ARG_TYPE(x, LT_INTEGER);
@@ -3746,6 +3770,8 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "*", eval_mul);
   langsam_defn(vm, env, "/", eval_div);
   langsam_defn(vm, env, "mod", eval_mod);
+  langsam_defn(vm, env, "bit-and", eval_bit_and);
+  langsam_defn(vm, env, "bit-or", eval_bit_or);
   langsam_defn(vm, env, "bit-shift-left", eval_bit_shift_left);
   langsam_defn(vm, env, "bit-shift-right", eval_bit_shift_right);
   langsam_defn(vm, env, "get", eval_get);
