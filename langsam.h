@@ -595,8 +595,10 @@ void langsam_defspecial(LangsamVM *vm, LV env, char *name, LangsamNativeFn fn);
 // returned string is managed by GC, no need to free
 char *langsam_cstr(LangsamVM *vm, LV v);
 
-LV langsam_loadfile(LangsamVM *vm, LV env, const char *path);
-LV langsam_loadfd(LangsamVM *vm, LV env, int fd);
+typedef LV (*ByteReadFunc)(LangsamVM *vm, void *data);
+
+LV langsam_load_bytes(LangsamVM *vm, LV env, ByteReadFunc readbyte,
+                      void *readbyte_data);
 
 LV langsam_readstring(LangsamVM *vm, char *s);
 LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len);
@@ -604,7 +606,9 @@ LV langsam_readstringn(LangsamVM *vm, char *s, LangsamSize len);
 LV langsam_loadstring(LangsamVM *vm, LV env, char *s);
 LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len);
 
-LV langsam_loadmodule(LangsamVM *vm, LV env, char *module_name);
+void langsam_register_module_loader(LangsamVM *vm, char *name,
+                                    LangsamNativeFn loader);
+
 LV langsam_require(LangsamVM *vm, char *module_name);
 
 #endif // LANGSAM_H
