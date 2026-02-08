@@ -1,20 +1,18 @@
 (import x86_64)
 
-(assert (= (x86_64/memq :base 'rax)
+(assert (= (x86_64/mem :size 8 :base 'rax)
            {:kind :mem :size 8 :base 'rax}))
-(assert (= (x86_64/memd :base 'rax)
+(assert (= (x86_64/mem :size 4 :base 'rax)
            {:kind :mem :size 4 :base 'rax}))
-(assert (= (x86_64/memw :base 'rax)
+(assert (= (x86_64/mem :size 2 :base 'rax)
            {:kind :mem :size 2 :base 'rax}))
-(assert (= (x86_64/memb :base 'rax)
+(assert (= (x86_64/mem :size 1 :base 'rax)
            {:kind :mem :size 1 :base 'rax}))
 
-(assert (throws? '(x86_64 . "unsupported instruction: (mov rax (memd :base rbx))")
-                 (x86_64/encode-instruction '(mov rax (memd :base rbx)))))
-(assert (throws? '(x86_64 . "unsupported instruction: (mov eax (mem :size 3 :base rbx))")
+(assert (throws? '(x86_64 . "unsupported instruction: (mov rax (mem :size 4 :base rbx))")
+                 (x86_64/encode-instruction '(mov rax (mem :size 4 :base rbx)))))
+(assert (throws? '(x86_64 . "mem operand size should be one of 1/2/4/8, got: 3")
                  (x86_64/encode-instruction '(mov eax (mem :size 3 :base rbx)))))
-(assert (throws? '(x86_64 . "size is implicit in memq/memd/memw/memb")
-                 (x86_64/encode-instruction '(mov rax (memq :size 8 :base rbx)))))
 (assert (throws? '(x86_64 . "unsupported instruction: (mov eax rbx)")
                  (x86_64/encode-instruction '(mov eax rbx))))
 (assert (throws? '(x86_64 . "high 8-bit registers (ah/ch/dh/bh) cannot be encoded with REX")
@@ -54,25 +52,23 @@
     ((mov al r8b) [0x41 0x8A 0xC0])
     ((mov rax (mem :size 8 :base rbx)) [0x48 0x8B 0x03])
     ((mov (mem :size 8 :base rbx) rax) [0x48 0x89 0x03])
-    ((mov eax (mem :base rbx)) [0x8B 0x03])
-    ((mov (mem :base rbx) eax) [0x89 0x03])
-    ((mov eax (memd :base rbx)) [0x8B 0x03])
-    ((mov (memd :base rbx) eax) [0x89 0x03])
-    ((mov ax (memw :base rbx)) [0x66 0x8B 0x03])
-    ((mov (memw :base rbx) ax) [0x66 0x89 0x03])
-    ((mov al (memb :base rbx)) [0x8A 0x03])
-    ((mov (memb :base rbx) al) [0x88 0x03])
-    ((mov rax (memq :base rbp)) [0x48 0x8B 0x45 0x00])
-    ((mov rax (memq :base r12)) [0x49 0x8B 0x04 0x24])
-    ((mov rax (memq :base rbx :disp 0x12)) [0x48 0x8B 0x43 0x12])
-    ((mov rax (memq :base rbx :disp 0x12345678)) [0x48 0x8B 0x83 0x78 0x56 0x34 0x12])
-    ((mov rax (memq :base rbx :index rcx :scale 4)) [0x48 0x8B 0x04 0x8B])
-    ((mov rax (memq :base rbx :index r9 :scale 8 :disp 0x20)) [0x4A 0x8B 0x44 0xCB 0x20])
-    ((mov rax (memq :index rcx :scale 2 :disp 0x12345678)) [0x48 0x8B 0x04 0x4D 0x78 0x56 0x34 0x12])
-    ((mov rax (memq :rip 0x12345678)) [0x48 0x8B 0x05 0x78 0x56 0x34 0x12])
-    ((mov rax (memq :disp 0x12345678)) [0x48 0x8B 0x04 0x25 0x78 0x56 0x34 0x12])
-    ((mov (memq :base r11 :disp 0x12) rax) [0x49 0x89 0x43 0x12])
-    ((mov (memq :base rbx :index rcx :scale 4 :disp 0x1234) r8)
+    ((mov eax (mem :size 4 :base rbx)) [0x8B 0x03])
+    ((mov (mem :size 4 :base rbx) eax) [0x89 0x03])
+    ((mov ax (mem :size 2 :base rbx)) [0x66 0x8B 0x03])
+    ((mov (mem :size 2 :base rbx) ax) [0x66 0x89 0x03])
+    ((mov al (mem :size 1 :base rbx)) [0x8A 0x03])
+    ((mov (mem :size 1 :base rbx) al) [0x88 0x03])
+    ((mov rax (mem :size 8 :base rbp)) [0x48 0x8B 0x45 0x00])
+    ((mov rax (mem :size 8 :base r12)) [0x49 0x8B 0x04 0x24])
+    ((mov rax (mem :size 8 :base rbx :disp 0x12)) [0x48 0x8B 0x43 0x12])
+    ((mov rax (mem :size 8 :base rbx :disp 0x12345678)) [0x48 0x8B 0x83 0x78 0x56 0x34 0x12])
+    ((mov rax (mem :size 8 :base rbx :index rcx :scale 4)) [0x48 0x8B 0x04 0x8B])
+    ((mov rax (mem :size 8 :base rbx :index r9 :scale 8 :disp 0x20)) [0x4A 0x8B 0x44 0xCB 0x20])
+    ((mov rax (mem :size 8 :index rcx :scale 2 :disp 0x12345678)) [0x48 0x8B 0x04 0x4D 0x78 0x56 0x34 0x12])
+    ((mov rax (mem :size 8 :rip 0x12345678)) [0x48 0x8B 0x05 0x78 0x56 0x34 0x12])
+    ((mov rax (mem :size 8 :disp 0x12345678)) [0x48 0x8B 0x04 0x25 0x78 0x56 0x34 0x12])
+    ((mov (mem :size 8 :base r11 :disp 0x12) rax) [0x49 0x89 0x43 0x12])
+    ((mov (mem :size 8 :base rbx :index rcx :scale 4 :disp 0x1234) r8)
      [0x4C 0x89 0x84 0x8B 0x34 0x12 0x00 0x00])
     ((add rbx 0x12345678) [0x48 0x81 0xC3 0x78 0x56 0x34 0x12])
     ((or rbx 0x12345678) [0x48 0x81 0xCB 0x78 0x56 0x34 0x12])
@@ -94,15 +90,15 @@
     ((shr rbx 0xDE) [0x48 0xC1 0xEB 0xDE])
     ((sar rbx 0xF0) [0x48 0xC1 0xFB 0xF0])
     ((rol r11 0x12) [0x49 0xC1 0xC3 0x12])
-    ((shl (memq :base rbx) 0x12) [0x48 0xC1 0x23 0x12])
-    ((sar (memq :base r11 :disp 0x10) 0x7F) [0x49 0xC1 0x7B 0x10 0x7F])
+    ((shl (mem :size 8 :base rbx) 0x12) [0x48 0xC1 0x23 0x12])
+    ((sar (mem :size 8 :base r11 :disp 0x10) 0x7F) [0x49 0xC1 0x7B 0x10 0x7F])
     ((bt rbx 0x12) [0x48 0x0F 0xBA 0xE3 0x12])
     ((bts rbx 0x34) [0x48 0x0F 0xBA 0xEB 0x34])
     ((btr rbx 0x56) [0x48 0x0F 0xBA 0xF3 0x56])
     ((btc rbx 0x78) [0x48 0x0F 0xBA 0xFB 0x78])
     ((bt r11 0x12) [0x49 0x0F 0xBA 0xE3 0x12])
-    ((btr (memq :base rbx) 0x56) [0x48 0x0F 0xBA 0x33 0x56])
-    ((btc (memq :base r11 :disp 0x10) 0x78) [0x49 0x0F 0xBA 0x7B 0x10 0x78])))
+    ((btr (mem :size 8 :base rbx) 0x56) [0x48 0x0F 0xBA 0x33 0x56])
+    ((btc (mem :size 8 :base r11 :disp 0x10) 0x78) [0x49 0x0F 0xBA 0x7B 0x10 0x78])))
 
 (for [[instruction expected-encoding] expected-instruction-encodings]
   (let [actual-encoding (catch [e (raise 'x86_64
@@ -111,3 +107,115 @@
                                          e)]
                           (x86_64/encode-instruction instruction))]
     (assert (= actual-encoding expected-encoding))))
+
+(def extended-instruction-encodings
+  '(((add rax rbx) [0x48 0x01 0xD8])
+    ((add (mem :size 8 :base rbx) rax) [0x48 0x01 0x03])
+    ((cmp rax rbx) [0x48 0x39 0xD8])
+    ((sub rax 1) [0x48 0x81 0xE8 0x01 0x00 0x00 0x00])
+    ((test rax rbx) [0x48 0x85 0xD8])
+    ((lea rax (mem :size 8 :base rbx :disp 0x10)) [0x48 0x8D 0x43 0x10])
+    ((push rax) [0x50])
+    ((pop rax) [0x58])
+    ((ret) [0xC3])
+    ((call 0) [0xE8 0x00 0x00 0x00 0x00])
+    ((jmp 0) [0xEB 0x00])
+    ((je 0) [0x74 0x00])
+    ((je 0x1234) [0x0F 0x84 0x34 0x12 0x00 0x00])
+    ((setne al) [0x0F 0x95 0xC0])
+    ((movzx eax bl) [0x0F 0xB6 0xC3])
+    ((movsx rax bl) [0x48 0x0F 0xBE 0xC3])
+    ((movsxd rax ebx) [0x48 0x63 0xC3])
+    ((imul rax rbx) [0x48 0x0F 0xAF 0xC3])
+    ((imul rax rbx 5) [0x48 0x69 0xC3 0x05 0x00 0x00 0x00])
+    ((idiv rbx) [0x48 0xF7 0xFB])
+    ((cbw) [0x66 0x98])
+    ((cdq) [0x99])
+    ((cqo) [0x48 0x99])))
+
+(for [[instruction expected-encoding] extended-instruction-encodings]
+  (let [actual-encoding (catch [e (raise 'x86_64
+                                         "extended encode failed for %s: %s"
+                                         instruction
+                                         e)]
+                          (x86_64/encode-instruction instruction))]
+    (assert (= actual-encoding expected-encoding))))
+
+(let [asm (x86_64/asm-new)]
+  (x86_64/asm-label! asm 'start)
+  (x86_64/asm-emit! asm '(call target))
+  (x86_64/asm-emit! asm '(nop))
+  (x86_64/asm-label! asm 'target)
+  (x86_64/asm-emit! asm '(ret))
+  (let [artifact (x86_64/asm-finalize asm)
+        target-label (get (:labels artifact) 'target)
+        fixup (get (:fixups artifact) 0)]
+    (assert (= (:bytes artifact) [0xE8 0x01 0x00 0x00 0x00 0x90 0xC3]))
+    (assert (= target-label {:segment :text :offset 6 :absolute-offset 6}))
+    (assert (= (:status fixup) :applied))
+    (assert (= (:kind fixup) :call-rel32))
+    (assert (= (:unresolved artifact) []))))
+
+(let [asm (x86_64/asm-new)]
+  (x86_64/asm-emit! asm '(mov rax (mem :size 8 :rip target)))
+  (x86_64/asm-emit! asm '(nop))
+  (x86_64/asm-label! asm 'target)
+  (x86_64/asm-emit! asm '(ret))
+  (let [artifact (x86_64/asm-finalize asm)
+        fixup (get (:fixups artifact) 0)]
+    (assert (= (:bytes artifact)
+               [0x48 0x8B 0x05 0x01 0x00 0x00 0x00 0x90 0xC3]))
+    (assert (= (:status fixup) :applied))
+    (assert (= (:kind fixup) :rip-disp32))
+    (assert (= (:value fixup) 1))))
+
+(let [asm (x86_64/asm-new)]
+  (x86_64/asm-emit! asm '(call missing-symbol))
+  (let [artifact (x86_64/asm-finalize asm {:strict false})]
+    (assert (= (:bytes artifact) [0xE8 0x00 0x00 0x00 0x00]))
+    (assert (= (len (:unresolved artifact)) 1))
+    (assert (= (len (:diagnostics artifact)) 1))))
+
+(assert (throws? '(x86_64 . "asm-finalize failed: unresolved=1 diagnostics=1")
+                 (let [asm (x86_64/asm-new)]
+                   (x86_64/asm-emit! asm '(call missing-symbol))
+                   (x86_64/asm-finalize asm))))
+
+(let [asm (x86_64/asm-new)]
+  (x86_64/asm-emit! asm '(call external-target))
+  (let [artifact (x86_64/asm-finalize asm {:externals {'external-target 16}})]
+    (assert (= (:bytes artifact) [0xE8 0x0B 0x00 0x00 0x00]))
+    (assert (= (:unresolved artifact) []))))
+
+(let [asm (x86_64/asm-new)]
+  (x86_64/asm-bytes! asm [0xAA 0xBB 0xCC])
+  (x86_64/asm-align! asm 8 0x90)
+  (x86_64/asm-segment! asm :rodata)
+  (x86_64/asm-bytes! asm [0x41 0x42])
+  (let [artifact (x86_64/asm-finalize asm)]
+    (assert (= (:bytes artifact)
+               [0xAA 0xBB 0xCC 0x90 0x90 0x90 0x90 0x90 0x41 0x42]))
+    (assert (= (get (:segments artifact) :text) {:offset 0 :length 8}))
+    (assert (= (get (:segments artifact) :rodata) {:offset 8 :length 2}))))
+
+(let [module {:mode :64
+              :items [{:op :label :name 'entry}
+                      {:op :instruction :form '(jmp done)}
+                      {:op :align :to 8 :fill 0x90}
+                      {:op :label :name 'done}
+                      {:op :instruction :form '(ret)}
+                      {:op :bytes :segment :rodata :value [0x41 0x42]}]}
+      artifact (x86_64/assemble-module module)
+      artifact2 (x86_64/assemble-module module)]
+  (assert (= artifact artifact2))
+  (assert (= (:bytes artifact)
+             [0xE9 0x03 0x00 0x00 0x00 0x90 0x90 0x90 0xC3 0x41 0x42]))
+  (assert (= (get (:segments artifact) :text) {:offset 0 :length 9}))
+  (assert (= (get (:segments artifact) :rodata) {:offset 9 :length 2})))
+
+(let [artifact (x86_64/assemble-module
+                {:mode :64
+                 :items [{:op :fixup :kind :abs64 :symbol 'extern-symbol}]}
+                {:strict false})]
+  (assert (= (:bytes artifact) [0 0 0 0 0 0 0 0]))
+  (assert (= (len (:unresolved artifact)) 1)))

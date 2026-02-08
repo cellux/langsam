@@ -27,7 +27,7 @@
   (let [i 0
         acc 0]
     (while (< i n)
-      (let [bytes (x86_64/encode-instruction '(mov rax (memq :base rbx :index rcx :scale 4 :disp 0x1234)))]
+      (let [bytes (x86_64/encode-instruction '(mov rax (mem :size 8 :base rbx :index rcx :scale 4 :disp 0x1234)))]
         (setq acc (+ acc (len bytes))))
       (setq i (+ i 1)))
     acc))

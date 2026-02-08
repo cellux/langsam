@@ -5,12 +5,25 @@ This file helps agents and contributors get oriented quickly in this repo.
 **Project Overview**
 - Langsam is a small Lisp-like language implemented in C with a minimal standard library written in Langsam itself.
 
+**Long-Term Bootstrap Roadmap**
+- The long-term goal is a full self-hosting systems stack, built incrementally:
+  1. Implement a Forth in assembly language called **Grund**.
+  2. Implement **Langsam** in Grund.
+  3. Implement **Schell** as a library in Langsam.
+  4. Reimplement Langsam in **Schnell** and replace the old version with the new one.
+  5. Compile and bootstrap an operating system called **Oben**, written in Schnell, using the latest and fastest Langsam.
+- End state: a working, running OS built from scratch.
+- Constraint: this entire pipeline is intended to happen in memory during system boot.
+
+The first implementation will be hosted on top of the qemu q35 machine using x86-64 architecture.
+
 **Key Entry Points**
 - `langsam.c` holds the VM, core types, reader, evaluator, GC, and most native functionality.
 - `langsam.h` exposes the public API, core types, and VM utilities.
 - `driver.c` is the CLI entry point for the `langsam` executable.
 - `platform/os/linux/os.c` contains Linux-specific `os` module functionality (file IO + module symbol loading).
 - `modules/langsam.l` is the core standard library written in Langsam and embedded into the binary.
+- `modules/x86_64.l` is the x86-64 assembler.
 
 **Build and Test**
 - Build: `make`
@@ -20,7 +33,7 @@ This file helps agents and contributors get oriented quickly in this repo.
 
 **Tests**
 - Tests are plain Langsam scripts in `tests/*.l`.
-- The test runner is `./langsam tests/*.l` as wired in `Makefile`.
+- The test runner is invoked via `make test`
 
 **Modules**
 - Native modules are discovered from:
@@ -39,7 +52,6 @@ This file helps agents and contributors get oriented quickly in this repo.
 **Conventions and Notes**
 - C is compiled with strict warnings and diagnostics (`-Wall -Wextra -Wpedantic`, plus `-Wconversion`, `-Wshadow`, `-Wcast-qual`, `-Wstrict-prototypes`, `-Wmissing-prototypes`, `-Wformat=2`, `-Wsign-conversion`, `-Wundef`, `-Wpointer-arith`).
 - Exceptions are first-class `LV` values; most API calls return `LV` and use `LANGSAM_CHECK`.
-- Core string formatting is available as `(format fmt & args)` with `%s`, `%r`, `%d`, `%f`, and `%%`; see `tests/format.l` for expected behavior and error cases.
 - The REPL is enabled when no script args are provided.
 
 **Semantics Reference**
