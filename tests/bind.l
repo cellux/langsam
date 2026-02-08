@@ -4,6 +4,8 @@
                     (assert (= env expected-env))))]
   (test-bind 'a 5 {'a 5})
   (test-bind '[a b c] [1 2 3] {'a 1 'b 2 'c 3})
+  (test-bind '[a b c] '(1 2 3) {'a 1 'b 2 'c 3})
+  (test-bind '[[a b]] '(((1) [2])) {'a '(1) 'b [2]})
   (test-bind '[a b & rest] [1 2 3 4 5 6] {'a 1 'b 2 'rest '(3 4 5 6)})
   (test-bind '[& rest] [1 2 3 4 5 6] {'rest '(1 2 3 4 5 6)})
   (test-bind '[a b & [c & rest]] [1 2 3 4 5 6] {'a 1 'b 2 'c 3 'rest '(4 5 6)})

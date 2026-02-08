@@ -120,6 +120,19 @@
 (defmacro while-let [bindings & body]
   `(while (if-let ,bindings (do ,@body true) false)))
 
+(def cond-let
+  (let [subcond (fn [clauses]
+                  (if clauses
+                    (if-let [[bindings result & clauses] clauses]
+                      `(if-let ,bindings
+                         ,result
+                         ,(subcond clauses))
+                      (let [[result] clauses]
+                        result))
+                    `(throw (cons 'cond-let "no match"))))]
+    (macro cond-let [& clauses]
+      (subcond clauses))))
+
 (def case
   (let [subcase (fn [item# clauses]
                   (if clauses
