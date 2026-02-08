@@ -204,7 +204,7 @@
 
 ; Instruction forms: each mnemonic maps to many encoding forms.
 ; This table is intentionally partial right now, but schema is the important part.
-(def instruction-form-table
+(def instruction-forms
   {'nop [{:operands []
           :encoding :zo
           :opcode-map :default
@@ -674,14 +674,11 @@
 
 (defn encode-instruction-form-driven [instruction]
   (if-match [[(Symbol raw-mnemonic) & operands] instruction]
-    (let [mnemonic (or (get mnemonic-aliases raw-mnemonic) raw-mnemonic)
-          forms (get instruction-form-table mnemonic)]
-      (if forms
-        (let [normalized-operands (map normalize-operand operands)
-              selected (select-form-for-operands forms normalized-operands)]
-          (if selected
-            (emit-form-encoding (:form selected)
-                                (:operands selected))))))))
+    (if-let [mnemonic (or (get mnemonic-aliases raw-mnemonic) raw-mnemonic)
+             forms (get instruction-forms mnemonic)
+             normalized-operands (mapv normalize-operand operands)
+             {:keys [form operands]} (select-form-for-operands forms normalized-operands)]
+      (emit-form-encoding form operands))))
 
 (defn encode-instruction [instruction]
   (or (encode-instruction-form-driven instruction)

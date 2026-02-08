@@ -96,6 +96,9 @@
       (setq it (next it)))
     (nreverse result)))
 
+(defn mapv [f coll]
+  (Vector (map f coll)))
+
 (defn reduce [f init coll]
   (let [result init
         it (iter coll)]
