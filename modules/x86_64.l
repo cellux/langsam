@@ -514,18 +514,31 @@
   (Vector (map validate-byte bytes)))
 
 (defn parse-symbol-ref
-  "Normalize a symbol or {:symbol :addend} map into a symbol reference map."
+  "Parse Symbol or symbol-ref maps into validated :symref operand maps.
+Returns nil for other input shapes; malformed symbol-ref maps raise."
   [value]
   (cond (symbol? value)
-        {:symbol value :addend 0}
+        {:kind :symref :symbol value :addend 0}
         (map? value)
-        (if-let [sym (:symbol value)]
-          (let [addend (or (:addend value) 0)]
-            (if (not (symbol? sym))
-              (raise 'x86_64 "symbol ref expects Symbol, got: %s" sym))
-            (if (not (integer? addend))
-              (raise 'x86_64 "symbol ref addend expects Integer, got: %s" addend))
-            {:symbol sym :addend addend}))))
+        (let [kind (:kind value)
+              sym (:symbol value)
+              addend (or (:addend value) 0)]
+          (if (not= kind :symref)
+            (raise 'x86_64 "not a symbol ref: %s" value))
+          (if (nil? sym)
+            (raise 'x86_64 "symbol ref requires :symbol: %s" value))
+          (if (not (symbol? sym))
+            (raise 'x86_64 "symbol ref expects Symbol, got: %s" sym))
+          (if (not (integer? addend))
+            (raise 'x86_64 "symbol ref addend expects Integer, got: %s" addend))
+          {:kind :symref :symbol sym :addend addend})))
+
+(defn possible-symbol-ref?
+  "Return true when value has a shape that may parse as a symbol ref."
+  [value]
+  (or (symbol? value)
+      (and (map? value)
+           (= (:kind value) :symref))))
 
 (defn mem-from-opts
   "Build a :mem operand map from alternating keyword/value options."
@@ -545,24 +558,32 @@
   (and (map? operand)
        (= (:kind operand) :mem)))
 
+(defn possible-mem-operand?
+  "Return true when operand has a shape that may parse as a mem operand."
+  [operand]
+  (case operand
+    (Map m) (= (:kind m) :mem)
+    `(mem ,@opts) true
+    false))
+
 (defn validate-mem-operand
   "Validate required fields and size constraints for a memory operand."
   [operand]
   (if (not (contains? operand :size))
     (raise 'x86_64 "mem operand requires explicit :size: %s" operand))
   (let [size (:size operand)]
-    (if (or (not (integer? size))
-            (not (or (= size 1) (= size 2) (= size 4) (= size 8))))
+    (unless (and (integer? size)
+                 (or (= size 1) (= size 2) (= size 4) (= size 8)))
       (raise 'x86_64 "mem operand size should be one of 1/2/4/8, got: %s" size)))
   operand)
 
-(defn normalize-mem-operand
-  "Normalize Map and `(mem ...)` forms into validated memory operands."
+(defn parse-mem-operand
+  "Parse Map and `(mem ...)` forms into validated memory operands."
   [operand]
   (case operand
     (Map m) (if (= (:kind m) :mem)
               (validate-mem-operand m)
-              (raise 'x86_64 "not a mem operand:%s" operand))
+              (raise 'x86_64 "not a mem operand: %s" operand))
     `(mem ,@opts) (validate-mem-operand (mem-from-opts opts))
     operand))
 
@@ -687,16 +708,15 @@
 (defn normalize-operand
   "Normalize raw operands into tagged internal operand representations."
   [operand]
-  (if (and (symbol? operand) (register-name? operand))
-    {:kind :reg :reg operand :reginfo (get-register-info operand)}
-    (if (integer? operand)
-      {:kind :imm :value operand}
-      (let [memop (normalize-mem-operand operand)]
-        (if (mem-operand? memop)
-          {:kind :mem :memop memop}
-          (if-let [symref (parse-symbol-ref operand)]
-            {:kind :symref :symbol (:symbol symref) :addend (:addend symref)}
-            {:kind :other :value operand}))))))
+  (cond (and (symbol? operand) (register-name? operand))
+        {:kind :reg :reg operand :reginfo (get-register-info operand)}
+        (integer? operand)
+        {:kind :imm :value operand}
+        (possible-mem-operand? operand)
+        (parse-mem-operand operand)
+        (possible-symbol-ref? operand)
+        (parse-symbol-ref operand)
+        {:kind :other :value operand}))
 
 (defn match-operand-class
   "Try to match a normalized operand against an operand class spec."
@@ -718,13 +738,12 @@
       (if (or (= (:kind operand) :reg) (= (:kind operand) :mem))
         (let [size (:size spec)
               mem-only (:mem-only spec)]
-          (if (and mem-only (= (:kind operand) :reg))
-            nil
-            (if (= (:kind operand) :reg)
-              (if (or (nil? size) (= (:size (:reginfo operand)) size))
-                operand)
-              (let [memop (:memop operand)
-                    mem-size (:size memop)]
+            (if (and mem-only (= (:kind operand) :reg))
+              nil
+              (if (= (:kind operand) :reg)
+                (if (or (nil? size) (= (:size (:reginfo operand)) size))
+                  operand)
+              (let [mem-size (:size operand)]
                 (if (and size mem-size (not= size mem-size))
                   nil
                   operand))))))
@@ -891,7 +910,7 @@
                      :rexb (reg-code-rex-bit (:code (:reginfo rm-op)))
                      :tail []
                      :fixups []}
-                    (let [memenc (encode-mem (:memop rm-op))]
+                    (let [memenc (encode-mem rm-op)]
                       {:mod (:mod memenc)
                        :rm-low (:rm memenc)
                        :rexx (:rexx memenc)
@@ -1100,7 +1119,8 @@
   (let [kind (:kind fixup)
         spec (or (get fixup-kind-specs kind)
                  (raise 'x86_64 "unsupported fixup kind: %s" kind))
-        symref (or (parse-symbol-ref {:symbol (:symbol fixup)
+        symref (or (parse-symbol-ref {:kind :symref
+                                      :symbol (:symbol fixup)
                                       :addend (if (contains? fixup :addend) (:addend fixup) 0)})
                    (raise 'x86_64 "fixup expects :symbol, got: %s" fixup))
         active (or (:segment fixup) (:segment asm))
