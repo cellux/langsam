@@ -4568,7 +4568,7 @@ void langsam_register_module_loader(LangsamVM *vm, char *name,
                                     LangsamNativeFn loader) {
   LV loaders =
       langsam_Map_rawgep(vm, vm->rootlet, langsam_symbol(vm, "loaders"));
-  LV load_function = make_nativefn(vm, name, loader, true, false);
+  LV load_function = make_nativefn(vm, name, loader, false, false);
   langsam_setcdr(loaders,
                  langsam_cons(vm, load_function, langsam_cdr(loaders)));
 }
