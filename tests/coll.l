@@ -16,6 +16,11 @@
              (map (fn [x] (/ x 2))))
           '(2 3 4)))
 
+(assert (= (catv) []))
+(assert (= (catv [1 2] '(3 4) 5) [1 2 3 4 5]))
+(assert (= (catv [1 [2 3]] '(4)) [1 [2 3] 4]))
+(assert (= (catv nil [1] nil '(2)) [1 2]))
+
 (assert (iterable? nil))
 (assert (iterable? '()))
 (assert (iterable? []))

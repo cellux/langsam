@@ -249,6 +249,15 @@
     (iter x)
     true))
 
+(defn catv [& parts]
+  (let [result nil]
+    (for [part parts]
+      (if (iterable? part)
+        (for [x part]
+          (setq result (cons x result)))
+        (setq result (cons part result))))
+    (Vector (nreverse result))))
+
 (defn flatten [coll]
   (def result nil)
   (for [item coll]

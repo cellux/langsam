@@ -102,15 +102,6 @@
     (throw (cons 'x86_64 (str "simm8 out of range: " imm))))
   (if (< imm 0) (+ 0x100 imm) imm))
 
-(defn bcat [& parts]
-  (let [result nil]
-    (for [part parts]
-      (if (iterable? part)
-        (for [x part]
-          (setq result (cons x result)))
-        (setq result (cons part result))))
-    (Vector (nreverse result))))
-
 (defn mem-from-opts [opts forced-size]
   (let [m {:kind :mem}
         it (iter opts)]
@@ -217,7 +208,7 @@
            :rm rm
            :rexx index-high
            :rexb base-high
-           :tail (bcat sib-bytes disp-bytes)}))
+           :tail (catv sib-bytes disp-bytes)}))
       (throw (cons 'x86_64 (str "unsupported scale: " scale))))))
 
 (defn encode-mov-r64-r64 [dst src]
@@ -238,8 +229,7 @@
         modrm (encode-modrm (:mod memenc)
                             (reg-low dst-code)
                             (:rm memenc))]
-    (bcat [rex 0x8B modrm]
-          (:tail memenc))))
+    (catv [rex 0x8B modrm] (:tail memenc))))
 
 (defn encode-mov-mem-r64 [memop src]
   (let [src-code (get-r64-code src)
@@ -250,8 +240,7 @@
         modrm (encode-modrm (:mod memenc)
                             (reg-low src-code)
                             (:rm memenc))]
-    (bcat [rex 0x89 modrm]
-          (:tail memenc))))
+    (catv [rex 0x89 modrm] (:tail memenc))))
 
 (defn encode-instruction [instruction]
   (case instruction
