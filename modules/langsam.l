@@ -391,4 +391,19 @@
                      Vector)]
     `(let ,bindings ,@body)))
 
+(defn kvs->map
+  "Convert an iterable of key/value pairs into a map."
+  [kvs]
+  (let [m {}
+        it (iter kvs)]
+    (while it
+      (let [k @it]
+        (setq it (next it))
+        (if (not it)
+          (raise 'kvs->map "kvs->map expects key/value pairs"))
+        (let [v @it]
+          (put m k v)
+          (setq it (next it)))))
+    m))
+
 (gc)

@@ -1,5 +1,12 @@
 (assert (= (Map 8) {}))
 
+(assert (= (kvs->map []) {}))
+(assert (= (kvs->map [:a 3 :b 5 :c 8]) {:a 3 :b 5 :c 8}))
+(assert (= (kvs->map '(:a 3 :b 5 :c 8)) {:a 3 :b 5 :c 8}))
+(assert (= (kvs->map [:a 3 :a 5]) {:a 5}))
+(assert (throws? '(kvs->map . "kvs->map expects key/value pairs")
+                 (kvs->map [:a 3 :b])))
+
 (let [m {:a 3 :b 5 :c 8}]
   (assert (= (Map m) m))
   (assert (= (Map [[:a 3] [:b 5] [:c 8]]) m))

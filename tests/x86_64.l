@@ -8,6 +8,8 @@
            {:kind :mem :size 2 :base 'rax}))
 (assert (= (x86_64/mem :size 1 :base 'rax)
            {:kind :mem :size 1 :base 'rax}))
+(assert (throws? '(kvs->map . "kvs->map expects key/value pairs")
+                 (x86_64/mem :size 8 :base 'rax :disp)))
 
 (assert (throws? '(x86_64 . "unsupported instruction: (mov rax (mem :size 4 :base rbx))")
                  (x86_64/encode-instruction '(mov rax (mem :size 4 :base rbx)))))

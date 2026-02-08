@@ -520,7 +520,7 @@
         {:symbol value :addend 0}
         (map? value)
         (if-let [sym (:symbol value)]
-          (let [addend (if (contains? value :addend) (:addend value) 0)]
+          (let [addend (or (:addend value) 0)]
             (if (not (symbol? sym))
               (raise 'x86_64 "symbol ref expects Symbol, got: %s" sym))
             (if (not (integer? addend))
@@ -530,16 +530,8 @@
 (defn mem-from-opts
   "Build a :mem operand map from alternating keyword/value options."
   [opts]
-  (let [m {:kind :mem}
-        it (iter opts)]
-    (while it
-      (let [k @it]
-        (setq it (next it))
-        (if (not it)
-          (raise 'x86_64 "mem expects key/value pairs"))
-        (let [v @it]
-          (put m k v)
-          (setq it (next it)))))
+  (let [m (kvs->map opts)]
+    (put m :kind :mem)
     m))
 
 (defn mem
