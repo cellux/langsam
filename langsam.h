@@ -205,6 +205,7 @@ char *langsam_ctypename(LangsamVM *vm, LangsamType t);
 
 bool langsam_Nil_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_Nil_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
+LV langsam_Nil_len(LangsamVM *vm, LV self);
 LV langsam_Nil_repr(LangsamVM *vm, LV self);
 
 extern const LV langsam_nil;
@@ -336,6 +337,7 @@ LV langsam_Cons_cast(LangsamVM *vm, LV other);
 LV langsam_Cons_equal(LangsamVM *vm, LV self, LV other);
 LV langsam_Cons_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value);
+LV langsam_Cons_len(LangsamVM *vm, LV self);
 LV langsam_Cons_iter(LangsamVM *vm, LV self);
 LV langsam_Cons_deref(LangsamVM *vm, LV self);
 LV langsam_Cons_invoke(LangsamVM *vm, LV self, LV args);

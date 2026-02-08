@@ -69,6 +69,8 @@
 
 (assert (= (Map {:a 3 :b 5})) {:a 3 :b 5})
 (assert (= (Map (map (fn [x] x) {:a 3 :b 5})) {:a 3 :b 5}))
+(assert (= (len (map (fn [x] (+ x 1)) [1 2 3])) 3))
+(assert (= (len (map (fn [x] (+ x 1)) [])) 0))
 
 (let [m {:a 5 :b 8 :c 3}]
   (assert (= (m :b) 8)))

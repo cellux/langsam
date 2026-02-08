@@ -370,6 +370,8 @@ LangsamHash langsam_Nil_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_integer(hash, (LangsamInteger)FNV1A_NIL);
 }
 
+LV langsam_Nil_len(LangsamVM *vm, LV self) { return langsam_integer(0); }
+
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
   return langsam_symbol(vm, "nil");
 }
@@ -379,6 +381,7 @@ static struct LangsamT LANGSAM_T_NIL = {
     .gcmanaged = false,
     .truthy = langsam_Nil_truthy,
     .hash = langsam_Nil_hash,
+    .len = langsam_Nil_len,
     .iter = langsam_Cons_iter,
     .repr = langsam_Nil_repr,
 };
@@ -1217,6 +1220,16 @@ LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value) {
   return self;
 }
 
+LV langsam_Cons_len(LangsamVM *vm, LV self) {
+  LangsamSize len = 0;
+  LV cur = self;
+  while (langsam_consp(cur)) {
+    len++;
+    cur = langsam_cdr(cur);
+  }
+  return langsam_integer(len);
+}
+
 LV langsam_Cons_iter(LangsamVM *vm, LV self) {
   if (!langsam_consp(self)) {
     return langsam_nil;
@@ -1341,6 +1354,7 @@ static struct LangsamT LANGSAM_T_CONS = {
     .equal = langsam_Cons_equal,
     .get = langsam_Cons_get,
     .put = langsam_Cons_put,
+    .len = langsam_Cons_len,
     .iter = langsam_Cons_iter,
     .deref = langsam_Cons_deref,
     .invoke = langsam_Cons_invoke,

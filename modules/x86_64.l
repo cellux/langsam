@@ -677,7 +677,7 @@
     (let [mnemonic (or (get mnemonic-aliases raw-mnemonic) raw-mnemonic)
           forms (get instruction-form-table mnemonic)]
       (if forms
-        (let [normalized-operands (Vector (map normalize-operand operands))
+        (let [normalized-operands (map normalize-operand operands)
               selected (select-form-for-operands forms normalized-operands)]
           (if selected
             (emit-form-encoding (:form selected)
