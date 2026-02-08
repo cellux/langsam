@@ -25,6 +25,12 @@
 (assert (= (read-string "0o644") 420))
 (assert (= (read-string "0b01101001") 0x69))
 
+(assert (= (read-string "[0x90]") [0x90]))
+(assert (= (read-string "[0b01101001 0o644 0xface]")
+           [0x69 420 64206]))
+(assert (= (read-string "{:nop 0x90 :oct 0o644 :bin 0b01101001}")
+           {:nop 0x90 :oct 420 :bin 0x69}))
+
 (let [num (read-string "123.125")]
   (assert (= num 123.125))
   (assert (= (type num) Float)))

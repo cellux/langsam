@@ -4144,13 +4144,14 @@ static LV Reader_read_integer_in_radix(Reader *r, int radix) {
       }
     }
     uint8_t c = (uint8_t)result.i;
-    if (c >= 'a') {
-      c = c - ('a' - 'A');
+    uint8_t normalized = c;
+    if (normalized >= 'a' && normalized <= 'z') {
+      normalized = normalized - ('a' - 'A');
     }
-    if (c >= 'A') {
-      c = c - ('A' - '9') + 1;
+    if (normalized >= 'A' && normalized <= 'Z') {
+      normalized = normalized - ('A' - '9') + 1;
     }
-    LangsamInteger digit = c - '0';
+    LangsamInteger digit = normalized - '0';
     if (digit < 0 || digit >= radix) {
       Reader_unreadbyte(r, c);
       return langsam_integer(value);
