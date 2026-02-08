@@ -53,6 +53,9 @@
 (assert (= (macroexpand '(cond-let [x y] x :none))
            '(if-let [x y] x :none)))
 
+(assert (= (macroexpand '(cond a b c d :none))
+           '(if a b (if c d :none))))
+
 (assert (= (macroexpand '(cond-let [x nil] :a [y 5] y :none))
            '(if-let [x nil] :a (if-let [y 5] y :none))))
 

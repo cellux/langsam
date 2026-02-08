@@ -35,6 +35,17 @@
 (defmacro unless [cond & body]
   `(if (not ,cond) (do ,@body)))
 
+(def cond
+  (let [subcond (fn [clauses]
+                  (if clauses
+                    (if-match [[test then & rest] clauses]
+                      `(if ,test ,then ,(subcond rest))
+                      (let [[fallback] clauses]
+                        fallback))
+                    nil))]
+    (macro cond [& clauses]
+      (subcond clauses))))
+
 (defn sublet [proto &opt (size 64)]
   (let [sublet (Map size)]
     (setproto sublet proto)

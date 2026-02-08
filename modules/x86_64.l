@@ -486,16 +486,6 @@
     (raise 'x86_64 "simm8 out of range: %s" imm))
   (if (< imm 0) (+ 0x100 imm) imm))
 
-(defn zero-bytes
-  "Return a vector containing count zero bytes."
-  [count]
-  (let [result nil
-        n count]
-    (while (> n 0)
-      (setq result (cons 0 result))
-      (decq n))
-    (Vector result)))
-
 (defn fill-bytes
   "Return a vector containing count copies of byte."
   [count byte]
@@ -506,10 +496,15 @@
       (decq n))
     (Vector result)))
 
+(defn zero-bytes
+  "Return a vector containing count zero bytes."
+  [count]
+  (fill-bytes count 0))
+
 (defn validate-byte
   "Validate that byte is an integer in the 0..255 range."
   [byte]
-  (if (or (not (integer? byte)) (< byte 0) (> byte 0xFF))
+  (unless (and (integer? byte) (>= byte 0) (< byte 0xFF))
     (raise 'x86_64 "byte out of range: %s" byte))
   byte)
 
@@ -521,16 +516,16 @@
 (defn parse-symbol-ref
   "Normalize a symbol or {:symbol :addend} map into a symbol reference map."
   [value]
-  (if (symbol? value)
-    {:symbol value :addend 0}
-    (if (map? value)
-      (if-let [sym (:symbol value)]
-        (let [addend (if (contains? value :addend) (:addend value) 0)]
-          (if (not (symbol? sym))
-            (raise 'x86_64 "symbol ref expects Symbol, got: %s" sym))
-          (if (not (integer? addend))
-            (raise 'x86_64 "symbol ref addend expects Integer, got: %s" addend))
-          {:symbol sym :addend addend})))))
+  (cond (symbol? value)
+        {:symbol value :addend 0}
+        (map? value)
+        (if-let [sym (:symbol value)]
+          (let [addend (if (contains? value :addend) (:addend value) 0)]
+            (if (not (symbol? sym))
+              (raise 'x86_64 "symbol ref expects Symbol, got: %s" sym))
+            (if (not (integer? addend))
+              (raise 'x86_64 "symbol ref addend expects Integer, got: %s" addend))
+            {:symbol sym :addend addend}))))
 
 (defn mem-from-opts
   "Build a :mem operand map from alternating keyword/value options."
