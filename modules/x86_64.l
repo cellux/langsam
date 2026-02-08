@@ -284,7 +284,7 @@
 
 (defn get-register-info [reg]
   (or (get register-infos reg)
-      (throw (cons 'x86_64 (str "unsupported register: " reg)))))
+      (throw (cons 'x86_64 (format "unsupported register: %s" reg)))))
 
 (defn register-name? [v]
   (contains? register-infos v))
@@ -314,7 +314,7 @@
 
 (defn encode-imm32-le [imm]
   (if (or (< imm -0x80000000) (> imm 0x7fffffff))
-    (throw (cons 'x86_64 (str "imm32 out of range: " imm))))
+    (throw (cons 'x86_64 (format "imm32 out of range: %s" imm))))
   (let [value (if (< imm 0) (+ 0x100000000 imm) imm)
         b0 (bit-and value 0xFF)
         x1 (bit-shift-right value 8)
@@ -327,12 +327,12 @@
 
 (defn encode-imm8 [imm]
   (if (or (< imm 0) (> imm 0xFF))
-    (throw (cons 'x86_64 (str "imm8 out of range: " imm))))
+    (throw (cons 'x86_64 (format "imm8 out of range: %s" imm))))
   imm)
 
 (defn encode-imm16-le [imm]
   (if (or (< imm -0x8000) (> imm 0xFFFF))
-    (throw (cons 'x86_64 (str "imm16 out of range: " imm))))
+    (throw (cons 'x86_64 (format "imm16 out of range: %s" imm))))
   (let [value (if (< imm 0) (+ 0x10000 imm) imm)
         b0 (bit-and value 0xFF)
         x1 (bit-shift-right value 8)
@@ -341,7 +341,7 @@
 
 (defn encode-simm8 [imm]
   (if (or (< imm -128) (> imm 127))
-    (throw (cons 'x86_64 (str "simm8 out of range: " imm))))
+    (throw (cons 'x86_64 (format "simm8 out of range: %s" imm))))
   (if (< imm 0) (+ 0x100 imm) imm))
 
 (defn mem-from-opts [opts forced-size]
@@ -384,7 +384,7 @@
   (case operand
     (Map m) (if (= (:kind m) :mem)
               m
-              (throw (cons 'x86_64 (str "not a mem operand:" operand))))
+              (throw (cons 'x86_64 (format "not a mem operand:%s" operand))))
     `(mem ,@opts) (mem-from-opts opts nil)
     `(memq ,@opts) (mem-from-opts opts 8)
     `(memd ,@opts) (mem-from-opts opts 4)
@@ -395,15 +395,15 @@
 (defn encode-mem [memop]
   (let [{:keys [base index (scale 1) (disp 0) rip]} memop]
     (if (and base (not (symbol? base)))
-      (throw (cons 'x86_64 (str "base should be a Symbol, got: " base))))
+      (throw (cons 'x86_64 (format "base should be a Symbol, got: %s" base))))
     (if (and index (not (symbol? index)))
-      (throw (cons 'x86_64 (str "index should be a Symbol, got: " index))))
+      (throw (cons 'x86_64 (format "index should be a Symbol, got: %s" index))))
     (if (not (integer? disp))
-      (throw (cons 'x86_64 (str "disp should be an Integer, got: " disp))))
+      (throw (cons 'x86_64 (format "disp should be an Integer, got: %s" disp))))
     (if (and rip (not (integer? rip)))
       (throw (cons 'x86_64
-                   (str "rip should be an Integer displacement, got: "
-                        rip))))
+                   (format "rip should be an Integer displacement, got: %s"
+                           rip))))
     (if (and (nil? index) (not= scale 1))
       (throw (cons 'x86_64 "scale requires an index register")))
 
@@ -425,8 +425,8 @@
                                            base-code (if (= (:size baseinfo) 8)
                                                        (:code baseinfo)
                                                        (throw (cons 'x86_64
-                                                                    (str "unsupported register: "
-                                                                         base))))]
+                                                                    (format "unsupported register: %s"
+                                                                            base))))]
                                        [(reg-code-low3 base-code)
                                         (reg-code-rex-bit base-code)]))
               [index-low index-high] (if index
@@ -434,8 +434,8 @@
                                              index-code (if (= (:size indexinfo) 8)
                                                           (:code indexinfo)
                                                           (throw (cons 'x86_64
-                                                                       (str "unsupported register: "
-                                                                            index))))
+                                                                       (format "unsupported register: %s"
+                                                                               index))))
                                              index-low (reg-code-low3 index-code)]
                                          (if (= index-low 4)
                                            (throw (cons 'x86_64
@@ -459,7 +459,7 @@
            :rexx index-high
            :rexb base-high
            :tail (catv sib-bytes disp-bytes)}))
-      (throw (cons 'x86_64 (str "unsupported scale: " scale))))))
+      (throw (cons 'x86_64 (format "unsupported scale: %s" scale))))))
 
 (def operand-ref-indexes
   {:op0 0
@@ -484,7 +484,7 @@
     :rel8 [(encode-simm8 imm)]
     :rel32 (encode-imm32-le imm)
     (throw (cons 'x86_64
-                 (str "unsupported immediate encoding kind: " imm-kind)))))
+                 (format "unsupported immediate encoding kind: %s" imm-kind)))))
 
 (defn normalize-operand [operand]
   (if (and (symbol? operand) (register-name? operand))
@@ -499,7 +499,7 @@
 (defn match-operand-class [operand class-key]
   (let [spec (get operand-class-specs class-key)]
     (if (nil? spec)
-      (throw (cons 'x86_64 (str "unknown operand class: " class-key))))
+      (throw (cons 'x86_64 (format "unknown operand class: %s" class-key))))
     (case (:kind spec)
       :reg
       (if (and (= (:kind operand) :reg)
@@ -567,7 +567,7 @@
 (defn get-operand-by-ref [prepared-operands opref]
   (if-match [(Integer idx) (get operand-ref-indexes opref)]
     (get prepared-operands idx)
-    (throw (cons 'x86_64 (str "invalid operand reference: " opref)))))
+    (throw (cons 'x86_64 (format "invalid operand reference: %s" opref)))))
 
 (defn encode-rex-with-flags [w r x b rex-required high8]
   (let [rex-needed (or (nonzero? w)
@@ -599,7 +599,7 @@
 (defn emit-form-encoding [form prepared-operands]
   (let [pattern (get encoding-patterns (:encoding form))]
     (if (nil? pattern)
-      (throw (cons 'x86_64 (str "unknown encoding pattern: " (:encoding form)))))
+      (throw (cons 'x86_64 (format "unknown encoding pattern: %s" (:encoding form)))))
     (let [opcode-base (:opcode form)
           opcode-map-prefix (or (get opcode-map-prefixes (:opcode-map form))
                                 (get opcode-map-prefixes :default))
@@ -682,4 +682,4 @@
 
 (defn encode-instruction [instruction]
   (or (encode-instruction-form-driven instruction)
-      (throw (cons 'x86_64 (str "unsupported instruction: " instruction)))))
+      (throw (cons 'x86_64 (format "unsupported instruction: %s" instruction)))))
