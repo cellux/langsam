@@ -34,9 +34,11 @@ typedef LangsamSize LangsamInteger;
 #if UINTPTR_MAX == 0xfffffffful
 typedef float LangsamFloat;
 #define LANGSAM_FLOAT_MANT_DIG FLT_MANT_DIG
+#define LANGSAM_FLOAT_FMT "%f"
 #elif UINTPTR_MAX == 0xffffffffffffffffull
 typedef double LangsamFloat;
 #define LANGSAM_FLOAT_MANT_DIG DBL_MANT_DIG
+#define LANGSAM_FLOAT_FMT "%f"
 #else
 #error "Cannot find a suitable type for LangsamFloat"
 #endif

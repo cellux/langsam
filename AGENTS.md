@@ -39,6 +39,7 @@ This file helps agents and contributors get oriented quickly in this repo.
 **Conventions and Notes**
 - C is compiled with strict warnings and diagnostics (`-Wall -Wextra -Wpedantic`, plus `-Wconversion`, `-Wshadow`, `-Wcast-qual`, `-Wstrict-prototypes`, `-Wmissing-prototypes`, `-Wformat=2`, `-Wsign-conversion`, `-Wundef`, `-Wpointer-arith`).
 - Exceptions are first-class `LV` values; most API calls return `LV` and use `LANGSAM_CHECK`.
+- Core string formatting is available as `(format fmt & args)` with `%s`, `%r`, `%d`, `%f`, and `%%`; see `tests/format.l` for expected behavior and error cases.
 - The REPL is enabled when no script args are provided.
 
 **Semantics Reference**

@@ -3294,6 +3294,118 @@ static LV eval_str(LangsamVM *vm, LV args) {
   return langsam_stringn_wrap(vm, p0, len);
 }
 
+static LV eval_format(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(fmt, args);
+  LANGSAM_ARG_TYPE(fmt, LT_STRING);
+
+  LangsamString *fmt_s = fmt.p;
+  LV parts = langsam_nil;
+  LangsamSize len = 0;
+  LangsamSize literal_start = 0;
+
+  for (LangsamSize i = 0; i < fmt_s->len; i++) {
+    if (fmt_s->p[i] != '%') {
+      continue;
+    }
+
+    if (i > literal_start) {
+      LV literal = langsam_stringn(vm, fmt_s->p + literal_start, i - literal_start);
+      parts = langsam_cons(vm, literal, parts);
+      len += string_length(literal);
+    }
+
+    if (i + 1 >= fmt_s->len) {
+      return langsam_exceptionf(vm, "format", "dangling %% at end of format string");
+    }
+
+    char spec = fmt_s->p[++i];
+    switch (spec) {
+    case '%': {
+      LV percent = langsam_stringn(vm, "%", 1);
+      parts = langsam_cons(vm, percent, parts);
+      len += 1;
+      break;
+    }
+    case 's':
+    case 'r': {
+      if (!langsam_consp(args)) {
+        return langsam_exceptionf(vm, "format",
+                                  "missing format argument for %%%c", spec);
+      }
+      LV arg = langsam_car(args);
+      args = langsam_cdr(args);
+      LV arg_str = (spec == 's') ? langsam_str(vm, arg) : langsam_repr(vm, arg);
+      LANGSAM_CHECK(arg_str);
+      parts = langsam_cons(vm, arg_str, parts);
+      len += string_length(arg_str);
+      break;
+    }
+    case 'd': {
+      if (!langsam_consp(args)) {
+        return langsam_exceptionf(vm, "format", "missing format argument for %%d");
+      }
+      LV arg = langsam_car(args);
+      args = langsam_cdr(args);
+      if (arg.type != LT_INTEGER) {
+        return langsam_exceptionf(vm, "format",
+                                  "format argument for %%d is %s, expected Integer",
+                                  langsam_ctypename(vm, arg.type));
+      }
+      LV arg_str = langsam_format(vm, LANGSAM_INTEGER_FMT, arg.i);
+      LANGSAM_CHECK(arg_str);
+      parts = langsam_cons(vm, arg_str, parts);
+      len += string_length(arg_str);
+      break;
+    }
+    case 'f': {
+      if (!langsam_consp(args)) {
+        return langsam_exceptionf(vm, "format", "missing format argument for %%f");
+      }
+      LV arg = langsam_car(args);
+      args = langsam_cdr(args);
+      if (arg.type != LT_FLOAT) {
+        return langsam_exceptionf(vm, "format",
+                                  "format argument for %%f is %s, expected Float",
+                                  langsam_ctypename(vm, arg.type));
+      }
+      LV arg_str = langsam_format(vm, LANGSAM_FLOAT_FMT, arg.f);
+      LANGSAM_CHECK(arg_str);
+      parts = langsam_cons(vm, arg_str, parts);
+      len += string_length(arg_str);
+      break;
+    }
+    default:
+      return langsam_exceptionf(vm, "format",
+                                "unsupported format specifier: %%%c", spec);
+    }
+
+    literal_start = i + 1;
+  }
+
+  if (fmt_s->len > literal_start) {
+    LV tail = langsam_stringn(vm, fmt_s->p + literal_start, fmt_s->len - literal_start);
+    parts = langsam_cons(vm, tail, parts);
+    len += string_length(tail);
+  }
+
+  if (langsam_somep(args)) {
+    return langsam_exceptionf(vm, "format", "too many format arguments");
+  }
+
+  parts = langsam_nreverse(parts);
+  char *p0 = langsam_alloc(vm, len + 1);
+  char *p = p0;
+  while (langsam_consp(parts)) {
+    LV s = langsam_car(parts);
+    LangsamString *ls = s.p;
+    memcpy(p, ls->p, (size_t)ls->len);
+    p += ls->len;
+    parts = langsam_cdr(parts);
+  }
+  *p = 0;
+  return langsam_stringn_wrap(vm, p0, len);
+}
+
 static LV eval_quote(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return obj;
@@ -3808,6 +3920,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "eval", eval_eval);
   langsam_defn(vm, env, "repr", eval_repr);
   langsam_defn(vm, env, "str", eval_str);
+  langsam_defn(vm, env, "format", eval_format);
   langsam_defn(vm, env, "getproto", eval_getproto);
   langsam_defn(vm, env, "setproto", eval_setproto);
   langsam_defn(vm, env, "gep", eval_gep);
