@@ -15,3 +15,17 @@
              (filter even?)
              (map (fn [x] (/ x 2))))
           '(2 3 4)))
+
+(assert (iterable? nil))
+(assert (iterable? '()))
+(assert (iterable? []))
+(assert (iterable? {}))
+(assert (iterable? '(1 2 3)))
+(assert (iterable? [1 2 3]))
+(assert (iterable? {:a 1}))
+
+(assert (not (iterable? 0)))
+(assert (not (iterable? 1.5)))
+(assert (not (iterable? "")))
+(assert (not (iterable? "abc")))
+(assert (not (iterable? true)))

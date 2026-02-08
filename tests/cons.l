@@ -53,11 +53,13 @@
 
 ; ConsIterator
 (let [c '(a b c)
-      it (iter c)]
+      it (iter c)
+      last-it nil]
   (while it
     (assert (= (type it) ConsIterator))
+    (setq last-it it)
     (assert (= @it (car c)))
     (setq it (it))
     (setq c (cdr c)))
-  (assert (throws? '(deref . "attempt to deref consumed ConsIterator") @it))
-  (assert (throws? '(invoke . "attempt to advance consumed ConsIterator") (it))))
+  (assert (throws? '(deref . "attempt to deref consumed ConsIterator") @last-it))
+  (assert (throws? '(invoke . "attempt to advance consumed ConsIterator") (last-it))))

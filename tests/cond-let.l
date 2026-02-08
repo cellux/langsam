@@ -1,29 +1,54 @@
 (assert (= (cond-let
-             [(String s) 5] s
-             [(Integer x) 5] (+ x 1)
+             [x (get {:x 5} :x)] (+ x 1)
              :none)
            6))
 
 (assert (= (cond-let
-             [(Float f) 5] f
-             [(String s) 5] s
+             [x (get {:x nil} :x)] x
+             [y 7] y
              :none)
-           :none))
+           7))
 
 (assert (= (cond-let
-             [(Integer x) 0x1234
-              y (+ x 1)]
+             [x 0
+              y ""]
+             [x y]
+             :none)
+           [0 ""]))
+
+(assert (= (cond-let
+             [[x y] [0x1234 0x1235]]
              [x y]
              :none)
            [0x1234 0x1235]))
 
-(assert (= (cond-let
-             [(Integer x) 7] x
-             [(Integer y) (throw '(cond-let . "should not evaluate"))] y
-             :none)
-           7))
-
 (assert (throws? '(cond-let . "no match")
                  (cond-let
-                   [(String s) 5] s
-                   [(Float f) 5] f)))
+                   [x nil] x
+                   [y false] y)))
+
+(assert (= (cond-match
+             5
+             (String s) s
+             (Integer x) (+ x 1)
+             :none)
+           6))
+
+(assert (= (cond-match
+             5
+             (Float f) f
+             (String s) s
+             :none)
+           :none))
+
+(assert (= (cond-match
+             [1 2]
+             [x y] (+ x y)
+             :none)
+           3))
+
+(assert (throws? '(cond-match . "no match")
+                 (cond-match
+                   5
+                   (String s) s
+                   (Float f) f)))

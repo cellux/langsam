@@ -514,8 +514,6 @@ bool langsam_falsep(LV v) { return v.type == LT_BOOLEAN && !v.b; }
 
 // Integer
 
-bool langsam_Integer_truthy(LangsamVM *vm, LV self) { return self.i != 0; }
-
 LangsamHash langsam_Integer_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_integer(hash, self.i);
 }
@@ -609,7 +607,6 @@ LV langsam_integer(LangsamInteger i) {
 static struct LangsamT LANGSAM_T_INTEGER = {
     .name = "Integer",
     .gcmanaged = false,
-    .truthy = langsam_Integer_truthy,
     .hash = langsam_Integer_hash,
     .cast = langsam_Integer_cast,
     .cmp = langsam_Integer_cmp,
@@ -624,8 +621,6 @@ static struct LangsamT LANGSAM_T_INTEGER = {
 const LangsamType LT_INTEGER = &LANGSAM_T_INTEGER;
 
 // Float
-
-bool langsam_Float_truthy(LangsamVM *vm, LV self) { return self.f != 0.0; }
 
 LangsamHash langsam_Float_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   return hash_float(hash, self.f);
@@ -719,7 +714,6 @@ LV langsam_float(LangsamFloat f) { return (LV){.type = LT_FLOAT, .f = f}; }
 static struct LangsamT LANGSAM_T_FLOAT = {
     .name = "Float",
     .gcmanaged = false,
-    .truthy = langsam_Float_truthy,
     .hash = langsam_Float_hash,
     .cast = langsam_Float_cast,
     .cmp = langsam_Float_cmp,
@@ -750,11 +744,6 @@ LangsamSize langsam_String_gcfree(LangsamVM *vm, void *p) {
   LangsamString *s = p;
   langsam_free(vm, s->p);
   return s->len + 1;
-}
-
-bool langsam_String_truthy(LangsamVM *vm, LV self) {
-  LangsamString *s = self.p;
-  return s->len != 0;
 }
 
 LangsamHash langsam_String_hash(LangsamVM *vm, LV self, LangsamHash hash) {
@@ -1003,7 +992,6 @@ static struct LangsamT LANGSAM_T_STRING = {
     .gcmanaged = true,
     .gcmark = langsam_String_gcmark,
     .gcfree = langsam_String_gcfree,
-    .truthy = langsam_String_truthy,
     .hash = langsam_String_hash,
     .cast = langsam_String_cast,
     .cmp = langsam_String_cmp,
@@ -1230,6 +1218,9 @@ LV langsam_Cons_put(LangsamVM *vm, LV self, LV key, LV value) {
 }
 
 LV langsam_Cons_iter(LangsamVM *vm, LV self) {
+  if (!langsam_consp(self)) {
+    return langsam_nil;
+  }
   LangsamConsIterator *p =
       langsam_gcalloc(vm, LT_CONSITERATOR, LANGSAM_SIZEOF(LangsamConsIterator));
   p->cur = self;
@@ -1363,11 +1354,6 @@ LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p) {
   return langsam_mark(vm, it->cur);
 }
 
-bool langsam_ConsIterator_truthy(LangsamVM *vm, LV self) {
-  LangsamConsIterator *it = self.p;
-  return langsam_consp(it->cur);
-}
-
 LV langsam_ConsIterator_deref(LangsamVM *vm, LV self) {
   LangsamConsIterator *it = self.p;
   if (!langsam_consp(it->cur)) {
@@ -1384,14 +1370,13 @@ LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args) {
                               "attempt to advance consumed ConsIterator");
   }
   it->cur = langsam_cdr(it->cur);
-  return self;
+  return langsam_consp(it->cur) ? self : langsam_nil;
 }
 
 static struct LangsamT LANGSAM_T_CONSITERATOR = {
     .name = "ConsIterator",
     .gcmanaged = true,
     .gcmark = langsam_ConsIterator_gcmark,
-    .truthy = langsam_ConsIterator_truthy,
     .deref = langsam_ConsIterator_deref,
     .invoke = langsam_ConsIterator_invoke,
 };
@@ -1413,11 +1398,6 @@ LangsamSize langsam_Vector_gcfree(LangsamVM *vm, void *p) {
   LangsamVector *v = p;
   langsam_free(vm, v->items);
   return v->len * LANGSAM_SIZEOF(LV);
-}
-
-bool langsam_Vector_truthy(LangsamVM *vm, LV self) {
-  LangsamVector *v = self.p;
-  return v->items != 0;
 }
 
 LangsamHash langsam_Vector_hash(LangsamVM *vm, LV self, LangsamHash hash) {
@@ -1525,6 +1505,10 @@ LV langsam_Vector_len(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Vector_iter(LangsamVM *vm, LV self) {
+  LangsamVector *v = self.p;
+  if (v->len == 0) {
+    return langsam_nil;
+  }
   LangsamVectorIterator *p = langsam_gcalloc(
       vm, LT_VECTORITERATOR, LANGSAM_SIZEOF(LangsamVectorIterator));
   p->v = self;
@@ -1612,7 +1596,6 @@ static struct LangsamT LANGSAM_T_VECTOR = {
     .gcmanaged = true,
     .gcmark = langsam_Vector_gcmark,
     .gcfree = langsam_Vector_gcfree,
-    .truthy = langsam_Vector_truthy,
     .hash = langsam_Vector_hash,
     .cast = langsam_Vector_cast,
     .equal = langsam_Vector_equal,
@@ -1635,12 +1618,6 @@ LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p) {
   return langsam_mark(vm, it->v);
 }
 
-bool langsam_VectorIterator_truthy(LangsamVM *vm, LV self) {
-  LangsamVectorIterator *it = self.p;
-  LangsamVector *v = it->v.p;
-  return it->i < v->len;
-}
-
 LV langsam_VectorIterator_deref(LangsamVM *vm, LV self) {
   LangsamVectorIterator *it = self.p;
   LangsamVector *v = it->v.p;
@@ -1659,14 +1636,13 @@ LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args) {
                               "attempt to advance consumed VectorIterator");
   }
   it->i++;
-  return self;
+  return (it->i < v->len) ? self : langsam_nil;
 }
 
 static struct LangsamT LANGSAM_T_VECTORITERATOR = {
     .name = "VectorIterator",
     .gcmanaged = true,
     .gcmark = langsam_VectorIterator_gcmark,
-    .truthy = langsam_VectorIterator_truthy,
     .deref = langsam_VectorIterator_deref,
     .invoke = langsam_VectorIterator_invoke,
 };
@@ -1692,11 +1668,6 @@ LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p) {
   LangsamMap *m = p;
   langsam_free(vm, m->buckets);
   return m->nbuckets * LANGSAM_SIZEOF(LV);
-}
-
-bool langsam_Map_truthy(LangsamVM *vm, LV self) {
-  LangsamMap *m = self.p;
-  return m->nitems != 0;
 }
 
 LangsamHash langsam_Map_hash(LangsamVM *vm, LV self, LangsamHash hash) {
@@ -1912,10 +1883,14 @@ LV langsam_Map_len(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Map_iter(LangsamVM *vm, LV self) {
+  LV items = langsam_Map_items(vm, self);
+  if (langsam_nilp(items)) {
+    return langsam_nil;
+  }
   LangsamMapIterator *p =
       langsam_gcalloc(vm, LT_MAPITERATOR, LANGSAM_SIZEOF(LangsamMapIterator));
   p->m = self;
-  p->items = langsam_Map_items(vm, self);
+  p->items = items;
   return (LV){
       .type = LT_MAPITERATOR,
       .p = p,
@@ -2082,7 +2057,6 @@ static struct LangsamT LANGSAM_T_MAP = {
     .gcmanaged = true,
     .gcmark = langsam_Map_gcmark,
     .gcfree = langsam_Map_gcfree,
-    .truthy = langsam_Map_truthy,
     .hash = langsam_Map_hash,
     .cast = langsam_Map_cast,
     .equal = langsam_Map_equal,
@@ -2109,11 +2083,6 @@ LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p) {
   return total;
 }
 
-bool langsam_MapIterator_truthy(LangsamVM *vm, LV self) {
-  LangsamMapIterator *it = self.p;
-  return langsam_consp(it->items);
-}
-
 LV langsam_MapIterator_deref(LangsamVM *vm, LV self) {
   LangsamMapIterator *it = self.p;
   if (langsam_nilp(it->items)) {
@@ -2130,14 +2099,13 @@ LV langsam_MapIterator_invoke(LangsamVM *vm, LV self, LV args) {
                               "attempt to advance consumed MapIterator");
   }
   it->items = langsam_cdr(it->items);
-  return self;
+  return (langsam_consp(it->items)) ? self : langsam_nil;
 }
 
 static struct LangsamT LANGSAM_T_MAPITERATOR = {
     .name = "MapIterator",
     .gcmanaged = true,
     .gcmark = langsam_MapIterator_gcmark,
-    .truthy = langsam_MapIterator_truthy,
     .deref = langsam_MapIterator_deref,
     .invoke = langsam_MapIterator_invoke,
 };
@@ -2158,6 +2126,28 @@ static LV collect_rest(LangsamVM *vm, LV it) {
 
 static bool bind_exceptionp(LangsamVM *vm, LV obj) {
   return langsam_exceptionpk(vm, obj, "bind");
+}
+
+static LV bind_pattern_failed(LangsamVM *vm, LV lhs, LV rhs) {
+  return langsam_exceptionf(vm, "bind", "pattern failed: %s value=%s",
+                            langsam_cstr(vm, lhs), langsam_cstr(vm, rhs));
+}
+
+static LV bind_eval_in_env(LangsamVM *vm, LV env, LV expr) {
+  LANGSAM_CHECK(langsam_pushlet(vm, env));
+  LV result = langsam_eval(vm, expr);
+  langsam_poplet(vm);
+  return result;
+}
+
+static LV bind_get_associative(LangsamVM *vm, LV lhs, LV rhs, LV key) {
+  LV value = langsam_get(vm, rhs, key);
+  if (langsam_exceptionpk(vm, value, "get")) {
+    return langsam_exceptionf(vm, "bind", "attempt to bind non-associative %s to %s",
+                              langsam_ctypename(vm, rhs.type),
+                              langsam_ctypename(vm, lhs.type));
+  }
+  return value;
 }
 
 static LV bind_quoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
@@ -2295,8 +2285,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       LV pat = langsam_car(pats);
       LV bind_result = langsam_bind(vm, env, pat, rhs);
       if (langsam_exceptionp(bind_result)) {
-        return langsam_exceptionf(vm, "bind", "pattern failed: %s",
-                                  langsam_cstr(vm, lhs));
+        return bind_pattern_failed(vm, lhs, rhs);
       }
       pats = langsam_cdr(pats);
     }
@@ -2313,8 +2302,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       }
       pats = langsam_cdr(pats);
     }
-    return langsam_exceptionf(vm, "bind", "pattern failed: %s",
-                              langsam_cstr(vm, lhs));
+    return bind_pattern_failed(vm, lhs, rhs);
   }
   LV pred_symbol = langsam_symbol(vm, "pred");
   if (LVEQ(head, pred_symbol)) {
@@ -2328,22 +2316,18 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     LV result = langsam_eval(vm, pred_form);
     LANGSAM_CHECK(result);
     if (!langsam_truthy(vm, result)) {
-      return langsam_exceptionf(vm, "bind", "pattern failed: %s",
-                                langsam_cstr(vm, lhs));
+      return bind_pattern_failed(vm, lhs, rhs);
     }
     return env;
   }
-  LV when_symbol = langsam_symbol(vm, "when");
-  if (LVEQ(head, when_symbol)) {
+  LV guard_symbol = langsam_symbol(vm, "guard");
+  if (LVEQ(head, guard_symbol)) {
     LV tail = langsam_cdr(lhs);
     LANGSAM_ARG(expr, tail);
-    LANGSAM_CHECK(langsam_pushlet(vm, env));
-    LV result = langsam_eval(vm, expr);
-    langsam_poplet(vm);
+    LV result = bind_eval_in_env(vm, env, expr);
     LANGSAM_CHECK(result);
     if (!langsam_truthy(vm, result)) {
-      return langsam_exceptionf(vm, "bind", "pattern failed: %s",
-                                langsam_cstr(vm, lhs));
+      return bind_pattern_failed(vm, lhs, rhs);
     }
     return env;
   }
@@ -2448,9 +2432,7 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           val = langsam_deref(vm, it_rhs);
           it_rhs = langsam_next(vm, it_rhs);
         } else if (langsam_somep(val)) {
-          LANGSAM_CHECK(langsam_pushlet(vm, env));
-          val = langsam_eval(vm, val);
-          langsam_poplet(vm);
+          val = bind_eval_in_env(vm, env, val);
           LANGSAM_CHECK(val);
         }
         LV bind_value_result = langsam_bind(vm, env, sym, val);
@@ -2490,21 +2472,52 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         LV it_key = langsam_iter(vm, key);
         LANGSAM_CHECK(it_key);
         while (langsam_truthy(vm, it_key)) {
-          LV sym = langsam_deref(vm, it_key);
-          if (sym.type != LT_SYMBOL) {
+          LV keypat = langsam_deref(vm, it_key);
+          LV sym = langsam_nil;
+          LV default_value = langsam_nil;
+          bool has_default = false;
+          if (keypat.type == LT_SYMBOL) {
+            sym = keypat;
+          } else if (keypat.type == LT_CONS) {
+            LV head = langsam_car(keypat);
+            LV tail = langsam_cdr(keypat);
+            if (head.type != LT_SYMBOL || tail.type != LT_CONS ||
+                langsam_somep(langsam_cdr(tail))) {
+              return langsam_exceptionf(
+                  vm, "syntax",
+                  "entry in iterable passed to :keys should look like "
+                  "(symbol default), got %s",
+                  langsam_cstr(vm, keypat));
+            }
+            sym = head;
+            default_value = langsam_car(tail);
+            has_default = true;
+          } else {
             return langsam_exceptionf(
                 vm, "syntax", "found value of %s in iterable passed to :keys",
-                langsam_ctypename(vm, sym.type));
+                langsam_ctypename(vm, keypat.type));
           }
           LV k = langsam_Keyword_cast(vm, sym);
-          LV v = langsam_get(vm, rhs, k);
-          if (langsam_exceptionpk(vm, v, "get")) {
-            return langsam_exceptionf(
-                vm, "bind", "attempt to bind non-associative %s to %s",
-                langsam_ctypename(vm, rhs.type),
-                langsam_ctypename(vm, lhs.type));
+          bool keysetp = false;
+          LV v;
+          if (rhs.type == LT_MAP) {
+            LV entry = langsam_Map_gep(vm, rhs, k);
+            LANGSAM_CHECK(entry);
+            keysetp = langsam_somep(entry);
+            if (keysetp) {
+              v = langsam_cdr(entry);
+            } else {
+              v = langsam_nil;
+            }
+          } else {
+            v = bind_get_associative(vm, lhs, rhs, k);
+            LANGSAM_CHECK(v);
+            keysetp = langsam_somep(v);
           }
-          LANGSAM_CHECK(v);
+          if (!keysetp && has_default) {
+            v = bind_eval_in_env(vm, env, default_value);
+            LANGSAM_CHECK(v);
+          }
           LV result = langsam_bind(vm, env, sym, v);
           LANGSAM_CHECK(result);
           it_key = langsam_next(vm, it_key);
@@ -2515,12 +2528,7 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
                                   langsam_cstr(vm, pat));
       }
     } else {
-      LV value = langsam_get(vm, rhs, key);
-      if (langsam_exceptionpk(vm, value, "get")) {
-        return langsam_exceptionf(
-            vm, "bind", "attempt to bind non-associative %s to %s",
-            langsam_ctypename(vm, rhs.type), langsam_ctypename(vm, lhs.type));
-      }
+      LV value = bind_get_associative(vm, lhs, rhs, key);
       LANGSAM_CHECK(value);
       LV result = langsam_bind(vm, env, pat, value);
       LANGSAM_CHECK(result);
@@ -3133,6 +3141,30 @@ static LV eval_mod(LangsamVM *vm, LV args) {
   return result;
 }
 
+static LV eval_bit_shift_left(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(x, args);
+  LANGSAM_ARG_TYPE(x, LT_INTEGER);
+  LANGSAM_ARG(shift, args);
+  LANGSAM_ARG_TYPE(shift, LT_INTEGER);
+  if (shift.i < 0) {
+    return langsam_exceptionf(vm, "bit-shift-left",
+                              "shift must be non-negative Integer");
+  }
+  return langsam_integer(x.i << shift.i);
+}
+
+static LV eval_bit_shift_right(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(x, args);
+  LANGSAM_ARG_TYPE(x, LT_INTEGER);
+  LANGSAM_ARG(shift, args);
+  LANGSAM_ARG_TYPE(shift, LT_INTEGER);
+  if (shift.i < 0) {
+    return langsam_exceptionf(vm, "bit-shift-right",
+                              "shift must be non-negative Integer");
+  }
+  return langsam_integer(x.i >> shift.i);
+}
+
 static LV eval_get(LangsamVM *vm, LV args) {
   LANGSAM_ARG(coll, args);
   LANGSAM_ARG(key, args);
@@ -3410,30 +3442,34 @@ static LV eval_while(LangsamVM *vm, LV args) {
   return result;
 }
 
-static LV process_bindings(LangsamVM *vm, LV bindings) {
+static LV process_bindings(LangsamVM *vm, LV bindings,
+                           bool stop_if_value_is_false) {
   LV it = langsam_iter(vm, bindings);
   LANGSAM_CHECK(it);
   while (langsam_truthy(vm, it)) {
-    LV k = langsam_deref(vm, it);
+    LV pat = langsam_deref(vm, it);
     it = langsam_next(vm, it);
     if (!langsam_truthy(vm, it)) {
       return langsam_exceptionf(vm, "syntax", "incomplete let bindings");
     }
-    LV v = langsam_deref(vm, it);
-    v = langsam_eval(vm, v);
-    LANGSAM_CHECK(v);
-    it = langsam_next(vm, it);
-    LV bind_result = langsam_bind(vm, vm->curlet, k, v);
+    LV value = langsam_deref(vm, it);
+    value = langsam_eval(vm, value);
+    LANGSAM_CHECK(value);
+    if (stop_if_value_is_false && !langsam_truthy(vm, value)) {
+      return langsam_false;
+    }
+    LV bind_result = langsam_bind(vm, vm->curlet, pat, value);
     LANGSAM_CHECK(bind_result);
+    it = langsam_next(vm, it);
   }
-  return langsam_nil;
+  return langsam_true;
 }
 
 static LV eval_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LV letenv = langsam_map(vm, vm->curlet, 64);
   LANGSAM_CHECK(langsam_pushlet(vm, letenv));
-  LV bind_result = process_bindings(vm, bindings);
+  LV bind_result = process_bindings(vm, bindings, false);
   if (langsam_exceptionp(bind_result)) {
     langsam_poplet(vm);
     return bind_result;
@@ -3443,13 +3479,13 @@ static LV eval_let(LangsamVM *vm, LV args) {
   return result;
 }
 
-static LV eval_if_let(LangsamVM *vm, LV args) {
+static LV eval_if_match(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LANGSAM_ARG(if_expr, args);
   LANGSAM_ARG_OPT(else_expr, args);
   LV letenv = langsam_map(vm, vm->curlet, 64);
   LANGSAM_CHECK(langsam_pushlet(vm, letenv));
-  LV bind_result = process_bindings(vm, bindings);
+  LV bind_result = process_bindings(vm, bindings, false);
   if (langsam_exceptionp(bind_result)) {
     langsam_poplet(vm);
     if (!bind_exceptionp(vm, bind_result)) {
@@ -3462,6 +3498,26 @@ static LV eval_if_let(LangsamVM *vm, LV args) {
     langsam_poplet(vm);
     return result;
   }
+}
+
+static LV eval_if_let(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(bindings, args);
+  LANGSAM_ARG(if_expr, args);
+  LANGSAM_ARG_OPT(else_expr, args);
+  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LANGSAM_CHECK(langsam_pushlet(vm, letenv));
+  LV bind_result = process_bindings(vm, bindings, true);
+  if (langsam_exceptionp(bind_result)) {
+    langsam_poplet(vm);
+    return bind_result;
+  }
+  if (langsam_truep(bind_result)) {
+    LV result = langsam_eval(vm, if_expr);
+    langsam_poplet(vm);
+    return result;
+  }
+  langsam_poplet(vm);
+  return langsam_eval(vm, else_expr);
 }
 
 static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
@@ -3568,6 +3624,15 @@ static LV eval_gep(LangsamVM *vm, LV args) {
   LANGSAM_ARG_TYPE(map, LT_MAP);
   LANGSAM_ARG(key, args);
   return langsam_Map_gep(vm, map, key);
+}
+
+static LV eval_containsp(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(map, args);
+  LANGSAM_ARG_TYPE(map, LT_MAP);
+  LANGSAM_ARG(key, args);
+  LV item = langsam_Map_gep(vm, map, key);
+  LANGSAM_CHECK(item);
+  return langsam_boolean(langsam_somep(item));
 }
 
 static LV eval_next(LangsamVM *vm, LV args) {
@@ -3681,7 +3746,10 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "*", eval_mul);
   langsam_defn(vm, env, "/", eval_div);
   langsam_defn(vm, env, "mod", eval_mod);
+  langsam_defn(vm, env, "bit-shift-left", eval_bit_shift_left);
+  langsam_defn(vm, env, "bit-shift-right", eval_bit_shift_right);
   langsam_defn(vm, env, "get", eval_get);
+  langsam_defn(vm, env, "contains?", eval_containsp);
   langsam_defn(vm, env, "put", eval_put);
   langsam_defn(vm, env, "del", eval_del);
   langsam_defn(vm, env, "len", eval_len);
@@ -3705,6 +3773,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defspecial(vm, env, "if", eval_if);
   langsam_defspecial(vm, env, "while", eval_while);
   langsam_defspecial(vm, env, "let", eval_let);
+  langsam_defspecial(vm, env, "if-match", eval_if_match);
   langsam_defspecial(vm, env, "if-let", eval_if_let);
   langsam_defspecial(vm, env, "catch", eval_catch);
   langsam_defspecial(vm, env, "assert", eval_assert);
@@ -4024,15 +4093,17 @@ static bool is_symbol_char(uint8_t c) {
 }
 
 static LV Reader_read_symbol(Reader *r, uint8_t first) {
-  StringBuilder sb;
-  StringBuilder_init(&sb, r->vm);
-  StringBuilder_write_byte(&sb, first);
-  LV lhs = langsam_nil;
+  StringBuilder lhs_sb, rhs_sb;
+  StringBuilder_init(&lhs_sb, r->vm);
+  StringBuilder_init(&rhs_sb, r->vm);
+  StringBuilder_write_byte(&lhs_sb, first);
   uint8_t seen_sep = 0;
+  bool rhs_empty = true;
   while (1) {
     LV result = Reader_readbyte(r);
     if (langsam_exceptionp(result)) {
-      StringBuilder_reset(&sb);
+      StringBuilder_reset(&lhs_sb);
+      StringBuilder_reset(&rhs_sb);
       return result;
     } else if (langsam_nilp(result)) {
       break;
@@ -4044,6 +4115,8 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
     }
     if (c == '/' || c == '.') {
       if (seen_sep) {
+        StringBuilder_reset(&lhs_sb);
+        StringBuilder_reset(&rhs_sb);
         if (seen_sep == c) {
           return langsam_exceptionf(
               r->vm, "read", "symbol contains multiple %c characters", c);
@@ -4053,29 +4126,43 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
         }
       }
       seen_sep = c;
-      lhs = StringBuilder_result_as_symbol(&sb);
     } else {
-      StringBuilder_write_byte(&sb, c);
+      if (seen_sep == 0) {
+        StringBuilder_write_byte(&lhs_sb, c);
+      } else {
+        rhs_empty = false;
+        StringBuilder_write_byte(&rhs_sb, c);
+      }
     }
   }
   if (seen_sep) {
-    LV rhs = StringBuilder_result_as_symbol(&sb);
+    if (rhs_empty) {
+      StringBuilder_reset(&lhs_sb);
+      StringBuilder_reset(&rhs_sb);
+      return langsam_exceptionf(
+          r->vm, "read", "symbol cannot end with %c character", seen_sep);
+    }
+    LV lhs = StringBuilder_result_as_symbol(&lhs_sb);
+    LV rhs = StringBuilder_result_as_symbol(&rhs_sb);
+    LV quoted_rhs = langsam_nil;
+    quoted_rhs = langsam_cons(r->vm, rhs, quoted_rhs);
+    quoted_rhs =
+        langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), quoted_rhs);
     LV result = langsam_nil;
     if (seen_sep == '/') {
-      LV get = langsam_get(r->vm, r->vm->rootlet, langsam_symbol(r->vm, "get"));
-      result = langsam_cons(r->vm, langsam_quote(r->vm, rhs), result);
+      // foo/bar => (foo 'bar)
+      result = langsam_cons(r->vm, quoted_rhs, result);
       result = langsam_cons(r->vm, lhs, result);
-      result = langsam_cons(r->vm, get, result);
     } else {
-      LV cons =
-          langsam_get(r->vm, r->vm->rootlet, langsam_symbol(r->vm, "cons"));
-      result = langsam_cons(r->vm, langsam_quote(r->vm, rhs), result);
+      // foo.bar => (cons foo 'bar)
+      result = langsam_cons(r->vm, quoted_rhs, result);
       result = langsam_cons(r->vm, lhs, result);
-      result = langsam_cons(r->vm, cons, result);
+      result = langsam_cons(r->vm, langsam_symbol(r->vm, "cons"), result);
     }
     return result;
   } else {
-    return StringBuilder_result_as_symbol(&sb);
+    StringBuilder_reset(&rhs_sb);
+    return StringBuilder_result_as_symbol(&lhs_sb);
   }
 }
 

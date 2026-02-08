@@ -49,3 +49,15 @@
   (assert (= (macroexpand-1 '(m)) '(throw '(syntax . "foo"))))
   (assert (= (macroexpand '(m)) '(throw '(syntax . "foo"))))
   (assert (= (macroexpand-all '(m)) '(throw '(syntax . "foo")))))
+
+(assert (= (macroexpand '(cond-let [x y] x :none))
+           '(if-let [x y] x :none)))
+
+(assert (= (macroexpand '(cond-let [x nil] :a [y 5] y :none))
+           '(if-let [x nil] :a (if-let [y 5] y :none))))
+
+(assert (= (cond-match 5
+             (String s) s
+             (Integer x) (+ x 1)
+             :none)
+           6))

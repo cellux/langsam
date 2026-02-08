@@ -20,11 +20,13 @@
 ; VectorIterator
 (let [v '[a b c]
       it (iter v)
+      last-it nil
       index 0]
   (while it
     (assert (= (type it) VectorIterator))
+    (setq last-it it)
     (assert (= @it (v index)))
     (setq it (it))
     (incq index))
-  (assert (throws? '(deref . "attempt to deref consumed VectorIterator") @it))
-  (assert (throws? '(invoke . "attempt to advance consumed VectorIterator") (it))))
+  (assert (throws? '(deref . "attempt to deref consumed VectorIterator") @last-it))
+  (assert (throws? '(invoke . "attempt to advance consumed VectorIterator") (last-it))))

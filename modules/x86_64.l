@@ -51,12 +51,11 @@
    8 3})
 
 (defn get-r64-code [reg]
-  (cond-let
-    [(Integer code) (get r64-register-codes reg)] code
-    (throw (cons 'x86_64 (str "unsupported register: " reg)))))
+  (or (get r64-register-codes reg)
+      (throw (cons 'x86_64 (str "unsupported register: " reg)))))
 
 (defn register-name? [v]
-  (gep r64-register-codes v))
+  (contains? r64-register-codes v))
 
 (defn reg-low [code]
   (mod code 8))
@@ -66,18 +65,18 @@
 
 (defn encode-rex-w [r x b]
   (+ 0x48
-     (if r 0x04 0)
-     (if x 0x02 0)
-     (if b 0x01 0)))
+     (if (nonzero? r) 0x04 0)
+     (if (nonzero? x) 0x02 0)
+     (if (nonzero? b) 0x01 0)))
 
 (defn encode-modrm [mod reg rm]
-  (+ (* mod 0x40)
-     (* reg 0x08)
+  (+ (bit-shift-left mod 6)
+     (bit-shift-left reg 3)
      rm))
 
 (defn encode-sib [scale index base]
-  (+ (* scale 0x40)
-     (* index 0x08)
+  (+ (bit-shift-left scale 6)
+     (bit-shift-left index 3)
      base))
 
 (defn encode-imm32-le [imm]
@@ -85,11 +84,11 @@
     (throw (cons 'x86_64 (str "imm32 out of range: " imm))))
   (let [value (if (< imm 0) (+ 0x100000000 imm) imm)
         b0 (mod value 0x100)
-        x1 (/ value 0x100)
+        x1 (bit-shift-right value 8)
         b1 (mod x1 0x100)
-        x2 (/ x1 0x100)
+        x2 (bit-shift-right x1 8)
         b2 (mod x2 0x100)
-        x3 (/ x2 0x100)
+        x3 (bit-shift-right x2 8)
         b3 (mod x3 0x100)]
     [b0 b1 b2 b3]))
 
@@ -115,7 +114,7 @@
 (defn mem-from-opts [opts forced-size]
   (let [m {:kind :mem}
         it (iter opts)]
-    (if (some? forced-size)
+    (if forced-size
       (put m :size forced-size))
     (while it
       (let [k @it]
@@ -123,7 +122,7 @@
         (if (not it)
           (throw (cons 'x86_64 "mem expects key/value pairs")))
         (let [v @it]
-          (if (and (some? forced-size) (= k :size))
+          (if (and forced-size (= k :size))
             (throw (cons 'x86_64 "size is implicit in memq/memd/memw/memb")))
           (put m k v)
           (setq it (next it)))))
@@ -145,77 +144,56 @@
   (mem-from-opts rest 1))
 
 (defn mem-operand? [operand]
-  (case operand
-    (Map m) (= (or (get m :kind) :mem) :mem)
-    `(mem ,@opts) true
-    `(memq ,@opts) true
-    `(memd ,@opts) true
-    `(memw ,@opts) true
-    `(memb ,@opts) true
-    false))
+  (and (map? operand)
+       (= (:kind operand) :mem)))
 
-(defn parse-mem-operand [operand]
+(defn normalize-mem-operand [operand]
   (case operand
-    (Map m) (let [kind (get m :kind)]
-              (if (and kind (not= kind :mem))
-                (throw (cons 'x86_64
-                             (str "unsupported memory operand kind: "
-                                  kind))))
-              (if (nil? kind)
-                (put m :kind :mem))
-              m)
+    (Map m) (if (= (:kind m) :mem)
+              m
+              (throw (cons 'x86_64 (str "not a mem operand:" operand))))
     `(mem ,@opts) (mem-from-opts opts nil)
     `(memq ,@opts) (mem-from-opts opts 8)
     `(memd ,@opts) (mem-from-opts opts 4)
     `(memw ,@opts) (mem-from-opts opts 2)
     `(memb ,@opts) (mem-from-opts opts 1)
-    (throw (cons 'x86_64 (str "unsupported memory operand: " operand)))))
+    operand))
 
 (defn encode-mem64 [memop]
-  (if (not= (get memop :kind) :mem)
-    (throw (cons 'x86_64
-                 (str "unsupported memory operand kind: "
-                      (get memop :kind)))))
-  (let [size (get memop :size)]
+  (let [{:keys [size base index (scale 1) (disp 0) rip]} memop]
     (if (not= size 8)
-      (throw (cons 'x86_64 (str "unsupported mem size in mov: " size)))))
-
-  (let [base (get memop :base)
-        index (get memop :index)
-        scale (or (get memop :scale) 1)
-        disp (or (get memop :disp) 0)
-        rip-disp (get memop :rip)]
-    (if (and (some? base) (not (symbol? base)))
+      (throw (cons 'x86_64 (str "unsupported mem size in mov: " size))))
+    (if (and base (not (symbol? base)))
       (throw (cons 'x86_64 (str "base should be a Symbol, got: " base))))
-    (if (and (some? index) (not (symbol? index)))
+    (if (and index (not (symbol? index)))
       (throw (cons 'x86_64 (str "index should be a Symbol, got: " index))))
     (if (not (integer? disp))
       (throw (cons 'x86_64 (str "disp should be an Integer, got: " disp))))
-    (if (and (some? rip-disp) (not (integer? rip-disp)))
+    (if (and rip (not (integer? rip)))
       (throw (cons 'x86_64
                    (str "rip should be an Integer displacement, got: "
-                        rip-disp))))
+                        rip))))
     (if (and (nil? index) (not= scale 1))
       (throw (cons 'x86_64 "scale requires an index register")))
 
-    (if-let [(Integer scale-bits) (get scale-encodings scale)]
-      (if (some? rip-disp)
+    (if-let [scale-bits (get scale-encodings scale)]
+      (if rip
         (do
-          (if (or (some? base) (some? index))
+          (if (or base index)
             (throw (cons 'x86_64
                          "rip-relative addressing cannot include :base or :index")))
           {:mod 0
            :rm 5
            :rexx 0
            :rexb 0
-           :tail (encode-imm32-le rip-disp)})
+           :tail (encode-imm32-le rip)})
         (let [no-base? (nil? base)
               [base-low base-high] (if no-base?
                                      [5 0]
                                      (let [base-code (get-r64-code base)]
                                        [(reg-low base-code)
                                         (reg-high base-code)]))
-              [index-low index-high] (if (some? index)
+              [index-low index-high] (if index
                                        (let [index-code (get-r64-code index)
                                              index-low (reg-low index-code)]
                                          (if (= index-low 4)
@@ -223,7 +201,7 @@
                                                         "rsp/r12 cannot be used as index")))
                                          [index-low (reg-high index-code)])
                                        [4 0])
-              needs-sib (or no-base? (some? index) (= base-low 4))
+              needs-sib (or no-base? index (= base-low 4))
               [mod disp-bytes] (if no-base?
                                  [0 (encode-imm32-le disp)]
                                  (if (and (= disp 0) (not= base-low 5))
@@ -283,29 +261,28 @@
                                      modrm (encode-modrm 3 0 (reg-low code))
                                      [b0 b1 b2 b3] (encode-imm32-le imm)]
                                  [rex 0xC7 modrm b0 b1 b2 b3])
-    `(mov ,dst ,src) (cond-let
-                       [(Integer _) (if (and (register-name? dst)
-                                             (register-name? src))
-                                      1)]
-                       (encode-mov-r64-r64 dst src)
-                       [(Integer _) (if (and (register-name? dst)
-                                             (mem-operand? src))
-                                      1)]
-                       (encode-mov-r64-mem dst (parse-mem-operand src))
-                       [(Integer _) (if (and (mem-operand? dst)
-                                             (register-name? src))
-                                      1)]
-                       (encode-mov-mem-r64 (parse-mem-operand dst) src)
-                       (throw (cons 'x86_64
-                                    (str "unsupported instruction: "
-                                         instruction))))
+    `(mov ,dst ,src) (let [dst (normalize-mem-operand dst)
+                           src (normalize-mem-operand src)]
+                       (cond-let
+                         [ok (and (register-name? dst)
+                                  (register-name? src))]
+                         (encode-mov-r64-r64 dst src)
+                         [ok (and (register-name? dst)
+                                  (mem-operand? src))]
+                         (encode-mov-r64-mem dst src)
+                         [ok (and (mem-operand? dst)
+                                  (register-name? src))]
+                         (encode-mov-mem-r64 dst src)
+                         (throw (cons 'x86_64
+                                      (str "unsupported instruction: "
+                                           instruction)))))
     `(test ,reg ,(Integer imm)) (let [code (get-r64-code reg)
                                       rex (encode-rex-w 0 0 (reg-high code))
                                       modrm (encode-modrm 3 0 (reg-low code))
                                       [b0 b1 b2 b3] (encode-imm32-le imm)]
                                   [rex 0xF7 modrm b0 b1 b2 b3])
     `(,inst ,reg ,(Integer imm)) (cond-let
-                                   [(Integer group1-ext)
+                                   [group1-ext
                                     (get group1-r64-imm32-opcode-ext inst)]
                                    (let [code (get-r64-code reg)
                                          rex (encode-rex-w 0 0 (reg-high code))
@@ -314,7 +291,7 @@
                                                              (reg-low code))
                                          [b0 b1 b2 b3] (encode-imm32-le imm)]
                                      [rex 0x81 modrm b0 b1 b2 b3])
-                                   [(Integer shift-ext)
+                                   [shift-ext
                                     (get shift-r64-imm8-opcode-ext inst)]
                                    (let [code (get-r64-code reg)
                                          rex (encode-rex-w 0 0 (reg-high code))
@@ -323,7 +300,7 @@
                                                              (reg-low code))
                                          imm8 (encode-imm8 imm)]
                                      [rex 0xC1 modrm imm8])
-                                   [(Integer bt-ext)
+                                   [bt-ext
                                     (get bt-r64-imm8-opcode-ext inst)]
                                    (let [code (get-r64-code reg)
                                          rex (encode-rex-w 0 0 (reg-high code))

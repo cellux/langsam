@@ -67,6 +67,27 @@
 (defn even? [x] (= (mod x 2) 0))
 (defn odd? [x] (not= (mod x 2) 0))
 
+(defn zero? [x]
+  (cond-match x
+    (Integer i) (= i 0)
+    (Float f) (= f 0.0)
+    false))
+
+(defn nonzero? [x]
+  (not (zero? x)))
+
+(defn pos? [x]
+  (cond-match x
+    (Integer i) (> i 0)
+    (Float f) (> f 0.0)
+    false))
+
+(defn neg? [x]
+  (cond-match x
+    (Integer i) (< i 0)
+    (Float f) (< f 0.0)
+    false))
+
 (defn map [f coll]
   (let [result nil
         it (iter coll)]
@@ -120,10 +141,16 @@
 (defmacro while-let [bindings & body]
   `(while (if-let ,bindings (do ,@body true) false)))
 
+(defmacro when-match [bindings & body]
+  `(if-match ,bindings (do ,@body)))
+
+(defmacro while-match [bindings & body]
+  `(while (if-match ,bindings (do ,@body true) false)))
+
 (def cond-let
   (let [subcond (fn [clauses]
                   (if clauses
-                    (if-let [[bindings result & clauses] clauses]
+                    (if-match [[bindings result & clauses] clauses]
                       `(if-let ,bindings
                          ,result
                          ,(subcond clauses))
@@ -133,11 +160,26 @@
     (macro cond-let [& clauses]
       (subcond clauses))))
 
+(def cond-match
+  (let [subcond (fn [item# clauses]
+                  (if clauses
+                    (if-match [[pattern result & clauses] clauses]
+                      `(if-match [,pattern ,item#]
+                         ,result
+                         ,(subcond item# clauses))
+                      (let [[result] clauses]
+                        result))
+                    `(throw (cons 'cond-match "no match"))))]
+    (macro cond-match [item & clauses]
+      (let [item# (gensym 'item)]
+        `(let [,item# ,item]
+           ,(subcond item# clauses))))))
+
 (def case
   (let [subcase (fn [item# clauses]
                   (if clauses
-                    (if-let [[pattern result & clauses] clauses]
-                      `(if-let [,pattern ,item#]
+                    (if-match [[pattern result & clauses] clauses]
+                      `(if-match [,pattern ,item#]
                          ,result
                          ,(subcase item# clauses))
                       (let [[result] clauses]
@@ -155,7 +197,7 @@
          ,result#)))
 
 (defmacro for [bindings & body]
-  (if-let [[pat coll & rest] bindings]
+  (if-match [[pat coll & rest] bindings]
     (let [it# (gensym 'it)]
       `(let [,it# (iter ,coll)]
          (while ,it#
@@ -203,8 +245,9 @@
   (fn [& rest] (f (apply g rest))))
 
 (defn iterable? [x]
-  (if-let [it (iter x)]
-    true false))
+  (catch [_ false]
+    (iter x)
+    true))
 
 (defn flatten [coll]
   (def result nil)
@@ -250,7 +293,7 @@
 
 (defn macro-form?*
   [form env]
-  (if-let [[(Symbol head) & rest] form]
+  (if-match [[(Symbol head) & rest] form]
     (macro? (eval head env))))
 
 (defmacro macro-form?

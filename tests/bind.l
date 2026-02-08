@@ -21,6 +21,8 @@
   (test-bind '[a b &opt (c :foo c-set?)] [1 2 nil] {'a 1 'b 2 'c nil 'c-set? true})
   (test-bind '{a :a b :b} {:a 1 :b 2 :c 3} {'a 1 'b 2})
   (test-bind '{:keys [a c] b :b} {:a 1 :b 2 :c 3} {'a 1 'c 3 'b 2})
+  (test-bind '{:keys [a (b 2) c]} {:a 1 :c 3} {'a 1 'c 3 'b 2})
+  (test-bind '{:keys [(a 2)]} {:a nil} {'a nil})
   (test-bind '[1 foo 2] [1 7 2] {'foo 7})
   (test-bind '[:bar foo :baz] [:bar 7 :baz] {'foo 7})
   (test-bind '['bar foo 'baz] ['bar 7 'baz] {'foo 7})
@@ -34,32 +36,48 @@
   (test-bind '(cons a b) '(:x . :y) {'a :x 'b :y})
   (test-bind '(cons a b c) '(:x :y . :z) {'a :x 'b :y 'c :z})
   (test-bind '(cons a b c) '(:x :y :z) {'a :x 'b :y 'c '(:z)})
-  (assert (throws? '(bind . "pattern failed: (and (pred float?) f)")
+  (assert (throws? '(bind . "pattern failed: (and (pred float?) f) value=5")
                    (test-bind '(and (pred float?) f) 5 {})))
   (test-bind '(and (pred float?) f) 5.0 {'f 5.0})
   (test-bind '(and (or (pred float?) (pred string?)) f) 5.0 {'f 5.0})
   (test-bind '(and (or (pred float?) (pred string?)) f) "foo" {'f "foo"})
-  (assert (throws? '(bind . "pattern failed: (and (or (pred float?) (pred string?)) f)")
+  (assert (throws? '(bind . "pattern failed: (and (or (pred float?) (pred string?)) f) value=5")
                    (test-bind '(and (or (pred float?) (pred string?)) f) 5 {})))
-  (test-bind '(and f (when (> f 3))) 4 {'f 4})
-  (assert (throws? '(bind . "pattern failed: (and f (when (> f 3)))")
-                   (test-bind '(and f (when (> f 3))) 2 {})))
+  (assert (throws? '(syntax . "invalid cons pattern in bind form: (when (> f 3))")
+                   (bind (sublet (curlet)) '(when (> f 3)) 4)))
+  (test-bind '(and f (guard (> f 3))) 4 {'f 4})
+  (assert (throws? '(bind . "pattern failed: (and f (guard (> f 3))) value=2")
+                   (test-bind '(and f (guard (> f 3))) 2 {})))
   (test-bind '(String s) "foo" {'s "foo"})
   (test-bind '(or (Integer s) (Vector s)) 5 {'s 5})
   (test-bind '(or (Integer s) (Vector s)) [:foo] {'s [:foo]}))
 
 (let [result nil]
   (for [x [1 2 3 4 5 6 7 8]]
-    (when-let [(and (pred even?) z) x]
+    (when-match [(and (pred even?) z) x]
       (setq result (cons z result))))
   (assert (= result '(8 6 4 2))))
 
 (let [items '(1 2 3 4)
       result nil]
-  (while-let [[first second] items]
+  (while-match [[first second] items]
     (setq result (cons second result))
     (setq items (cdr items)))
   (assert (= result '(4 3 2))))
+
+(let [x 5]
+  (assert (= (if-match [(Integer y) x] (+ y 1) :none) 6))
+  (assert (= (if-match [(String y) x] y :none) :none))
+  (assert (= (if-let [y x] (+ y 1) :none) 6))
+  (assert (= (if-let [y 0] y :none) 0))
+  (assert (= (if-let [y false] y :none) :none))
+  (assert (= (if-let [[a b] [1 2]] (+ a b) :none) 3)))
+
+(let [result nil]
+  (for [x [0 false nil 2]]
+    (when-let [v x]
+      (setq result (cons v result))))
+  (assert (= result '(2 0))))
 
 (let [x 5]
   (assert (= x 5))

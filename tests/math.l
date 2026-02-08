@@ -13,3 +13,42 @@
 
 (assert (= (mod 25 7) 4))
 (assert (= (mod 25.125 7) 4.125))
+
+(assert (= (nonzero? 0) false))
+(assert (= (nonzero? 1) true))
+(assert (= (nonzero? -1) true))
+(assert (= (nonzero? 0.0) false))
+(assert (= (nonzero? -1.0) true))
+
+(assert (= (zero? 0) true))
+(assert (= (zero? 0.0) true))
+(assert (= (zero? 1) false))
+(assert (= (zero? :x) false))
+
+(assert (= (pos? 0) false))
+(assert (= (pos? 1) true))
+(assert (= (pos? 1.0) true))
+(assert (= (pos? -1) false))
+(assert (= (pos? :x) false))
+
+(assert (= (neg? 0) false))
+(assert (= (neg? -1) true))
+(assert (= (neg? -1.0) true))
+(assert (= (neg? 1) false))
+(assert (= (neg? :x) false))
+
+(assert (= (bit-shift-left 3 4) 48))
+(assert (= (bit-shift-left 0x12 0) 0x12))
+(assert (= (bit-shift-right 0x1234 8) 0x12))
+(assert (= (bit-shift-right 0x12 0) 0x12))
+
+(assert (throws? '(bit-shift-left . "shift must be non-negative Integer")
+                 (bit-shift-left 3 -1)))
+(assert (throws? '(bit-shift-right . "shift must be non-negative Integer")
+                 (bit-shift-right 3 -1)))
+(assert (throws? '(type . "argument shift is Float, expected Integer")
+                 (bit-shift-left 3 1.0)))
+(assert (throws? '(type . "argument x is Float, expected Integer")
+                 (bit-shift-left 3.0 1)))
+(assert (throws? '(type . "argument x is Float, expected Integer")
+                 (bit-shift-right 3.0 1)))

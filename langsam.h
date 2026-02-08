@@ -253,7 +253,6 @@ bool langsam_falsep(LV v);
 
 // Integer
 
-bool langsam_Integer_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_Integer_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Integer_cast(LangsamVM *vm, LV other);
 LV langsam_Integer_cmp(LangsamVM *vm, LV self, LV other);
@@ -268,7 +267,6 @@ LV langsam_integer(LangsamInteger i);
 
 // Float
 
-bool langsam_Float_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_Float_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Float_cast(LangsamVM *vm, LV other);
 LV langsam_Float_cmp(LangsamVM *vm, LV self, LV other);
@@ -285,7 +283,6 @@ LV langsam_float(LangsamFloat f);
 
 LangsamSize langsam_String_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_String_gcfree(LangsamVM *vm, void *p);
-bool langsam_String_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_String_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_String_cast(LangsamVM *vm, LV other);
 LV langsam_String_cmp(LangsamVM *vm, LV self, LV other);
@@ -359,7 +356,6 @@ LV langsam_nreverse(LV cons);
 LV langsam_nreverse_with_last(LV cons, LV last);
 
 LangsamSize langsam_ConsIterator_gcmark(LangsamVM *vm, void *p);
-bool langsam_ConsIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_ConsIterator_deref(LangsamVM *vm, LV self);
 LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args);
 
@@ -367,7 +363,6 @@ LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 LangsamSize langsam_Vector_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_Vector_gcfree(LangsamVM *vm, void *p);
-bool langsam_Vector_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_Vector_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Vector_cast(LangsamVM *vm, LV other);
 LV langsam_Vector_equal(LangsamVM *vm, LV self, LV other);
@@ -384,7 +379,6 @@ LV langsam_vector_uninitialized(LangsamVM *vm, LangsamSize len);
 LV langsam_vector(LangsamVM *vm, LangsamSize len);
 
 LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
-bool langsam_VectorIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_VectorIterator_deref(LangsamVM *vm, LV self);
 LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args);
 
@@ -392,7 +386,6 @@ LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 LangsamSize langsam_Map_gcmark(LangsamVM *vm, void *p);
 LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p);
-bool langsam_Map_truthy(LangsamVM *vm, LV self);
 LangsamHash langsam_Map_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
 LV langsam_Map_cast(LangsamVM *vm, LV other);
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other);
@@ -418,7 +411,6 @@ LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto);
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems);
 
 LangsamSize langsam_MapIterator_gcmark(LangsamVM *vm, void *p);
-bool langsam_MapIterator_truthy(LangsamVM *vm, LV self);
 LV langsam_MapIterator_deref(LangsamVM *vm, LV self);
 LV langsam_MapIterator_invoke(LangsamVM *vm, LV self, LV args);
 

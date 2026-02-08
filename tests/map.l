@@ -47,6 +47,14 @@
     (assert (= (cdr item) 8))
     (assert (= @item 8))))
 
+(let [m {:a nil}
+      p {:b 2}]
+  (setproto m p)
+  (assert (contains? m :a))
+  (assert (contains? m :b))
+  (assert (not (contains? m :c)))
+  (assert (= (get m :a) nil)))
+
 (let [m {:a 5 :b 3}]
   (assert (= (len m) 2))
   (put m :c nil)
@@ -68,11 +76,13 @@
 ; MapIterator
 (let [m {:a 5 :b 8 :c 3}
       it (iter m)
+      last-it nil
       items nil]
   (while it
     (assert (= (type it) MapIterator))
+    (setq last-it it)
     (setq items (cons @it items))
     (setq it (it)))
   (assert (= (Map items) m))
-  (assert (throws? '(deref . "attempt to deref consumed MapIterator") @it))
-  (assert (throws? '(invoke . "attempt to advance consumed MapIterator") (it))))
+  (assert (throws? '(deref . "attempt to deref consumed MapIterator") @last-it))
+  (assert (throws? '(invoke . "attempt to advance consumed MapIterator") (last-it))))

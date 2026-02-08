@@ -13,9 +13,9 @@
   (assert (= foo %foo))
   (assert (= (type foo) Opword)))
 
-(assert (= (read-string "foo/bar" '(get foo 'bar))))
+(assert (= (read-string "foo/bar") '(foo 'bar)))
 
-(assert (= (read-string "foo.bar" '(cons foo 'bar))))
+(assert (= (read-string "foo.bar") '(cons foo 'bar)))
 
 (let [num (read-string "123")]
   (assert (= num 123))
