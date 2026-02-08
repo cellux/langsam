@@ -200,7 +200,9 @@
    'setg 0xF
    'setnle 0xF})
 
-(defn build-group1-forms [opcode-ext]
+(defn build-group1-forms
+  "Build arithmetic/logical group-1 instruction forms for an opcode extension."
+  [opcode-ext]
   (let [opcode8 (+ 0x00 (* opcode-ext 8))
         opcodew (+ 0x01 (* opcode-ext 8))
         opcode8r (+ 0x02 (* opcode-ext 8))
@@ -221,12 +223,16 @@
      {:operands [:rm32 :simm8] :encoding :mi :opcode-map :default :opcode 0x83 :opcode-ext opcode-ext :imm-kind :simm8}
      {:operands [:rm64 :simm8] :encoding :mi :opcode-map :default :opcode 0x83 :opcode-ext opcode-ext :rexw true :imm-kind :simm8}]))
 
-(defn build-shift-forms [opcode-ext]
+(defn build-shift-forms
+  "Build immediate-count shift/rotate forms for a group opcode extension."
+  [opcode-ext]
   [{:operands [:rm64 :imm8] :encoding :mi :opcode-map :default :opcode 0xC1 :opcode-ext opcode-ext :rexw true :imm-kind :imm8}
    {:operands [:rm32 :imm8] :encoding :mi :opcode-map :default :opcode 0xC1 :opcode-ext opcode-ext :imm-kind :imm8}
    {:operands [:rm16 :imm8] :encoding :mi :opcode-map :default :opcode 0xC1 :opcode-ext opcode-ext :opsize-prefix true :imm-kind :imm8}])
 
-(defn build-bt-forms [opcode-ext]
+(defn build-bt-forms
+  "Build bt/bts/btr/btc immediate-bit-test forms for 32/64-bit operands."
+  [opcode-ext]
   [{:operands [:rm64 :imm8] :encoding :mi :opcode-map :0f :opcode 0xBA :opcode-ext opcode-ext :rexw true :imm-kind :imm8}
    {:operands [:rm32 :imm8] :encoding :mi :opcode-map :0f :opcode 0xBA :opcode-ext opcode-ext :imm-kind :imm8}])
 
@@ -356,32 +362,46 @@
    4 2
    8 3})
 
-(defn get-register-info [reg]
+(defn get-register-info
+  "Return register metadata for a register symbol or raise for unsupported names."
+  [reg]
   (or (get register-infos reg)
       (raise 'x86_64 "unsupported register: %s" reg)))
 
-(defn register-name? [v]
+(defn register-name?
+  "Return true when v is a known register symbol."
+  [v]
   (contains? register-infos v))
 
-(defn reg-code-low3 [code]
+(defn reg-code-low3
+  "Extract the low three bits of an encoded register number."
+  [code]
   (bit-and code 0x7))
 
-(defn reg-code-rex-bit [code]
+(defn reg-code-rex-bit
+  "Extract the high register bit used by REX fields."
+  [code]
   (bit-and (bit-shift-right code 3) 0x1))
 
-(defn encode-rex [w r x b]
+(defn encode-rex
+  "Encode a REX prefix byte from w/r/x/b flag bits."
+  [w r x b]
   (bit-or 0x40
           (if (nonzero? w) 0x08 0)
           (if (nonzero? r) 0x04 0)
           (if (nonzero? x) 0x02 0)
           (if (nonzero? b) 0x01 0)))
 
-(defn encode-modrm [mod reg rm]
+(defn encode-modrm
+  "Encode a ModR/M byte from mod, reg, and rm fields."
+  [mod reg rm]
   (bit-or (bit-shift-left mod 6)
           (bit-shift-left reg 3)
           rm))
 
-(defn encode-sib [scale index base]
+(defn encode-sib
+  "Encode a SIB byte from scale, index, and base fields."
+  [scale index base]
   (bit-or (bit-shift-left scale 6)
           (bit-shift-left index 3)
           base))
@@ -403,7 +423,9 @@
    :rip-disp32 {:width 4 :relative true}
    :abs64 {:width 8 :relative false}})
 
-(defn encode-imm32-le [imm]
+(defn encode-imm32-le
+  "Encode a signed 32-bit immediate as little-endian bytes."
+  [imm]
   (if (or (< imm -0x80000000) (> imm 0x7fffffff))
     (raise 'x86_64 "imm32 out of range: %s" imm))
   (let [value (if (< imm 0) (+ 0x100000000 imm) imm)
@@ -416,12 +438,16 @@
         b3 (bit-and x3 0xFF)]
     [b0 b1 b2 b3]))
 
-(defn encode-imm8 [imm]
+(defn encode-imm8
+  "Validate and encode an unsigned 8-bit immediate."
+  [imm]
   (if (or (< imm 0) (> imm 0xFF))
     (raise 'x86_64 "imm8 out of range: %s" imm))
   imm)
 
-(defn encode-imm16-le [imm]
+(defn encode-imm16-le
+  "Encode a 16-bit immediate as little-endian bytes."
+  [imm]
   (if (or (< imm -0x8000) (> imm 0xFFFF))
     (raise 'x86_64 "imm16 out of range: %s" imm))
   (let [value (if (< imm 0) (+ 0x10000 imm) imm)
@@ -430,7 +456,9 @@
         b1 (bit-and x1 0xFF)]
     [b0 b1]))
 
-(defn encode-imm64-le [imm]
+(defn encode-imm64-le
+  "Encode a signed 64-bit immediate as little-endian bytes."
+  [imm]
   (if (or (< imm -0x8000000000000000) (> imm 0x7fffffffffffffff))
     (raise 'x86_64 "imm64 out of range: %s" imm))
   (let [value (if (< imm 0) (+ 0x10000000000000000 imm) imm)
@@ -451,12 +479,16 @@
         b7 (bit-and x7 0xFF)]
     [b0 b1 b2 b3 b4 b5 b6 b7]))
 
-(defn encode-simm8 [imm]
+(defn encode-simm8
+  "Encode a signed 8-bit immediate into its byte value."
+  [imm]
   (if (or (< imm -128) (> imm 127))
     (raise 'x86_64 "simm8 out of range: %s" imm))
   (if (< imm 0) (+ 0x100 imm) imm))
 
-(defn zero-bytes [count]
+(defn zero-bytes
+  "Return a vector containing count zero bytes."
+  [count]
   (let [result nil
         n count]
     (while (> n 0)
@@ -464,7 +496,9 @@
       (decq n))
     (Vector result)))
 
-(defn fill-bytes [count byte]
+(defn fill-bytes
+  "Return a vector containing count copies of byte."
+  [count byte]
   (let [result nil
         n count]
     (while (> n 0)
@@ -472,15 +506,21 @@
       (decq n))
     (Vector result)))
 
-(defn validate-byte [byte]
+(defn validate-byte
+  "Validate that byte is an integer in the 0..255 range."
+  [byte]
   (if (or (not (integer? byte)) (< byte 0) (> byte 0xFF))
     (raise 'x86_64 "byte out of range: %s" byte))
   byte)
 
-(defn normalize-byte-seq [bytes]
+(defn normalize-byte-seq
+  "Normalize any iterable of bytes into a validated vector."
+  [bytes]
   (Vector (map validate-byte bytes)))
 
-(defn parse-symbol-ref [value]
+(defn parse-symbol-ref
+  "Normalize a symbol or {:symbol :addend} map into a symbol reference map."
+  [value]
   (if (symbol? value)
     {:symbol value :addend 0}
     (if (map? value)
@@ -492,7 +532,9 @@
             (raise 'x86_64 "symbol ref addend expects Integer, got: %s" addend))
           {:symbol sym :addend addend})))))
 
-(defn mem-from-opts [opts]
+(defn mem-from-opts
+  "Build a :mem operand map from alternating keyword/value options."
+  [opts]
   (let [m {:kind :mem}
         it (iter opts)]
     (while it
@@ -505,14 +547,20 @@
           (setq it (next it)))))
     m))
 
-(defn mem [& rest]
+(defn mem
+  "Construct a memory operand map from key/value pairs."
+  [& rest]
   (mem-from-opts rest))
 
-(defn mem-operand? [operand]
+(defn mem-operand?
+  "Return true when operand is a memory operand map."
+  [operand]
   (and (map? operand)
        (= (:kind operand) :mem)))
 
-(defn validate-mem-operand [operand]
+(defn validate-mem-operand
+  "Validate required fields and size constraints for a memory operand."
+  [operand]
   (if (not (contains? operand :size))
     (raise 'x86_64 "mem operand requires explicit :size: %s" operand))
   (let [size (:size operand)]
@@ -521,7 +569,9 @@
       (raise 'x86_64 "mem operand size should be one of 1/2/4/8, got: %s" size)))
   operand)
 
-(defn normalize-mem-operand [operand]
+(defn normalize-mem-operand
+  "Normalize Map and `(mem ...)` forms into validated memory operands."
+  [operand]
   (case operand
     (Map m) (if (= (:kind m) :mem)
               (validate-mem-operand m)
@@ -529,7 +579,9 @@
     `(mem ,@opts) (validate-mem-operand (mem-from-opts opts))
     operand))
 
-(defn encode-mem [memop]
+(defn encode-mem
+  "Encode a memory operand into ModR/M fields, tail bytes, and fixups."
+  [memop]
   (let [{:keys [base index (scale 1) (disp 0) rip]} memop
         rip-ref (if rip (parse-symbol-ref rip))]
     (if (and base (not (symbol? base)))
@@ -615,7 +667,9 @@
    :op2 2
    :op3 3})
 
-(defn imm-fits-size? [size imm &opt (signed false)]
+(defn imm-fits-size?
+  "Return true when imm fits in the given size, optionally signed."
+  [size imm &opt (signed false)]
   (case size
     1 (if signed
         (and (>= imm -128) (<= imm 127))
@@ -627,7 +681,9 @@
     8 true
     false))
 
-(defn encode-immediate-kind [imm-kind imm]
+(defn encode-immediate-kind
+  "Encode an immediate by semantic kind (imm/rel variants)."
+  [imm-kind imm]
   (case imm-kind
     :imm8 [(encode-imm8 imm)]
     :simm8 [(encode-simm8 imm)]
@@ -641,7 +697,9 @@
            "unsupported immediate encoding kind: %s"
            imm-kind)))
 
-(defn normalize-operand [operand]
+(defn normalize-operand
+  "Normalize raw operands into tagged internal operand representations."
+  [operand]
   (if (and (symbol? operand) (register-name? operand))
     {:kind :reg :reg operand :reginfo (get-register-info operand)}
     (if (integer? operand)
@@ -653,7 +711,9 @@
             {:kind :symref :symbol (:symbol symref) :addend (:addend symref)}
             {:kind :other :value operand}))))))
 
-(defn match-operand-class [operand class-key]
+(defn match-operand-class
+  "Try to match a normalized operand against an operand class spec."
+  [operand class-key]
   (let [spec (get operand-class-specs class-key)]
     (if (nil? spec)
       (raise 'x86_64 "unknown operand class: %s" class-key))
@@ -701,7 +761,9 @@
         operand)
       nil)))
 
-(defn select-form-for-operands [forms normalized-operands]
+(defn select-form-for-operands
+  "Choose the first instruction form that matches normalized operands."
+  [forms normalized-operands]
   (let [it (iter forms)
         selected nil]
     (while (and it (nil? selected))
@@ -724,12 +786,16 @@
         (setq it (next it))))
     selected))
 
-(defn get-operand-by-ref [prepared-operands opref]
+(defn get-operand-by-ref
+  "Resolve operand references like :op0/:op1 from prepared operands."
+  [prepared-operands opref]
   (if-match [(Integer idx) (get operand-ref-indexes opref)]
     (get prepared-operands idx)
     (raise 'x86_64 "invalid operand reference: %s" opref)))
 
-(defn encode-rex-with-flags [w r x b rex-required high8]
+(defn encode-rex-with-flags
+  "Emit a REX byte when needed and reject invalid high-8 register mixes."
+  [w r x b rex-required high8]
   (let [rex-needed (or (nonzero? w)
                        (nonzero? r)
                        (nonzero? x)
@@ -742,7 +808,9 @@
       (encode-rex w r x b)
       nil)))
 
-(defn collect-rex-register-flags [prepared-operands]
+(defn collect-rex-register-flags
+  "Collect aggregate REX requirements from register operands."
+  [prepared-operands]
   (let [it (iter prepared-operands)
         rex-required false
         high8 false]
@@ -756,7 +824,9 @@
     {:rex-required rex-required
      :high8 high8}))
 
-(defn patch-bytes [bytes at patch]
+(defn patch-bytes
+  "Return bytes with patch written at offset at."
+  [bytes at patch]
   (let [bytes-len (len bytes)
         patch-len (len patch)]
     (if (or (< at 0) (> (+ at patch-len) bytes-len))
@@ -777,7 +847,9 @@
           (setq it (next it))))
       (Vector (nreverse result)))))
 
-(defn relocate-fixup [fixup offset]
+(defn relocate-fixup
+  "Shift a fixup's offsets by a byte offset."
+  [fixup offset]
   {:kind (:kind fixup)
    :symbol (:symbol fixup)
    :addend (or (:addend fixup) 0)
@@ -786,7 +858,9 @@
    :at (+ offset (:at fixup))
    :from (+ offset (:from fixup))})
 
-(defn emit-form-encoding [form prepared-operands]
+(defn emit-form-encoding
+  "Encode one selected instruction form and return bytes with fixups."
+  [form prepared-operands]
   (let [pattern (get encoding-patterns (:encoding form))]
     (if (nil? pattern)
       (raise 'x86_64 "unknown encoding pattern: %s" (:encoding form)))
@@ -888,7 +962,9 @@
       {:bytes bytes
        :fixups fixups})))
 
-(defn encode-instruction-form-driven-detailed [instruction]
+(defn encode-instruction-form-driven-detailed
+  "Encode one instruction using form lookup and operand matching."
+  [instruction]
   (if-match [[(Symbol raw-mnemonic) & operands] instruction]
     (if-let [mnemonic (or (get mnemonic-aliases raw-mnemonic) raw-mnemonic)
              forms (get instruction-forms mnemonic)
@@ -896,14 +972,20 @@
              {:keys [form operands]} (select-form-for-operands forms normalized-operands)]
       (emit-form-encoding form operands))))
 
-(defn encode-instruction-detailed [instruction]
+(defn encode-instruction-detailed
+  "Encode one instruction and raise when unsupported."
+  [instruction]
   (or (encode-instruction-form-driven-detailed instruction)
       (raise 'x86_64 "unsupported instruction: %s" instruction)))
 
-(defn encode-instruction [instruction]
+(defn encode-instruction
+  "Encode one instruction and return only encoded bytes."
+  [instruction]
   (:bytes (encode-instruction-detailed instruction)))
 
-(defn asm-new [&opt (options {})]
+(defn asm-new
+  "Create a new assembler state map."
+  [&opt (options {})]
   (let [mode (or (:mode options) :64)
         segment-order [:text :rodata :data]
         segments {}]
@@ -920,25 +1002,35 @@
      :fixups []
      :diagnostics []}))
 
-(defn ensure-asm-segment! [asm segment]
+(defn ensure-asm-segment!
+  "Validate that segment exists in asm and return it."
+  [asm segment]
   (if (not (keyword? segment))
     (raise 'x86_64 "segment should be a Keyword, got: %s" segment))
   (if (not (contains? (:segments asm) segment))
     (raise 'x86_64 "unknown segment: %s" segment))
   segment)
 
-(defn asm-segment! [asm segment]
+(defn asm-segment!
+  "Switch the active output segment on asm."
+  [asm segment]
   (ensure-asm-segment! asm segment)
   (put asm :segment segment)
   asm)
 
-(defn asm-segment-bytes [asm segment]
+(defn asm-segment-bytes
+  "Return bytes currently emitted for segment."
+  [asm segment]
   (or (get (:segments asm) segment) []))
 
-(defn asm-segment-offset [asm segment]
+(defn asm-segment-offset
+  "Return current byte offset within segment."
+  [asm segment]
   (len (asm-segment-bytes asm segment)))
 
-(defn asm-append-bytes! [asm segment bytes]
+(defn asm-append-bytes!
+  "Append validated bytes to a segment and return previous offset."
+  [asm segment bytes]
   (ensure-asm-segment! asm segment)
   (let [segments (:segments asm)
         normalized (normalize-byte-seq bytes)
@@ -946,12 +1038,16 @@
     (put segments segment (catv (or (get segments segment) []) normalized))
     offset))
 
-(defn asm-bytes! [asm bytes &opt segment]
+(defn asm-bytes!
+  "Append bytes to the active (or provided) segment."
+  [asm bytes &opt segment]
   (let [active (or segment (:segment asm))]
     (asm-append-bytes! asm active bytes)
     asm))
 
-(defn asm-label! [asm name &opt segment]
+(defn asm-label!
+  "Define a label at the current segment offset."
+  [asm name &opt segment]
   (if (not (symbol? name))
     (raise 'x86_64 "label name should be a Symbol, got: %s" name))
   (if segment
@@ -965,11 +1061,15 @@
           :offset (asm-segment-offset asm active)})
     asm))
 
-(defn asm-add-fixup! [asm fixup]
+(defn asm-add-fixup!
+  "Append a fixup entry to asm."
+  [asm fixup]
   (put asm :fixups (catv (:fixups asm) [fixup]))
   asm)
 
-(defn asm-emit! [asm instruction &opt segment]
+(defn asm-emit!
+  "Encode and emit one instruction, recording generated fixups."
+  [asm instruction &opt segment]
   (if segment
     (asm-segment! asm segment))
   (let [active (:segment asm)
@@ -988,7 +1088,9 @@
                        :addend (or (:addend fixup) 0)}))
     asm))
 
-(defn asm-align! [asm to &opt (fill 0x00) segment]
+(defn asm-align!
+  "Pad the active segment to an alignment boundary."
+  [asm to &opt (fill 0x00) segment]
   (if (not (integer? to))
     (raise 'x86_64 "align boundary should be Integer, got: %s" to))
   (if (<= to 0)
@@ -1003,7 +1105,9 @@
       (asm-append-bytes! asm active (fill-bytes padding fill)))
     asm))
 
-(defn asm-fixup! [asm fixup]
+(defn asm-fixup!
+  "Reserve bytes and record a manual fixup entry."
+  [asm fixup]
   (if (not (map? fixup))
     (raise 'x86_64 "asm-fixup! expects a map, got: %s" fixup))
   (let [kind (:kind fixup)
@@ -1025,7 +1129,9 @@
                      :addend (:addend symref)})
     asm))
 
-(defn normalize-asm-item [item]
+(defn normalize-asm-item
+  "Validate and normalize one module item into internal form."
+  [item]
   (if (not (map? item))
     (raise 'x86_64 "asm item should be a map, got: %s" item))
   (let [op (:op item)]
@@ -1056,7 +1162,9 @@
             :addend (if (contains? item :addend) (:addend item) 0)}
       (raise 'x86_64 "unsupported asm item op: %s" op))))
 
-(defn normalize-asm-module [module]
+(defn normalize-asm-module
+  "Validate and normalize a high-level assembly module map."
+  [module]
   (if (not (map? module))
     (raise 'x86_64 "module should be a map, got: %s" module))
   (let [mode (or (:mode module) :64)
@@ -1069,7 +1177,9 @@
      :symbols (or (:symbols module) {})
      :options options}))
 
-(defn asm-apply-item! [asm item]
+(defn asm-apply-item!
+  "Apply one normalized item to assembler state."
+  [asm item]
   (case (:op item)
     :label (asm-label! asm (:name item) (:segment item))
     :instruction (asm-emit! asm (:form item) (:segment item))
@@ -1078,7 +1188,9 @@
     :fixup (asm-fixup! asm item)
     (raise 'x86_64 "unsupported normalized item op: %s" (:op item))))
 
-(defn build-segment-layout [segment-order segments]
+(defn build-segment-layout
+  "Compute absolute offsets and lengths for each segment."
+  [segment-order segments]
   (let [layout {}
         offset 0]
     (for [segment segment-order]
@@ -1088,7 +1200,9 @@
         (setq offset (+ offset length))))
     layout))
 
-(defn build-label-layout [labels segment-layout]
+(defn build-label-layout
+  "Compute absolute label offsets from per-segment label positions."
+  [labels segment-layout]
   (let [result {}]
     (for [[name info] labels]
       (let [segment (:segment info)
@@ -1102,13 +1216,17 @@
               :absolute-offset absolute})))
     result))
 
-(defn resolve-symbol-absolute [sym labels externals]
+(defn resolve-symbol-absolute
+  "Resolve a symbol to an absolute offset from labels or externals."
+  [sym labels externals]
   (if-let [label (get labels sym)]
     (:absolute-offset label)
     (if (contains? externals sym)
       (get externals sym))))
 
-(defn encode-fixup-value [fixup value]
+(defn encode-fixup-value
+  "Encode a resolved fixup value using the fixup width/relative rules."
+  [fixup value]
   (let [width (:width fixup)]
     (case width
       1 [(if (:relative fixup) (encode-simm8 value) (encode-imm8 value))]
@@ -1117,7 +1235,9 @@
       8 (encode-imm64-le value)
       (raise 'x86_64 "unsupported fixup width: %s" width))))
 
-(defn asm-finalize [asm &opt (options {})]
+(defn asm-finalize
+  "Resolve fixups and return the finalized assembly artifact."
+  [asm &opt (options {})]
   (let [strict (if (contains? options :strict) (:strict options) true)
         externals (or (:externals options) {})
         segment-order (:segment-order asm)
@@ -1221,7 +1341,9 @@
                (len (:diagnostics artifact))))
       artifact)))
 
-(defn assemble-module [module &opt (options {})]
+(defn assemble-module
+  "Assemble a module map end-to-end and return the finalized artifact."
+  [module &opt (options {})]
   (let [normalized (normalize-asm-module module)
         asm (asm-new {:mode (:mode normalized)
                       :symbols (:symbols normalized)})
