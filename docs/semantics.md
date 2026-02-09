@@ -86,6 +86,24 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
   - duplicate field names across parent/child are rejected at class definition time
   - class prototype chaining provides method inheritance; child methods can override parent methods
 
+## Slices
+
+- `slice` creates vector-backed views with shared storage:
+  - `(slice obj start &opt end)`
+  - `obj` must be `Vector` or `Slice`
+  - `start`/`end` must be `Integer`
+- If `end` is omitted, it defaults to the source length.
+- `start` and `end` support negative indexing from the end.
+- Bounds are validated against the source length:
+  - `start` and `end` must each be in `0..len` (after negative-index normalization)
+  - `end < start` is an error
+- `Slice` indexing (`get`/`put`) supports negative indexes like `Vector`.
+- Slices share backing storage with the base vector:
+  - writing through a slice mutates the base vector
+  - writing through the base vector is visible through existing slices
+  - slicing a slice keeps sharing the same base storage
+- `Slice` iteration uses `SliceIterator` and follows normal iterator exhaustion rules.
+
 ## Iterator Exhaustion
 
 - `iter` returns `nil` for empty collections.

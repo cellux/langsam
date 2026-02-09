@@ -120,11 +120,13 @@ extern const LangsamType LT_KEYWORD;
 extern const LangsamType LT_OPWORD;
 extern const LangsamType LT_CONS;
 extern const LangsamType LT_VECTOR;
+extern const LangsamType LT_SLICE;
 extern const LangsamType LT_MAP;
 extern const LangsamType LT_FUNCTION;
 
 extern const LangsamType LT_CONSITERATOR;
 extern const LangsamType LT_VECTORITERATOR;
+extern const LangsamType LT_SLICEITERATOR;
 extern const LangsamType LT_MAPITERATOR;
 
 struct LangsamValue {
@@ -167,6 +169,17 @@ typedef struct {
   LV v;
   LangsamIndex i;
 } LangsamVectorIterator;
+
+typedef struct {
+  LV v;
+  LangsamIndex start;
+  LangsamSize len;
+} LangsamSlice;
+
+typedef struct {
+  LV s;
+  LangsamIndex i;
+} LangsamSliceIterator;
 
 typedef struct {
   LV *buckets;
@@ -385,6 +398,28 @@ LV langsam_vector(LangsamVM *vm, LangsamSize len);
 LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
 LV langsam_VectorIterator_deref(LangsamVM *vm, LV self);
 LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args);
+
+// Slice
+
+LangsamSize langsam_Slice_gcmark(LangsamVM *vm, void *p);
+LangsamSize langsam_Slice_gcfree(LangsamVM *vm, void *p);
+LangsamHash langsam_Slice_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
+LV langsam_Slice_cast(LangsamVM *vm, LV other);
+LV langsam_Slice_equal(LangsamVM *vm, LV self, LV other);
+LV langsam_Slice_add(LangsamVM *vm, LV self, LV other);
+LV langsam_Slice_get(LangsamVM *vm, LV self, LV key);
+LV langsam_Slice_put(LangsamVM *vm, LV self, LV key, LV value);
+LV langsam_Slice_len(LangsamVM *vm, LV self);
+LV langsam_Slice_iter(LangsamVM *vm, LV self);
+LV langsam_Slice_invoke(LangsamVM *vm, LV self, LV args);
+LV langsam_Slice_eval(LangsamVM *vm, LV self);
+LV langsam_Slice_repr(LangsamVM *vm, LV self);
+
+LV langsam_slice(LangsamVM *vm, LV vector, LangsamIndex start, LangsamSize len);
+
+LangsamSize langsam_SliceIterator_gcmark(LangsamVM *vm, void *p);
+LV langsam_SliceIterator_deref(LangsamVM *vm, LV self);
+LV langsam_SliceIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 // Map
 
