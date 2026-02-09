@@ -406,4 +406,27 @@
           (setq it (next it)))))
     m))
 
+(defn class?
+  [x]
+  (and (map? x)
+       (contains? x %name)
+       (contains? x %schema)
+       (contains? x %invoke)))
+
+(defmacro class
+  [name & fields]
+  `((get (require "class") 'class) ',name [,@fields]))
+
+(defmacro defmethod
+  [target params & body]
+  (if-match [['cons class ['quote method]] target]
+    (if (symbol? method)
+      `(put ,class ',method (fn ,params ,@body))
+      (raise 'syntax "defmethod method name should be Symbol, got %s" method))
+    (raise 'syntax "defmethod expects Class.method target, got %s" target)))
+
+(defmacro defclass
+  [name & fields]
+  `(def ,name (class ,name ,@fields)))
+
 (gc)

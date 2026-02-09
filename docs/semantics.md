@@ -58,6 +58,23 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
   - missing key
   - present key with `nil` value
 
+## Class System
+
+- Classes are maps carrying `%name`, `%schema`, and `%invoke`; `class?` checks this shape.
+- `(class Name [:field Spec {:required true} ...])` returns a class value and does not bind `Name`.
+- `(defclass Name ...)` is shorthand for `(def Name (class Name ...))`.
+- Construct instances by invoking a class with a map, e.g. `(Name {:field value})`.
+- Field spec kinds:
+  - a runtime type (`Integer`, `String`, etc.)
+  - another class (nested coercion)
+  - enum vector syntax: `[:enum :a :b ...]`
+- `{:required true}` checks key presence, not non-`nil` value.
+- If a key is present with `nil`, the value is accepted and schema checks are skipped for that field.
+- Instances are plain maps with their prototype set to the class map.
+- Methods are attached to classes as symbol-keyed functions and are usually defined with:
+  - `(defmethod ClassName.method [self ...] ...)`
+- Calling `obj.method` uses member-call sugar and passes `obj` as the first argument.
+
 ## Iterator Exhaustion
 
 - `iter` returns `nil` for empty collections.

@@ -1722,6 +1722,21 @@ LV langsam_Map_cast(LangsamVM *vm, LV other) {
   return self;
 }
 
+static LV langsam_Map_getop(LangsamVM *vm, LV self, char *name) {
+  LV key = langsam_opword(vm, name);
+  LV item = langsam_Map_gep(vm, self, key);
+  LANGSAM_CHECK(item);
+  if (langsam_consp(item)) {
+    return langsam_cdr(item);
+  }
+  return langsam_nil;
+}
+
+static LV langsam_Map_invoke_op(LangsamVM *vm, LV op, LV self, LV args) {
+  args = langsam_cons(vm, langsam_quote(vm, self), args);
+  return langsam_invoke(vm, op, args);
+}
+
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
   LangsamMap *m1 = self.p;
   LangsamMap *m2 = other.p;
@@ -1921,6 +1936,12 @@ LV langsam_Map_iter(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args) {
+  LV op = langsam_Map_getop(vm, self, "invoke");
+  LANGSAM_CHECK(op);
+  if (langsam_somep(op)) {
+    return langsam_Map_invoke_op(vm, op, self, args);
+  }
+
   LANGSAM_ARG(key, args);
   key = langsam_eval(vm, key);
   LANGSAM_CHECK(key);
