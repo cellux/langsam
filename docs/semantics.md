@@ -62,6 +62,8 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 
 - Classes are maps carrying `%name`, `%schema`, and `%invoke`; `class?` checks this shape.
 - `(class Name [:field Spec {:required true} ...])` returns a class value and does not bind `Name`.
+- Class definitions may start with an options map:
+  - `(class Child {:extends Parent} [:field Spec] ...)`
 - `(defclass Name ...)` is shorthand for `(def Name (class Name ...))`.
 - Construct instances by invoking a class with a map, e.g. `(Name {:field value})`.
 - Field spec kinds:
@@ -70,10 +72,19 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
   - enum vector syntax: `[:enum :a :b ...]`
 - `{:required true}` checks key presence, not non-`nil` value.
 - If a key is present with `nil`, the value is accepted and schema checks are skipped for that field.
+- Field options may include `:validate`:
+  - `Function`: one validator
+  - `Vector` of `Function`s: validators run in order
+  - validators run when the key is present (including `nil`)
+  - any falsey validator result raises `class` payload `"<Class>.<:field> failed validator"`
 - Instances are plain maps with their prototype set to the class map.
 - Methods are attached to classes as symbol-keyed functions and are usually defined with:
   - `(defmethod ClassName.method [self ...] ...)`
 - Calling `obj.method` uses member-call sugar and passes `obj` as the first argument.
+- With `:extends`, child classes inherit parent schema and methods.
+  - child instances are validated against merged parent+child schema
+  - duplicate field names across parent/child are rejected at class definition time
+  - class prototype chaining provides method inheritance; child methods can override parent methods
 
 ## Iterator Exhaustion
 

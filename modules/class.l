@@ -83,6 +83,49 @@
     (raise 'class "class schema should be Vector, got %s" schema))
   (mapv compile-field schema))
 
+(defn split-class-spec
+  [raw-schema]
+  (if (not (vector? raw-schema))
+    (raise 'class "class schema should be Vector, got %s" raw-schema))
+  (if (and (> (len raw-schema) 0)
+           (map? (get raw-schema 0)))
+    (let [rest-schema nil
+          i 1]
+      (while (< i (len raw-schema))
+        (setq rest-schema (cons (get raw-schema i) rest-schema))
+        (incq i))
+      {:opts (get raw-schema 0)
+       :schema (Vector (nreverse rest-schema))})
+    {:opts {}
+     :schema raw-schema}))
+
+(defn resolve-parent
+  [opts]
+  (if (contains? opts :extends)
+    (let [parent (:extends opts)]
+      (if (not (class? parent))
+        (raise 'class "class :extends should be Class, got %s" (type parent)))
+      parent)
+    nil))
+
+(defn merge-schema
+  [class-name parent-schema own-schema]
+  (let [seen {}
+        merged nil]
+    (for [entry parent-schema]
+      (let [field (:name entry)]
+        (if (contains? seen field)
+          (raise 'class "%s has duplicate field: %s" class-name field))
+        (put seen field true)
+        (setq merged (cons entry merged))))
+    (for [entry own-schema]
+      (let [field (:name entry)]
+        (if (contains? seen field)
+          (raise 'class "%s has duplicate field: %s" class-name field))
+        (put seen field true)
+        (setq merged (cons entry merged))))
+    (Vector (nreverse merged))))
+
 (defn construct
   [class input]
   (if (not (map? input))
@@ -107,9 +150,18 @@
 
 (defn class
   [name schema]
-  (let [compiled-schema (compile-schema schema)
+  (let [{:keys [opts schema]} (split-class-spec schema)
+        parent (resolve-parent opts)
+        compiled-schema (compile-schema schema)
+        merged-schema (merge-schema name
+                                    (if parent (%schema parent) [])
+                                    compiled-schema)
         class {%name name
-               %schema compiled-schema}]
+               %schema merged-schema
+               %own-schema compiled-schema
+               %parent parent}]
+    (if parent
+      (setproto class parent))
     (put class %invoke (fn [self input]
                          (construct self input)))
     class))

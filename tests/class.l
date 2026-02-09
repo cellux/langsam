@@ -101,6 +101,41 @@
 (assert (throws? '(syntax . "defmethod expects Class.method target, got bad-target")
                  (defmethod bad-target [self] self)))
 
+; single inheritance
+(defclass Vehicle
+  [:make String {:required true}]
+  [:wheels Integer {:validate (fn [n] (> n 0))}])
+
+(defmethod Vehicle.describe
+  [self]
+  (str (:make self) ":" (:wheels self)))
+
+(defclass Sedan
+  {:extends Vehicle}
+  [:model String {:required true}])
+
+(let [s (Sedan {:make "Toyota" :model "Corolla" :wheels 4})]
+  (assert (= (:make s) "Toyota"))
+  (assert (= (:model s) "Corolla"))
+  (assert (= (s.describe) "Toyota:4")))
+
+(assert (throws? '(class . "Sedan.:make is required")
+                 (Sedan {:model "Corolla"})))
+(assert (throws? '(class . "Sedan.:wheels failed validator")
+                 (Sedan {:make "Toyota" :model "Corolla" :wheels 0})))
+
+(defmethod Sedan.describe
+  [self]
+  (str "sedan:" (:model self)))
+
+(let [s (Sedan {:make "Toyota" :model "Corolla" :wheels 4})]
+  (assert (= (s.describe) "sedan:Corolla")))
+
+(assert (throws? '(class . "class :extends should be Class, got Integer")
+                 (class BadExtends {:extends 1} [:x Integer])))
+(assert (throws? '(class . "BadSedan has duplicate field: :make")
+                 (class BadSedan {:extends Vehicle} [:make String])))
+
 ; class? recognizes class values
 (assert (class? Car))
 (assert (not (class? {})))
