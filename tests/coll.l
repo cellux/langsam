@@ -34,3 +34,27 @@
 (assert (not (iterable? "")))
 (assert (not (iterable? "abc")))
 (assert (not (iterable? true)))
+
+; drop/tail helpers
+(assert (= (drop 0 [1 2 3]) [1 2 3]))
+(assert (= (drop 2 [1 2 3 4]) [3 4]))
+(assert (= (drop 10 [1 2]) []))
+(assert (= (drop 2 '(1 2 3 4)) '(3 4)))
+(assert (= (drop 10 '(1 2)) '()))
+(assert (= (drop 1 nil) nil))
+(assert (= (tail [1 2 3]) [2 3]))
+(assert (= (tail '(1 2 3)) '(2 3)))
+(assert (= (tail nil) nil))
+
+; membership and quantifiers
+(assert (member? 3 [1 2 3]))
+(assert (not (member? 4 [1 2 3])))
+(assert (member? :a '(:a :b)))
+(assert (not (member? :c nil)))
+
+(assert (every? integer? [1 2 3]))
+(assert (not (every? even? [2 3 4])))
+(assert (every? even? []))
+(assert (any? even? [1 3 4]))
+(assert (not (any? even? [1 3 5])))
+(assert (not (any? even? [])))

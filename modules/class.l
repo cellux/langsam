@@ -6,13 +6,7 @@
 
 (defn enum-contains?
   [spec value]
-  (let [i 1
-        found false]
-    (while (and (not found) (< i (len spec)))
-      (if (= (get spec i) value)
-        (setq found true)
-        (incq i)))
-    found))
+  (member? value (drop 1 spec)))
 
 (defn coerce-value
   [class-name field spec value]
@@ -89,13 +83,8 @@
     (raise 'class "class schema should be Vector, got %s" raw-schema))
   (if (and (> (len raw-schema) 0)
            (map? (get raw-schema 0)))
-    (let [rest-schema nil
-          i 1]
-      (while (< i (len raw-schema))
-        (setq rest-schema (cons (get raw-schema i) rest-schema))
-        (incq i))
-      {:opts (get raw-schema 0)
-       :schema (Vector (nreverse rest-schema))})
+    {:opts (get raw-schema 0)
+     :schema (drop 1 raw-schema)}
     {:opts {}
      :schema raw-schema}))
 

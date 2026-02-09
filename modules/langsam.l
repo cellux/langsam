@@ -131,6 +131,65 @@
       (setq it (next it)))
     (nreverse result)))
 
+(defn drop
+  "Drop the first n elements from coll."
+  [n coll]
+  (if (nil? coll)
+    nil
+    (if (<= n 0)
+      coll
+      (let [it (iter coll)
+            i 0]
+        (while (and it (< i n))
+          (setq it (next it))
+          (incq i))
+        (let [result nil]
+          (while it
+            (setq result (cons @it result))
+            (setq it (next it)))
+          (let [result (nreverse result)]
+            (if (cons? coll)
+              result
+              ((type coll) result))))))))
+
+(defn tail
+  "Return coll without its first element."
+  [coll]
+  (drop 1 coll))
+
+(defn member?
+  "Return true when x is equal to an element in coll."
+  [x coll]
+  (let [it (iter coll)
+        found false]
+    (while (and it (not found))
+      (if (= x @it)
+        (setq found true)
+        (setq it (next it))))
+    found))
+
+(defn every?
+  "Return true when pred returns truthy for all elements."
+  [pred coll]
+  (let [it (iter coll)
+        ok true]
+    (while (and it ok)
+      (if (not (pred @it))
+        (setq ok false))
+      (setq it (next it)))
+    ok))
+
+(defn any?
+  "Return true when pred returns truthy for any element."
+  [pred coll]
+  (let [it (iter coll)
+        ok false]
+    (while (and it (not ok))
+      (if (pred @it)
+        (setq ok true))
+      (setq it (next it)))
+    ok))
+
 (def gensym
   (let [counter 0]
     (fn gensym [&opt (prefix 'gensym)]
