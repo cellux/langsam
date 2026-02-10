@@ -75,3 +75,18 @@
 
 (assert (= (classify-float -0.0) :zero))
 (assert (= (classify-float (Float "-nan")) :nan))
+
+; map dispatch keys should not depend on insertion order
+(defmulti classify-map
+  (fn [x] x))
+
+(let [k1 (Map 2)
+      k2 (Map 2)]
+  (put k1 0 1)
+  (put k1 4 2)
+  (put k2 4 2)
+  (put k2 0 1)
+  (defmethod classify-map k1
+    [x]
+    :map-hit)
+  (assert (= (classify-map k2) :map-hit)))

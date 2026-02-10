@@ -2031,9 +2031,28 @@ LangsamSize langsam_Map_gcfree(LangsamVM *vm, void *p) {
 
 LangsamHash langsam_Map_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamMap *m = self.p;
+  LangsamHash xor_acc = 0;
+  LangsamHash sum_acc = 0;
+  LangsamHash sum_sq_acc = 0;
   for (LangsamIndex i = 0; i < m->nbuckets; i++) {
-    hash = langsam_hash(vm, m->buckets[i], hash);
+    LV bucket = m->buckets[i];
+    while (langsam_consp(bucket)) {
+      LV item = langsam_car(bucket);
+      LV key = langsam_car(item);
+      LV value = langsam_cdr(item);
+      LangsamHash entry_hash = HASH_SEED;
+      entry_hash = langsam_hash(vm, key, entry_hash);
+      entry_hash = langsam_hash(vm, value, entry_hash);
+      xor_acc ^= entry_hash;
+      sum_acc += entry_hash;
+      sum_sq_acc += entry_hash * entry_hash;
+      bucket = langsam_cdr(bucket);
+    }
   }
+  hash = fnv1a_mix(hash, (const uint8_t *)&m->nitems, sizeof(m->nitems));
+  hash = fnv1a_mix(hash, (const uint8_t *)&xor_acc, sizeof(xor_acc));
+  hash = fnv1a_mix(hash, (const uint8_t *)&sum_acc, sizeof(sum_acc));
+  hash = fnv1a_mix(hash, (const uint8_t *)&sum_sq_acc, sizeof(sum_sq_acc));
   return hash;
 }
 
