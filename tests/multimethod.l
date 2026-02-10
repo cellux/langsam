@@ -38,6 +38,34 @@
 (assert (= (combine-kind "a" "b") "ab"))
 (assert (= (combine-kind 1 "b") [1 "b"]))
 
+; class/type helper supports dispatch by class for instances and by type otherwise
+(defclass Pet
+  [:name String {:required true}])
+
+(let [pet (Pet {:name "luna"})]
+  (assert (= (class pet) Pet))
+  (assert (= (class 42) Integer))
+  (assert (= (class {}) Map)))
+
+(defmulti describe-class-or-type
+  class)
+
+(defmethod describe-class-or-type Pet
+  [x]
+  "pet")
+
+(defmethod describe-class-or-type Integer
+  [x]
+  "int")
+
+(defmethod describe-class-or-type :default
+  [x]
+  "other")
+
+(assert (= (describe-class-or-type (Pet {:name "luna"})) "pet"))
+(assert (= (describe-class-or-type 7) "int"))
+(assert (= (describe-class-or-type true) "other"))
+
 ; missing dispatch method without default should raise
 (defmulti only-int type)
 (defmethod only-int Integer

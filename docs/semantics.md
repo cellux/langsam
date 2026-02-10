@@ -66,6 +66,7 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
   - `(make-class Child {:extends Parent} [:field Spec] ...)`
 - `(defclass Name ...)` is shorthand for `(def Name (make-class Name ...))`.
 - Construct instances by invoking a class with a map, e.g. `(Name {:field value})`.
+- `(class x)` returns the class prototype for class instances, otherwise `(type x)`.
 - Field spec kinds:
   - a runtime type (`Integer`, `String`, etc.)
   - another class (nested coercion)

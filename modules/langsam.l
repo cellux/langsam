@@ -523,6 +523,15 @@
        (vector? (%schema x))
        (function? (%invoke x))))
 
+(defn class
+  [x]
+  (if (map? x)
+    (let [proto (getproto x)]
+      (if (class? proto)
+        proto
+        (type x)))
+    (type x)))
+
 (defn multimethod?
   [x]
   ((get (require "multimethod") 'multimethod?) x))
