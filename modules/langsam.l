@@ -157,6 +157,57 @@
   [coll]
   (drop 1 coll))
 
+(def range
+  (let [empty? (fn [start end step]
+                 (if (pos? step)
+                   (>= start end)
+                   (<= start end)))
+        make-state (fn [start end step]
+                     (if (or (not (integer? start))
+                             (not (integer? end))
+                             (not (integer? step)))
+                       (raise 'range "range expects Integer arguments, got %s %s %s"
+                              (type start) (type end) (type step)))
+                     (if (= step 0)
+                       (raise 'range "range step cannot be 0"))
+                     (if (empty? start end step)
+                       nil
+                       (let [it {:i start
+                                 :end end
+                                 :step step
+                                 :consumed false}]
+                         (put it %iter (fn [self] self))
+                         (put it %deref (fn [self]
+                                          (if (:consumed self)
+                                            (raise 'deref "attempt to deref consumed RangeIterator")
+                                            (:i self))))
+                         (put it %invoke (fn [self]
+                                           (if (:consumed self)
+                                             (raise 'invoke "attempt to advance consumed RangeIterator")
+                                             (let [next-i (+ (:i self) (:step self))]
+                                               (if (empty? next-i (:end self) (:step self))
+                                                 (do
+                                                   (put self :consumed true)
+                                                   nil)
+                                                 (do
+                                                   (put self :i next-i)
+                                                   self))))))
+                         it)))]
+    (fn range
+      "Return an iterator over an integer range."
+      [& args]
+      (let [n (len args)]
+        (if (= n 1)
+          (let [[end] args]
+            (make-state 0 end 1))
+          (if (= n 2)
+            (let [[start end] args]
+              (make-state start end 1))
+            (if (= n 3)
+              (let [[start end step] args]
+                (make-state start end step))
+              (raise 'range "range expects 1 to 3 args, got %s" n))))))))
+
 (defn member?
   "Return true when x is equal to an element in coll."
   [x coll]

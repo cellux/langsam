@@ -458,6 +458,7 @@ LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Map_del(LangsamVM *vm, LV self, LV key);
 LV langsam_Map_len(LangsamVM *vm, LV self);
 LV langsam_Map_iter(LangsamVM *vm, LV self);
+LV langsam_Map_deref(LangsamVM *vm, LV self);
 LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_Map_eval(LangsamVM *vm, LV self);
 LV langsam_Map_repr(LangsamVM *vm, LV self);

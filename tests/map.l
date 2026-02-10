@@ -95,3 +95,17 @@
   (assert (= (Map items) m))
   (assert (throws? '(deref . "attempt to deref consumed MapIterator") @last-it))
   (assert (throws? '(invoke . "attempt to advance consumed MapIterator") (last-it))))
+
+; Map protocol hooks
+(let [m {}]
+  (put m %iter (fn [self] (iter [1 2 3])))
+  (assert (= (map (fn [x] x) m) '(1 2 3))))
+
+(let [proto {%iter (fn [self] (iter [4 5]))}
+      m {}]
+  (setproto m proto)
+  (assert (= (map (fn [x] x) m) '(4 5))))
+
+(let [m {}]
+  (put m %deref (fn [self] :ok))
+  (assert (= @m :ok)))

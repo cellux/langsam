@@ -2098,13 +2098,28 @@ static LV langsam_Map_invoke_op(LangsamVM *vm, LV op, LV self, LV args) {
   return langsam_invoke(vm, op, args);
 }
 
+static LV langsam_Map_iter_entries(LangsamVM *vm, LV self) {
+  LV items = langsam_Map_items(vm, self);
+  if (langsam_nilp(items)) {
+    return langsam_nil;
+  }
+  LangsamMapIterator *p =
+      langsam_gcalloc(vm, LT_MAPITERATOR, LANGSAM_SIZEOF(LangsamMapIterator));
+  p->m = self;
+  p->items = items;
+  return (LV){
+      .type = LT_MAPITERATOR,
+      .p = p,
+  };
+}
+
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
   LangsamMap *m1 = self.p;
   LangsamMap *m2 = other.p;
   if (m1->nitems != m2->nitems) {
     return langsam_false;
   }
-  LV it = langsam_iter(vm, self);
+  LV it = langsam_Map_iter_entries(vm, self);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
     LV k = langsam_MapIteratorItem_k(item);
@@ -2130,7 +2145,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
   LangsamMap *m2 = other.p;
   LangsamSize nitems = m1->nitems + m2->nitems;
   LV result = langsam_map(vm, m1->proto, nitems);
-  LV it1 = langsam_iter(vm, self);
+  LV it1 = langsam_Map_iter_entries(vm, self);
   while (langsam_truthy(vm, it1)) {
     LV item = langsam_deref(vm, it1);
     LV k = langsam_MapIteratorItem_k(item);
@@ -2138,7 +2153,7 @@ LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
     langsam_put(vm, result, k, v);
     it1 = langsam_next(vm, it1);
   }
-  LV it2 = langsam_iter(vm, other);
+  LV it2 = langsam_Map_iter_entries(vm, other);
   while (langsam_truthy(vm, it2)) {
     LV otheritem = langsam_deref(vm, it2);
     LV k = langsam_MapIteratorItem_k(otheritem);
@@ -2206,7 +2221,7 @@ static void resize_map(LangsamVM *vm, LV self, LangsamSize nbuckets) {
       .type = LT_MAP,
       .p = &tmp,
   };
-  LV it = langsam_iter(vm, self);
+  LV it = langsam_Map_iter_entries(vm, self);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
     LV k = langsam_MapIteratorItem_k(item);
@@ -2282,18 +2297,22 @@ LV langsam_Map_len(LangsamVM *vm, LV self) {
 }
 
 LV langsam_Map_iter(LangsamVM *vm, LV self) {
-  LV items = langsam_Map_items(vm, self);
-  if (langsam_nilp(items)) {
-    return langsam_nil;
+  LV op = langsam_Map_getop(vm, self, "iter");
+  LANGSAM_CHECK(op);
+  if (langsam_somep(op)) {
+    return langsam_Map_invoke_op(vm, op, self, langsam_nil);
   }
-  LangsamMapIterator *p =
-      langsam_gcalloc(vm, LT_MAPITERATOR, LANGSAM_SIZEOF(LangsamMapIterator));
-  p->m = self;
-  p->items = items;
-  return (LV){
-      .type = LT_MAPITERATOR,
-      .p = p,
-  };
+  return langsam_Map_iter_entries(vm, self);
+}
+
+LV langsam_Map_deref(LangsamVM *vm, LV self) {
+  LV op = langsam_Map_getop(vm, self, "deref");
+  LANGSAM_CHECK(op);
+  if (langsam_somep(op)) {
+    return langsam_Map_invoke_op(vm, op, self, langsam_nil);
+  }
+  return langsam_exceptionf(vm, "deref", "%s does not support deref",
+                            langsam_ctypename(vm, self.type));
 }
 
 LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args) {
@@ -2312,7 +2331,7 @@ LV langsam_Map_invoke(LangsamVM *vm, LV self, LV args) {
 LV langsam_Map_eval(LangsamVM *vm, LV self) {
   LangsamMap *m = self.p;
   LV result = langsam_map(vm, m->proto, m->nitems);
-  LV it = langsam_iter(vm, self);
+  LV it = langsam_Map_iter_entries(vm, self);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
     LV k = langsam_MapIteratorItem_k(item);
@@ -2330,7 +2349,7 @@ LV langsam_Map_eval(LangsamVM *vm, LV self) {
 LV langsam_Map_repr(LangsamVM *vm, LV self) {
   LV reprs = langsam_nil;
   LangsamSize total_length = 0;
-  LV it = langsam_iter(vm, self);
+  LV it = langsam_Map_iter_entries(vm, self);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
     LV k = langsam_MapIteratorItem_k(item);
@@ -2472,6 +2491,7 @@ static struct LangsamT LANGSAM_T_MAP = {
     .del = langsam_Map_del,
     .len = langsam_Map_len,
     .iter = langsam_Map_iter,
+    .deref = langsam_Map_deref,
     .invoke = langsam_Map_invoke,
     .eval = langsam_Map_eval,
     .repr = langsam_Map_repr,
