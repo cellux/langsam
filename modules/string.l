@@ -1,4 +1,7 @@
+(import stream :refer [Stream])
+
 (defclass StringStream
+  {:extends Stream}
   [:source String {:required true}]
   [:offset Integer {:required true}])
 
@@ -38,14 +41,6 @@
       ""
       (String (slice source start end)))))
 
-(defmethod StringStream.read-char
-  "Read and return one-character String, or nil at EOF."
-  [self]
-  (let [part (self.read 1)]
-    (if (= (len part) 0)
-      nil
-      part)))
-
 (defmethod StringStream.read-byte
   "Read one byte as Integer in 0..255, or nil at EOF."
   [self]
@@ -55,38 +50,6 @@
           byte (get (:source self) pos)]
       (put self :offset (+ pos 1))
       byte)))
-
-(defmethod StringStream.read-be
-  "Read n bytes in big-endian order and return an Integer."
-  [self (Integer n)]
-  (if (<= n 0)
-    (raise 'stream "StringStream.read-be expects positive Integer n, got %s" n))
-  (let [remaining n
-        result 0]
-    (while (> remaining 0)
-      (let [byte (self.read-byte)]
-        (if (nil? byte)
-          (raise 'stream "unexpected EOF in StringStream.read-be"))
-        (setq result (bit-or (bit-shift-left result 8) byte)))
-      (decq remaining))
-    result))
-
-(defmethod StringStream.read-le
-  "Read n bytes in little-endian order and return an Integer."
-  [self (Integer n)]
-  (if (<= n 0)
-    (raise 'stream "StringStream.read-le expects positive Integer n, got %s" n))
-  (let [remaining n
-        shift 0
-        result 0]
-    (while (> remaining 0)
-      (let [byte (self.read-byte)]
-        (if (nil? byte)
-          (raise 'stream "unexpected EOF in StringStream.read-le"))
-        (setq result (bit-or result (bit-shift-left byte shift))))
-      (setq shift (+ shift 8))
-      (decq remaining))
-    result))
 
 (let [string-match-at? (fn string-match-at?
                          "Return true when marker bytes match source at index at."
@@ -143,9 +106,3 @@
           (if keep-marker
             part
             [part false]))))))
-
-(defmethod StringStream.readln
-  "Read a single line terminated by \\n without including the terminator."
-  [self]
-  (let [[line _] (self.read-until "\n")]
-    line))

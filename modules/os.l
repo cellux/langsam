@@ -1,4 +1,7 @@
+(import stream :refer [Stream])
+
 (defclass FileStream
+  {:extends Stream}
   [:file File {:required true}]
   [:buffer String {:required true}]
   [:ended Boolean {:required true}])
@@ -65,54 +68,6 @@
           ""
           (String (slice buf 0 end)))))))
 
-(defmethod FileStream.read-char
-  "Read and return one-character String, or nil at EOF."
-  [self]
-  (let [part (self.read 1)]
-    (if (= (len part) 0)
-      nil
-      part)))
-
-(defmethod FileStream.read-byte
-  "Read one byte as Integer in 0..255, or nil at EOF."
-  [self]
-  (let [part (self.read-char)]
-    (if (nil? part)
-      nil
-      (get part 0))))
-
-(defmethod FileStream.read-be
-  "Read n bytes in big-endian order and return an Integer."
-  [self (Integer n)]
-  (if (<= n 0)
-    (raise 'stream "FileStream.read-be expects positive Integer n, got %s" n))
-  (let [remaining n
-        result 0]
-    (while (> remaining 0)
-      (let [byte (self.read-byte)]
-        (if (nil? byte)
-          (raise 'stream "unexpected EOF in FileStream.read-be"))
-        (setq result (bit-or (bit-shift-left result 8) byte)))
-      (decq remaining))
-    result))
-
-(defmethod FileStream.read-le
-  "Read n bytes in little-endian order and return an Integer."
-  [self (Integer n)]
-  (if (<= n 0)
-    (raise 'stream "FileStream.read-le expects positive Integer n, got %s" n))
-  (let [remaining n
-        shift 0
-        result 0]
-    (while (> remaining 0)
-      (let [byte (self.read-byte)]
-        (if (nil? byte)
-          (raise 'stream "unexpected EOF in FileStream.read-le"))
-        (setq result (bit-or result (bit-shift-left byte shift))))
-      (setq shift (+ shift 8))
-      (decq remaining))
-    result))
-
 (defmethod FileStream.read-until
   "Read until marker. Returns [part found?] unless keep-marker=true."
   [self (String marker) &opt (keep-marker false)]
@@ -147,12 +102,6 @@
                (String (slice part+marker 0 split-at)))
              true])
           [part+marker false])))))
-
-(defmethod FileStream.readln
-  "Read a single line terminated by \\n without including the terminator."
-  [self]
-  (let [[line _] (self.read-until "\n")]
-    line))
 
 (defmethod FileStream.close
   "Close the underlying file descriptor."
