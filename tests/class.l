@@ -85,6 +85,20 @@
   (assert (= (c.inc 5) {:value 15}))
   (assert (= (c.read) 15)))
 
+; defmethod supports method docstrings
+(defclass WithDoc
+  [:value Integer {:required true}])
+
+(defmethod WithDoc.describe
+  "Describe a WithDoc instance."
+  [self]
+  (str "v=" (:value self)))
+
+(let [f (get WithDoc 'describe)
+      x (WithDoc {:value 9})]
+  (assert (= (:doc f) "Describe a WithDoc instance."))
+  (assert (= (x.describe) "v=9")))
+
 ; methods can be attached to class values in local scope
 (let [Point (make-class LocalPoint [:x Integer] [:y Integer])]
   (defmethod Point.shift

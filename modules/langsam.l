@@ -550,25 +550,50 @@
 
 (defmacro defmethod
   [target & rest]
-  (if-match [['cons class ['quote method]] target]
-    (if-match [[params & body] rest]
+  (let [method-fn (fn [doc params body]
+                    (if doc
+                      `(fn ,doc ,params ,@body)
+                      `(fn ,params ,@body)))
+        class-method-form (fn [class method]
+                            (cond-match rest
+                              [(String doc) params & body]
+                              (if (vector? params)
+                                `(put ,class ',method ,(method-fn doc params body))
+                                (raise 'syntax "defmethod method params should be Vector, got %s" params))
+                              [params & body]
+                              (if (vector? params)
+                                `(put ,class ',method ,(method-fn nil params body))
+                                (raise 'syntax "defmethod method params should be Vector, got %s" params))
+                              (raise 'syntax "defmethod expects params and body for Class.method target, got %s"
+                                     target)))
+        multimethod-form (fn [name]
+                           (cond-match rest
+                             [dispatch-value (String doc) params & body]
+                             (if (vector? params)
+                               `((get (require "multimethod") 'add-method)
+                                 ,name
+                                 ,dispatch-value
+                                 ,(method-fn doc params body))
+                               (raise 'syntax "defmethod multimethod params should be Vector, got %s"
+                                      params))
+                             [dispatch-value params & body]
+                             (if (vector? params)
+                               `((get (require "multimethod") 'add-method)
+                                 ,name
+                                 ,dispatch-value
+                                 ,(method-fn nil params body))
+                               (raise 'syntax "defmethod multimethod params should be Vector, got %s"
+                                      params))
+                             (raise 'syntax
+                                    "defmethod expects dispatch value, params and body for multimethod target, got %s"
+                                    name)))]
+    (cond-match target
+      ['cons class ['quote method]]
       (if (symbol? method)
-        `(put ,class ',method (fn ,params ,@body))
+        (class-method-form class method)
         (raise 'syntax "defmethod method name should be Symbol, got %s" method))
-      (raise 'syntax "defmethod expects params and body for Class.method target, got %s"
-             target))
-    (if (symbol? target)
-      (if-match [[dispatch-value params & body] rest]
-        (if (vector? params)
-          `((get (require "multimethod") 'add-method)
-            ,target
-            ,dispatch-value
-            (fn ,params ,@body))
-          (raise 'syntax "defmethod multimethod params should be Vector, got %s"
-                 params))
-        (raise 'syntax
-               "defmethod expects dispatch value, params and body for multimethod target, got %s"
-               target))
+      (Symbol name)
+      (multimethod-form name)
       (raise 'syntax
              "defmethod expects Class.method or multimethod Symbol target, got %s"
              target))))
@@ -576,5 +601,25 @@
 (defmacro defclass
   [name & fields]
   `(def ,name (make-class ,name ,@fields)))
+
+(def StringStream (get (require "string") 'StringStream))
+
+(defmulti stream class)
+
+(defmethod stream String
+  [s]
+  (StringStream {:source s :offset 0}))
+
+(defmethod stream StringSlice
+  [s]
+  (stream (String s)))
+
+(defmethod stream StringStream
+  [s]
+  s)
+
+(defmethod stream :default
+  [x]
+  (raise 'stream "cannot create stream from %s" (class x)))
 
 (gc)

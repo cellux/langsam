@@ -118,3 +118,18 @@
     [x]
     :map-hit)
   (assert (= (classify-map k2) :map-hit)))
+
+; defmethod supports multimethod docstrings
+(defmulti with-doc-method
+  type)
+
+(defmethod with-doc-method Integer
+  "Increment integer values."
+  [x]
+  (+ x 1))
+
+(assert (= (with-doc-method 4) 5))
+(let [method ((get (require "multimethod") 'resolve-method)
+              with-doc-method
+              Integer)]
+  (assert (= (:doc method) "Increment integer values.")))
