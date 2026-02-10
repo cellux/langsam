@@ -4401,6 +4401,8 @@ static LV eval_gc(LangsamVM *vm, LV args) { return langsam_gc(vm); }
 
 extern char langsam_module_langsam_data[];
 extern int langsam_module_langsam_size;
+extern char langsam_module_os_data[];
+extern int langsam_module_os_size;
 
 void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_def(vm, env, "true", langsam_true);
@@ -4625,6 +4627,9 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   LV load_result = langsam_loadstringn(
       vm, vm->curlet, langsam_module_langsam_data, langsam_module_langsam_size);
   LANGSAM_CHECK(load_result);
+  LV os_load_result = langsam_loadstringn(
+      vm, os_module, langsam_module_os_data, langsam_module_os_size);
+  LANGSAM_CHECK(os_load_result);
   LV mainlet = langsam_map(vm, vm->curlet, 4096);
   langsam_pushlet(vm, mainlet);
   return langsam_nil;
