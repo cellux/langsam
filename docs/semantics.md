@@ -61,10 +61,10 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 ## Class System
 
 - Classes are maps carrying `%name`, `%schema`, and `%invoke`; `class?` checks this shape.
-- `(class Name [:field Spec {:required true} ...])` returns a class value and does not bind `Name`.
+- `(make-class Name [:field Spec {:required true} ...])` returns a class value and does not bind `Name`.
 - Class definitions may start with an options map:
-  - `(class Child {:extends Parent} [:field Spec] ...)`
-- `(defclass Name ...)` is shorthand for `(def Name (class Name ...))`.
+  - `(make-class Child {:extends Parent} [:field Spec] ...)`
+- `(defclass Name ...)` is shorthand for `(def Name (make-class Name ...))`.
 - Construct instances by invoking a class with a map, e.g. `(Name {:field value})`.
 - Field spec kinds:
   - a runtime type (`Integer`, `String`, etc.)

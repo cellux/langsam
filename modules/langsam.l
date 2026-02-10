@@ -527,9 +527,9 @@
   [x]
   ((get (require "multimethod") 'multimethod?) x))
 
-(defmacro class
+(defmacro make-class
   [name & fields]
-  `((get (require "class") 'class) ',name [,@fields]))
+  `((get (require "class") 'make-class) ',name [,@fields]))
 
 (defmacro defmulti
   [name dispatch-fn]
@@ -566,6 +566,6 @@
 
 (defmacro defclass
   [name & fields]
-  `(def ,name (class ,name ,@fields)))
+  `(def ,name (make-class ,name ,@fields)))
 
 (gc)

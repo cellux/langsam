@@ -37,8 +37,8 @@
   (assert (= (:model car) "Auris"))
   (assert (= (:engine car) {:type :petrol :transmission {:type :manual :gears 5}})))
 
-; class lets you create class values on the fly
-(let [Point (class Point [:x Integer] [:y Integer])
+; make-class lets you create class values on the fly
+(let [Point (make-class Point [:x Integer] [:y Integer])
       p (Point {:x 6 :y -3})]
   (assert (= (:x p) 6))
   (assert (= (:y p) -3)))
@@ -86,7 +86,7 @@
   (assert (= (c.read) 15)))
 
 ; methods can be attached to class values in local scope
-(let [Point (class LocalPoint [:x Integer] [:y Integer])]
+(let [Point (make-class LocalPoint [:x Integer] [:y Integer])]
   (defmethod Point.shift
     [self dx dy]
     (update self :x + dx)
@@ -132,9 +132,9 @@
   (assert (= (s.describe) "sedan:Corolla")))
 
 (assert (throws? '(class . "class :extends should be Class, got Integer")
-                 (class BadExtends {:extends 1} [:x Integer])))
+                 (make-class BadExtends {:extends 1} [:x Integer])))
 (assert (throws? '(class . "BadSedan has duplicate field: :make")
-                 (class BadSedan {:extends Vehicle} [:make String])))
+                 (make-class BadSedan {:extends Vehicle} [:make String])))
 
 ; class? recognizes class values
 (assert (class? Car))
@@ -142,14 +142,14 @@
 
 ; class should not leak a binding into the global scope
 (assert (not (contains? (curlet) 'ClassMacroEphemeralPoint)))
-(let [PointClass (class ClassMacroEphemeralPoint [:x Integer])
+(let [PointClass (make-class ClassMacroEphemeralPoint [:x Integer])
       p (PointClass {:x 7})]
   (assert (class? PointClass))
   (assert (= (:x p) 7)))
 (assert (not (contains? (curlet) 'ClassMacroEphemeralPoint)))
 
 ; required checks key presence, not non-nil value
-(let [Req (class Req [:x Integer {:required true}])
+(let [Req (make-class Req [:x Integer {:required true}])
       r (Req {:x nil})]
   (assert (contains? r :x))
   (assert (= (:x r) nil)))
@@ -186,19 +186,19 @@
 
 ; schema validation errors
 (assert (throws? '(class . "class field schema should be Vector, got :oops")
-                 (class BrokenSchema1 :oops)))
+                 (make-class BrokenSchema1 :oops)))
 (assert (throws? '(class . "class field schema expects [field type &opt opts], got [:x]")
-                 (class BrokenSchema2 [:x])))
+                 (make-class BrokenSchema2 [:x])))
 (assert (throws? '(class . "class field name should be Keyword, got x")
-                 (class BrokenSchema3 ['x Integer])))
+                 (make-class BrokenSchema3 ['x Integer])))
 (assert (throws? '(class . "class field options should be Map, got []")
-                 (class BrokenSchema4 [:x Integer []])))
+                 (make-class BrokenSchema4 [:x Integer []])))
 (assert (throws? '(class . "class field :validate should be Function or Vector, got Integer")
-                 (class BrokenSchema5 [:x Integer {:validate 1}])))
+                 (make-class BrokenSchema5 [:x Integer {:validate 1}])))
 (assert (throws? '(class . "class field :validate entries should be Function, got Integer")
-                 (class BrokenSchema6 [:x Integer {:validate [inc 1]}])))
+                 (make-class BrokenSchema6 [:x Integer {:validate [inc 1]}])))
 
 ; unsupported schema type is rejected at construction time
-(let [BrokenType (class BrokenType [:x :weird])]
+(let [BrokenType (make-class BrokenType [:x :weird])]
   (assert (throws? '(class . "BrokenType.:x has unsupported schema type: :weird")
                    (BrokenType {:x 1}))))

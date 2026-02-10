@@ -137,7 +137,7 @@
     (setproto instance class)
     instance))
 
-(defn class
+(defn make-class
   [name schema]
   (let [{:keys [opts schema]} (split-class-spec schema)
         parent (resolve-parent opts)
