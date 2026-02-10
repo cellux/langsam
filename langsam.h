@@ -120,13 +120,14 @@ extern const LangsamType LT_KEYWORD;
 extern const LangsamType LT_OPWORD;
 extern const LangsamType LT_CONS;
 extern const LangsamType LT_VECTOR;
-extern const LangsamType LT_SLICE;
+extern const LangsamType LT_VECTORSLICE;
+extern const LangsamType LT_STRINGSLICE;
 extern const LangsamType LT_MAP;
 extern const LangsamType LT_FUNCTION;
 
 extern const LangsamType LT_CONSITERATOR;
 extern const LangsamType LT_VECTORITERATOR;
-extern const LangsamType LT_SLICEITERATOR;
+extern const LangsamType LT_VECTORSLICEITERATOR;
 extern const LangsamType LT_MAPITERATOR;
 
 struct LangsamValue {
@@ -152,6 +153,12 @@ typedef struct {
 } LangsamString;
 
 typedef struct {
+  LV s;
+  LangsamIndex start;
+  LangsamSize len;
+} LangsamStringSlice;
+
+typedef struct {
   LV car;
   LV cdr;
 } LangsamCons;
@@ -174,12 +181,12 @@ typedef struct {
   LV v;
   LangsamIndex start;
   LangsamSize len;
-} LangsamSlice;
+} LangsamVectorSlice;
 
 typedef struct {
   LV s;
   LangsamIndex i;
-} LangsamSliceIterator;
+} LangsamVectorSliceIterator;
 
 typedef struct {
   LV *buckets;
@@ -320,6 +327,22 @@ LV langsam_istringn(LangsamVM *vm, char *s, LangsamSize len);
 LV langsam_vformat(LangsamVM *vm, const char *fmt, va_list args);
 LV langsam_format(LangsamVM *vm, const char *fmt, ...);
 
+// StringSlice
+
+LangsamSize langsam_StringSlice_gcmark(LangsamVM *vm, void *p);
+LangsamHash langsam_StringSlice_hash(LangsamVM *vm, LV self,
+                                     LangsamHash prevhash);
+LV langsam_StringSlice_cast(LangsamVM *vm, LV other);
+LV langsam_StringSlice_cmp(LangsamVM *vm, LV self, LV other);
+LV langsam_StringSlice_add(LangsamVM *vm, LV self, LV other);
+LV langsam_StringSlice_get(LangsamVM *vm, LV self, LV key);
+LV langsam_StringSlice_len(LangsamVM *vm, LV self);
+LV langsam_StringSlice_repr(LangsamVM *vm, LV self);
+LV langsam_StringSlice_str(LangsamVM *vm, LV self);
+
+LV langsam_stringslice(LangsamVM *vm, LV string, LangsamIndex start,
+                       LangsamSize len);
+
 // Symbol
 
 LV langsam_Symbol_cast(LangsamVM *vm, LV other);
@@ -399,27 +422,28 @@ LangsamSize langsam_VectorIterator_gcmark(LangsamVM *vm, void *p);
 LV langsam_VectorIterator_deref(LangsamVM *vm, LV self);
 LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args);
 
-// Slice
+// VectorSlice
 
-LangsamSize langsam_Slice_gcmark(LangsamVM *vm, void *p);
-LangsamSize langsam_Slice_gcfree(LangsamVM *vm, void *p);
-LangsamHash langsam_Slice_hash(LangsamVM *vm, LV self, LangsamHash prevhash);
-LV langsam_Slice_cast(LangsamVM *vm, LV other);
-LV langsam_Slice_equal(LangsamVM *vm, LV self, LV other);
-LV langsam_Slice_add(LangsamVM *vm, LV self, LV other);
-LV langsam_Slice_get(LangsamVM *vm, LV self, LV key);
-LV langsam_Slice_put(LangsamVM *vm, LV self, LV key, LV value);
-LV langsam_Slice_len(LangsamVM *vm, LV self);
-LV langsam_Slice_iter(LangsamVM *vm, LV self);
-LV langsam_Slice_invoke(LangsamVM *vm, LV self, LV args);
-LV langsam_Slice_eval(LangsamVM *vm, LV self);
-LV langsam_Slice_repr(LangsamVM *vm, LV self);
+LangsamSize langsam_VectorSlice_gcmark(LangsamVM *vm, void *p);
+LangsamHash langsam_VectorSlice_hash(LangsamVM *vm, LV self,
+                                     LangsamHash prevhash);
+LV langsam_VectorSlice_cast(LangsamVM *vm, LV other);
+LV langsam_VectorSlice_equal(LangsamVM *vm, LV self, LV other);
+LV langsam_VectorSlice_add(LangsamVM *vm, LV self, LV other);
+LV langsam_VectorSlice_get(LangsamVM *vm, LV self, LV key);
+LV langsam_VectorSlice_put(LangsamVM *vm, LV self, LV key, LV value);
+LV langsam_VectorSlice_len(LangsamVM *vm, LV self);
+LV langsam_VectorSlice_iter(LangsamVM *vm, LV self);
+LV langsam_VectorSlice_invoke(LangsamVM *vm, LV self, LV args);
+LV langsam_VectorSlice_eval(LangsamVM *vm, LV self);
+LV langsam_VectorSlice_repr(LangsamVM *vm, LV self);
 
-LV langsam_slice(LangsamVM *vm, LV vector, LangsamIndex start, LangsamSize len);
+LV langsam_vectorslice(LangsamVM *vm, LV vector, LangsamIndex start,
+                       LangsamSize len);
 
-LangsamSize langsam_SliceIterator_gcmark(LangsamVM *vm, void *p);
-LV langsam_SliceIterator_deref(LangsamVM *vm, LV self);
-LV langsam_SliceIterator_invoke(LangsamVM *vm, LV self, LV args);
+LangsamSize langsam_VectorSliceIterator_gcmark(LangsamVM *vm, void *p);
+LV langsam_VectorSliceIterator_deref(LangsamVM *vm, LV self);
+LV langsam_VectorSliceIterator_invoke(LangsamVM *vm, LV self, LV args);
 
 // Map
 

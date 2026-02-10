@@ -61,3 +61,40 @@
                    (get s 3)))
   (assert (throws? '(get . "String index -4 out of range (0..2)")
                    (get s -4))))
+
+; StringSlice
+(assert (= (type (slice "foobar" 1 4)) StringSlice))
+(assert (= (type (StringSlice "foobar")) StringSlice))
+
+(assert (= (String (slice "foobar" 1 4)) "oob"))
+(assert (= (str (slice "foobar" 1 4)) "oob"))
+(assert (= (repr (slice "foo\"bar" 0 7)) "\"foo\\\"bar\""))
+
+(assert (= (String (slice "foobar" 2)) "obar"))
+(assert (= (String (slice (slice "abcdef" 1 5) 1 3)) "cd"))
+
+(let [s (slice "abcdef" 1 5)]
+  (assert (= (len s) 4))
+  (assert (= (get s 0) 98))
+  (assert (= (get s -1) 101))
+  (assert (throws? '(get . "attempt to index StringSlice with Keyword")
+                   (get s :zero)))
+  (assert (throws? '(get . "StringSlice index 4 out of range (0..3)")
+                   (get s 4)))
+  (assert (throws? '(get . "StringSlice index -5 out of range (0..3)")
+                   (get s -5))))
+
+(assert (= (+ (slice "abc" 1 3) (slice "xyz" 0 2)) "bcxy"))
+(assert (= (+ (slice "abc" 1 3) "xyz") "bcxyz"))
+(assert (= (+ "a" (slice "xyz" 1 3)) "ayz"))
+
+(assert (< (slice "abc" 0 1) (slice "abc" 1 2)))
+(assert (> (slice "abc" 2 3) (slice "abc" 1 2)))
+(assert (= (slice "abc" 0 2) (slice "abz" 0 2)))
+
+(assert (throws? '(slice . "slice start 4 out of range (0..3)")
+                 (slice "abc" 4 4)))
+(assert (throws? '(slice . "slice end 4 out of range (0..3)")
+                 (slice "abc" 0 4)))
+(assert (throws? '(slice . "slice end 1 is before start 2")
+                 (slice "abc" 2 1)))

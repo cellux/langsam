@@ -30,6 +30,7 @@ The first implementation will be hosted on top of the qemu q35 machine using x86
 - Test suite: `make test`
 - Valgrind: `make vtest`
 - Debugging: `make gdb`
+- Important: rebuild `langsam` before running tests (for example `make` or `make test`), because Langsam modules are embedded into the binary at link time.
 
 **Tests**
 - Tests are plain Langsam scripts in `tests/*.l`.

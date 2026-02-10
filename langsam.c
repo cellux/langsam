@@ -59,8 +59,9 @@ static LangsamHash hash_integer(LangsamHash hash, LangsamInteger i) {
 static LangsamHash hash_float(LangsamHash hash, LangsamFloat f) {
   return fnv1a_mix(hash, (uint8_t *)&f, sizeof(f));
 }
-static LangsamHash hash_string(LangsamHash hash, char *s, LangsamSize len) {
-  return fnv1a_mix(hash, (uint8_t *)s, (size_t)len);
+static LangsamHash hash_string(LangsamHash hash, const char *s,
+                               LangsamSize len) {
+  return fnv1a_mix(hash, (const uint8_t *)s, (size_t)len);
 }
 
 // core API
@@ -887,21 +888,25 @@ static char *writecharrepr(char *p, char c) {
   return p;
 }
 
-LV langsam_String_repr(LangsamVM *vm, LV self) {
-  LangsamString *s = self.p;
+static LV repr_string_range(LangsamVM *vm, const char *source, LangsamSize len) {
   LangsamSize reprlen = 2;
-  for (LangsamSize i = 0; i < s->len; i++) {
-    reprlen += charreprwidth(s->p[i]);
+  for (LangsamSize i = 0; i < len; i++) {
+    reprlen += charreprwidth(source[i]);
   }
   char *p = langsam_alloc(vm, reprlen + 1);
   char *dst = p;
   *dst++ = '"';
-  for (LangsamSize i = 0; i < s->len; i++) {
-    dst = writecharrepr(dst, s->p[i]);
+  for (LangsamSize i = 0; i < len; i++) {
+    dst = writecharrepr(dst, source[i]);
   }
   *dst++ = '"';
   *dst = 0;
   return langsam_stringn_wrap(vm, p, reprlen);
+}
+
+LV langsam_String_repr(LangsamVM *vm, LV self) {
+  LangsamString *s = self.p;
+  return repr_string_range(vm, s->p, s->len);
 }
 
 LV langsam_String_str(LangsamVM *vm, LV self) { return self; }
@@ -1006,6 +1011,127 @@ static struct LangsamT LANGSAM_T_STRING = {
 };
 
 const LangsamType LT_STRING = &LANGSAM_T_STRING;
+
+// StringSlice
+
+static const char *stringslice_p(LangsamStringSlice *s) {
+  LangsamString *base = s->s.p;
+  return base->p + s->start;
+}
+
+LangsamSize langsam_StringSlice_gcmark(LangsamVM *vm, void *p) {
+  LangsamStringSlice *s = p;
+  return langsam_mark(vm, s->s);
+}
+
+LangsamHash langsam_StringSlice_hash(LangsamVM *vm, LV self, LangsamHash hash) {
+  LangsamStringSlice *s = self.p;
+  return hash_string(hash, stringslice_p(s), s->len);
+}
+
+LV langsam_StringSlice_cast(LangsamVM *vm, LV other) {
+  if (other.type == LT_STRING) {
+    LangsamString *s = other.p;
+    return langsam_stringslice(vm, other, 0, s->len);
+  }
+  LV string = langsam_String_cast(vm, other);
+  LANGSAM_CHECK(string);
+  LangsamString *s = string.p;
+  return langsam_stringslice(vm, string, 0, s->len);
+}
+
+LV langsam_StringSlice_cmp(LangsamVM *vm, LV self, LV other) {
+  LangsamStringSlice *s1 = self.p;
+  LangsamStringSlice *s2 = other.p;
+  size_t cmplen = (size_t)((s1->len < s2->len) ? s1->len : s2->len);
+  int result = memcmp(stringslice_p(s1), stringslice_p(s2), cmplen);
+  if (result != 0) {
+    return langsam_integer(result);
+  }
+  if (s1->len == s2->len) {
+    return langsam_integer(0);
+  }
+  return langsam_integer((s1->len < s2->len) ? -1 : 1);
+}
+
+LV langsam_StringSlice_add(LangsamVM *vm, LV self, LV other) {
+  LangsamStringSlice *s1 = self.p;
+  LangsamStringSlice *s2 = other.p;
+  LangsamSize len = s1->len + s2->len;
+  char *p = langsam_alloc(vm, len + 1);
+  memcpy(p, stringslice_p(s1), (size_t)s1->len);
+  memcpy(p + s1->len, stringslice_p(s2), (size_t)s2->len);
+  p[len] = 0;
+  return langsam_stringn_wrap(vm, p, len);
+}
+
+LV langsam_StringSlice_get(LangsamVM *vm, LV self, LV key) {
+  if (key.type != LT_INTEGER) {
+    char *key_type_name = langsam_ctypename(vm, key.type);
+    return langsam_exceptionf(vm, "get", "attempt to index StringSlice with %s",
+                              key_type_name);
+  }
+  LangsamStringSlice *s = self.p;
+  LangsamIndex index = key.i;
+  if (index < 0) {
+    index = s->len + index;
+  }
+  if (index < 0 || index >= s->len) {
+    return langsam_exceptionf(vm, "get",
+                              "StringSlice index " LANGSAM_INTEGER_FMT
+                              " out of range (0.." LANGSAM_INTEGER_FMT ")",
+                              key.i, s->len - 1);
+  }
+  return langsam_integer(stringslice_p(s)[index]);
+}
+
+LV langsam_StringSlice_len(LangsamVM *vm, LV self) {
+  LangsamStringSlice *s = self.p;
+  return langsam_integer(s->len);
+}
+
+LV langsam_StringSlice_repr(LangsamVM *vm, LV self) {
+  LangsamStringSlice *s = self.p;
+  return repr_string_range(vm, stringslice_p(s), s->len);
+}
+
+LV langsam_StringSlice_str(LangsamVM *vm, LV self) {
+  LangsamStringSlice *s = self.p;
+  return langsam_stringn(vm, stringslice_p(s), s->len);
+}
+
+LV langsam_stringslice(LangsamVM *vm, LV string, LangsamIndex start,
+                       LangsamSize len) {
+  if (string.type != LT_STRING) {
+    return langsam_exceptionf(vm, "slice", "slice base should be String, got %s",
+                              langsam_ctypename(vm, string.type));
+  }
+  LangsamStringSlice *s =
+      langsam_gcalloc(vm, LT_STRINGSLICE, LANGSAM_SIZEOF(LangsamStringSlice));
+  s->s = string;
+  s->start = start;
+  s->len = len;
+  return (LV){
+      .type = LT_STRINGSLICE,
+      .p = s,
+  };
+}
+
+static struct LangsamT LANGSAM_T_STRINGSLICE = {
+    .name = "StringSlice",
+    .gcmanaged = true,
+    .gcmark = langsam_StringSlice_gcmark,
+    .hash = langsam_StringSlice_hash,
+    .cast = langsam_StringSlice_cast,
+    .cmp = langsam_StringSlice_cmp,
+    .add = langsam_StringSlice_add,
+    .get = langsam_StringSlice_get,
+    .len = langsam_StringSlice_len,
+    .repr = langsam_StringSlice_repr,
+    .str = langsam_StringSlice_str,
+};
+
+const LangsamType LT_STRINGSLICE = &LANGSAM_T_STRINGSLICE;
 
 // Symbol
 
@@ -1699,175 +1825,173 @@ static struct LangsamT LANGSAM_T_VECTORITERATOR = {
 
 const LangsamType LT_VECTORITERATOR = &LANGSAM_T_VECTORITERATOR;
 
-// Slice
+// VectorSlice
 
-static LV slice_get_unchecked(LangsamSlice *s, LangsamIndex index) {
+static LV vectorslice_get_unchecked(LangsamVectorSlice *s, LangsamIndex index) {
   LangsamVector *v = s->v.p;
   return v->items[s->start + index];
 }
 
-LangsamSize langsam_Slice_gcmark(LangsamVM *vm, void *p) {
-  LangsamSlice *s = p;
+LangsamSize langsam_VectorSlice_gcmark(LangsamVM *vm, void *p) {
+  LangsamVectorSlice *s = p;
   return langsam_mark(vm, s->v);
 }
 
-LangsamSize langsam_Slice_gcfree(LangsamVM *vm, void *p) { return 0; }
-
-LangsamHash langsam_Slice_hash(LangsamVM *vm, LV self, LangsamHash hash) {
-  LangsamSlice *s = self.p;
+LangsamHash langsam_VectorSlice_hash(LangsamVM *vm, LV self, LangsamHash hash) {
+  LangsamVectorSlice *s = self.p;
   LangsamVector *v = s->v.p;
   return hash_vector_range(vm, v->items, s->start, s->len, hash);
 }
 
-LV langsam_Slice_cast(LangsamVM *vm, LV other) {
+LV langsam_VectorSlice_cast(LangsamVM *vm, LV other) {
   if (other.type == LT_VECTOR) {
     LangsamVector *v = other.p;
-    return langsam_slice(vm, other, 0, v->len);
+    return langsam_vectorslice(vm, other, 0, v->len);
   }
   LV v = langsam_Vector_cast(vm, other);
   LANGSAM_CHECK(v);
   LangsamVector *vv = v.p;
-  return langsam_slice(vm, v, 0, vv->len);
+  return langsam_vectorslice(vm, v, 0, vv->len);
 }
 
-LV langsam_Slice_equal(LangsamVM *vm, LV self, LV other) {
-  LangsamSlice *s1 = self.p;
-  LangsamSlice *s2 = other.p;
+LV langsam_VectorSlice_equal(LangsamVM *vm, LV self, LV other) {
+  LangsamVectorSlice *s1 = self.p;
+  LangsamVectorSlice *s2 = other.p;
   LangsamVector *v1 = s1->v.p;
   LangsamVector *v2 = s2->v.p;
   return equal_vector_ranges(vm, v1->items, s1->start, s1->len, v2->items,
                              s2->start, s2->len);
 }
 
-LV langsam_Slice_add(LangsamVM *vm, LV self, LV other) {
-  LangsamSlice *s1 = self.p;
-  LangsamSlice *s2 = other.p;
+LV langsam_VectorSlice_add(LangsamVM *vm, LV self, LV other) {
+  LangsamVectorSlice *s1 = self.p;
+  LangsamVectorSlice *s2 = other.p;
   LangsamVector *v1 = s1->v.p;
   LangsamVector *v2 = s2->v.p;
   return copy_concat_vector_ranges(vm, v1->items, s1->start, s1->len, v2->items,
                                    s2->start, s2->len);
 }
 
-LV langsam_Slice_get(LangsamVM *vm, LV self, LV key) {
-  LangsamSlice *s = self.p;
-  LV index = resolve_index(vm, key, s->len, "Slice", "get");
+LV langsam_VectorSlice_get(LangsamVM *vm, LV self, LV key) {
+  LangsamVectorSlice *s = self.p;
+  LV index = resolve_index(vm, key, s->len, "VectorSlice", "get");
   LANGSAM_CHECK(index);
-  return slice_get_unchecked(s, index.i);
+  return vectorslice_get_unchecked(s, index.i);
 }
 
-LV langsam_Slice_put(LangsamVM *vm, LV self, LV key, LV value) {
-  LangsamSlice *s = self.p;
-  LV index = resolve_index(vm, key, s->len, "Slice", "put");
+LV langsam_VectorSlice_put(LangsamVM *vm, LV self, LV key, LV value) {
+  LangsamVectorSlice *s = self.p;
+  LV index = resolve_index(vm, key, s->len, "VectorSlice", "put");
   LANGSAM_CHECK(index);
   LangsamVector *v = s->v.p;
   v->items[s->start + index.i] = value;
   return self;
 }
 
-LV langsam_Slice_len(LangsamVM *vm, LV self) {
-  LangsamSlice *s = self.p;
+LV langsam_VectorSlice_len(LangsamVM *vm, LV self) {
+  LangsamVectorSlice *s = self.p;
   return langsam_integer(s->len);
 }
 
-LV langsam_Slice_iter(LangsamVM *vm, LV self) {
-  LangsamSlice *s = self.p;
+LV langsam_VectorSlice_iter(LangsamVM *vm, LV self) {
+  LangsamVectorSlice *s = self.p;
   if (s->len == 0) {
     return langsam_nil;
   }
-  LangsamSliceIterator *it =
-      langsam_gcalloc(vm, LT_SLICEITERATOR, LANGSAM_SIZEOF(LangsamSliceIterator));
+  LangsamVectorSliceIterator *it =
+      langsam_gcalloc(vm, LT_VECTORSLICEITERATOR, LANGSAM_SIZEOF(LangsamVectorSliceIterator));
   it->s = self;
   it->i = 0;
   return (LV){
-      .type = LT_SLICEITERATOR,
+      .type = LT_VECTORSLICEITERATOR,
       .p = it,
   };
 }
 
-LV langsam_Slice_invoke(LangsamVM *vm, LV self, LV args) {
+LV langsam_VectorSlice_invoke(LangsamVM *vm, LV self, LV args) {
   LANGSAM_ARG(index, args);
   index = langsam_eval(vm, index);
   LANGSAM_CHECK(index);
-  return langsam_Slice_get(vm, self, index);
+  return langsam_VectorSlice_get(vm, self, index);
 }
 
-LV langsam_Slice_eval(LangsamVM *vm, LV self) {
-  LangsamSlice *s = self.p;
+LV langsam_VectorSlice_eval(LangsamVM *vm, LV self) {
+  LangsamVectorSlice *s = self.p;
   LangsamVector *v = s->v.p;
   return eval_vector_range(vm, v->items, s->start, s->len);
 }
 
-LV langsam_Slice_repr(LangsamVM *vm, LV self) {
-  LangsamSlice *s = self.p;
+LV langsam_VectorSlice_repr(LangsamVM *vm, LV self) {
+  LangsamVectorSlice *s = self.p;
   LangsamVector *v = s->v.p;
   return repr_vector_range(vm, v->items, s->start, s->len);
 }
 
-LV langsam_slice(LangsamVM *vm, LV vector, LangsamIndex start, LangsamSize len) {
+LV langsam_vectorslice(LangsamVM *vm, LV vector, LangsamIndex start, LangsamSize len) {
   if (vector.type != LT_VECTOR) {
     return langsam_exceptionf(vm, "slice", "slice base should be Vector, got %s",
                               langsam_ctypename(vm, vector.type));
   }
-  LangsamSlice *s = langsam_gcalloc(vm, LT_SLICE, LANGSAM_SIZEOF(LangsamSlice));
+  LangsamVectorSlice *s = langsam_gcalloc(vm, LT_VECTORSLICE, LANGSAM_SIZEOF(LangsamVectorSlice));
   s->v = vector;
   s->start = start;
   s->len = len;
   return (LV){
-      .type = LT_SLICE,
+      .type = LT_VECTORSLICE,
       .p = s,
   };
 }
 
-static struct LangsamT LANGSAM_T_SLICE = {
-    .name = "Slice",
+static struct LangsamT LANGSAM_T_VECTORSLICE = {
+    .name = "VectorSlice",
     .gcmanaged = true,
-    .gcmark = langsam_Slice_gcmark,
-    .gcfree = langsam_Slice_gcfree,
-    .hash = langsam_Slice_hash,
-    .cast = langsam_Slice_cast,
-    .equal = langsam_Slice_equal,
-    .add = langsam_Slice_add,
-    .get = langsam_Slice_get,
-    .put = langsam_Slice_put,
-    .len = langsam_Slice_len,
-    .iter = langsam_Slice_iter,
-    .invoke = langsam_Slice_invoke,
-    .eval = langsam_Slice_eval,
-    .repr = langsam_Slice_repr,
+    .gcmark = langsam_VectorSlice_gcmark,
+    .hash = langsam_VectorSlice_hash,
+    .cast = langsam_VectorSlice_cast,
+    .equal = langsam_VectorSlice_equal,
+    .add = langsam_VectorSlice_add,
+    .get = langsam_VectorSlice_get,
+    .put = langsam_VectorSlice_put,
+    .len = langsam_VectorSlice_len,
+    .iter = langsam_VectorSlice_iter,
+    .invoke = langsam_VectorSlice_invoke,
+    .eval = langsam_VectorSlice_eval,
+    .repr = langsam_VectorSlice_repr,
 };
 
-const LangsamType LT_SLICE = &LANGSAM_T_SLICE;
+const LangsamType LT_VECTORSLICE = &LANGSAM_T_VECTORSLICE;
 
-// SliceIterator
+// VectorSliceIterator
 
-LangsamSize langsam_SliceIterator_gcmark(LangsamVM *vm, void *p) {
-  LangsamSliceIterator *it = p;
+LangsamSize langsam_VectorSliceIterator_gcmark(LangsamVM *vm, void *p) {
+  LangsamVectorSliceIterator *it = p;
   return langsam_mark(vm, it->s);
 }
 
-LV langsam_SliceIterator_deref(LangsamVM *vm, LV self) {
-  LangsamSliceIterator *it = self.p;
-  LangsamSlice *s = it->s.p;
+LV langsam_VectorSliceIterator_deref(LangsamVM *vm, LV self) {
+  LangsamVectorSliceIterator *it = self.p;
+  LangsamVectorSlice *s = it->s.p;
   LangsamVector *v = s->v.p;
   return iterator_deref_common(vm, v->items, s->start, it->i, s->len,
-                               "SliceIterator");
+                               "VectorSliceIterator");
 }
 
-LV langsam_SliceIterator_invoke(LangsamVM *vm, LV self, LV args) {
-  LangsamSliceIterator *it = self.p;
-  LangsamSlice *s = it->s.p;
-  return iterator_invoke_common(vm, &it->i, s->len, self, "SliceIterator");
+LV langsam_VectorSliceIterator_invoke(LangsamVM *vm, LV self, LV args) {
+  LangsamVectorSliceIterator *it = self.p;
+  LangsamVectorSlice *s = it->s.p;
+  return iterator_invoke_common(vm, &it->i, s->len, self,
+                                "VectorSliceIterator");
 }
 
-static struct LangsamT LANGSAM_T_SLICEITERATOR = {
-    .name = "SliceIterator",
+static struct LangsamT LANGSAM_T_VECTORSLICEITERATOR = {
+    .name = "VectorSliceIterator",
     .gcmanaged = true,
-    .gcmark = langsam_SliceIterator_gcmark,
-    .deref = langsam_SliceIterator_deref,
-    .invoke = langsam_SliceIterator_invoke,
+    .gcmark = langsam_VectorSliceIterator_gcmark,
+    .deref = langsam_VectorSliceIterator_deref,
+    .invoke = langsam_VectorSliceIterator_invoke,
 };
 
-const LangsamType LT_SLICEITERATOR = &LANGSAM_T_SLICEITERATOR;
+const LangsamType LT_VECTORSLICEITERATOR = &LANGSAM_T_VECTORSLICEITERATOR;
 
 // Map
 
@@ -3440,19 +3564,33 @@ static LV eval_bit_shift_right(LangsamVM *vm, LV args) {
 static LV make_slice_range(LangsamVM *vm, LV obj, LangsamIndex raw_start,
                            LangsamIndex raw_end) {
   LV base = langsam_nil;
+  bool is_string_base = false;
   LangsamIndex source_start = 0;
   LangsamSize source_len = 0;
   if (obj.type == LT_VECTOR) {
     LangsamVector *v = obj.p;
     base = obj;
     source_len = v->len;
-  } else if (obj.type == LT_SLICE) {
-    LangsamSlice *s = obj.p;
+  } else if (obj.type == LT_VECTORSLICE) {
+    LangsamVectorSlice *s = obj.p;
     base = s->v;
     source_start = s->start;
     source_len = s->len;
+  } else if (obj.type == LT_STRING) {
+    LangsamString *s = obj.p;
+    base = obj;
+    source_len = s->len;
+    is_string_base = true;
+  } else if (obj.type == LT_STRINGSLICE) {
+    LangsamStringSlice *s = obj.p;
+    base = s->s;
+    source_start = s->start;
+    source_len = s->len;
+    is_string_base = true;
   } else {
-    return langsam_exceptionf(vm, "slice", "slice expects Vector or Slice, got %s",
+    return langsam_exceptionf(
+        vm, "slice",
+        "slice expects Vector, VectorSlice, String, or StringSlice, got %s",
                               langsam_ctypename(vm, obj.type));
   }
 
@@ -3484,7 +3622,10 @@ static LV make_slice_range(LangsamVM *vm, LV obj, LangsamIndex raw_start,
                               raw_end, raw_start);
   }
 
-  return langsam_slice(vm, base, source_start + start, end - start);
+  if (is_string_base) {
+    return langsam_stringslice(vm, base, source_start + start, end - start);
+  }
+  return langsam_vectorslice(vm, base, source_start + start, end - start);
 }
 
 static LV eval_slice(LangsamVM *vm, LV args) {
@@ -3496,13 +3637,20 @@ static LV eval_slice(LangsamVM *vm, LV args) {
     if (obj.type == LT_VECTOR) {
       LangsamVector *v = obj.p;
       end = langsam_integer(v->len);
-    } else if (obj.type == LT_SLICE) {
-      LangsamSlice *s = obj.p;
+    } else if (obj.type == LT_VECTORSLICE) {
+      LangsamVectorSlice *s = obj.p;
+      end = langsam_integer(s->len);
+    } else if (obj.type == LT_STRING) {
+      LangsamString *s = obj.p;
+      end = langsam_integer(s->len);
+    } else if (obj.type == LT_STRINGSLICE) {
+      LangsamStringSlice *s = obj.p;
       end = langsam_integer(s->len);
     } else {
-      return langsam_exceptionf(vm, "slice",
-                                "slice expects Vector or Slice, got %s",
-                                langsam_ctypename(vm, obj.type));
+      return langsam_exceptionf(
+          vm, "slice",
+          "slice expects Vector, VectorSlice, String, or StringSlice, got %s",
+          langsam_ctypename(vm, obj.type));
     }
   } else {
     LANGSAM_ARG_TYPE(end, LT_INTEGER);
@@ -4180,17 +4328,19 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_def(vm, env, "Integer", langsam_type(LT_INTEGER));
   langsam_def(vm, env, "Float", langsam_type(LT_FLOAT));
   langsam_def(vm, env, "String", langsam_type(LT_STRING));
+  langsam_def(vm, env, "StringSlice", langsam_type(LT_STRINGSLICE));
   langsam_def(vm, env, "Symbol", langsam_type(LT_SYMBOL));
   langsam_def(vm, env, "Keyword", langsam_type(LT_KEYWORD));
   langsam_def(vm, env, "Opword", langsam_type(LT_OPWORD));
   langsam_def(vm, env, "Cons", langsam_type(LT_CONS));
   langsam_def(vm, env, "Vector", langsam_type(LT_VECTOR));
-  langsam_def(vm, env, "Slice", langsam_type(LT_SLICE));
+  langsam_def(vm, env, "VectorSlice", langsam_type(LT_VECTORSLICE));
   langsam_def(vm, env, "Map", langsam_type(LT_MAP));
   langsam_def(vm, env, "Function", langsam_type(LT_FUNCTION));
   langsam_def(vm, env, "ConsIterator", langsam_type(LT_CONSITERATOR));
   langsam_def(vm, env, "VectorIterator", langsam_type(LT_VECTORITERATOR));
-  langsam_def(vm, env, "SliceIterator", langsam_type(LT_SLICEITERATOR));
+  langsam_def(vm, env, "VectorSliceIterator",
+              langsam_type(LT_VECTORSLICEITERATOR));
   langsam_def(vm, env, "MapIterator", langsam_type(LT_MAPITERATOR));
   langsam_defn(vm, env, "hash", eval_hash);
   langsam_defn(vm, env, "eq", eval_eq);

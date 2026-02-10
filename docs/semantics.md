@@ -88,21 +88,24 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 
 ## Slices
 
-- `slice` creates vector-backed views with shared storage:
+- `slice` creates views over vectors and strings:
   - `(slice obj start &opt end)`
-  - `obj` must be `Vector` or `Slice`
+  - `obj` must be `Vector`, `VectorSlice`, `String`, or `StringSlice`
   - `start`/`end` must be `Integer`
 - If `end` is omitted, it defaults to the source length.
 - `start` and `end` support negative indexing from the end.
 - Bounds are validated against the source length:
   - `start` and `end` must each be in `0..len` (after negative-index normalization)
   - `end < start` is an error
-- `Slice` indexing (`get`/`put`) supports negative indexes like `Vector`.
-- Slices share backing storage with the base vector:
+- `VectorSlice` indexing (`get`/`put`) supports negative indexes like `Vector`.
+- `VectorSlice` values share backing storage with the base vector:
   - writing through a slice mutates the base vector
   - writing through the base vector is visible through existing slices
   - slicing a slice keeps sharing the same base storage
-- `Slice` iteration uses `SliceIterator` and follows normal iterator exhaustion rules.
+- `VectorSlice` iteration uses `VectorSliceIterator` and follows normal iterator exhaustion rules.
+- `StringSlice` indexing (`get`) supports negative indexes like `String`.
+- `StringSlice` is a view of a base string range; converting it with `str` or `String`
+  materializes a regular `String`.
 
 ## Iterator Exhaustion
 
