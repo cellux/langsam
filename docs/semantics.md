@@ -86,6 +86,20 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
   - duplicate field names across parent/child are rejected at class definition time
   - class prototype chaining provides method inheritance; child methods can override parent methods
 
+## Multimethods
+
+- `(defmulti Name dispatch-fn)` defines a callable multimethod value bound to `Name`.
+- Multimethod `defmethod` uses Clojure-style target+dispatch syntax:
+  - `(defmethod Name dispatch-value [args ...] ...)`
+- Multimethod dispatch:
+  - applies `dispatch-fn` to call arguments
+  - looks up an exact dispatch method first
+  - falls back to `:default` when present
+  - raises `invoke` when no method matches
+- `defmethod` remains overloaded:
+  - class methods: `(defmethod ClassName.method [self ...] ...)`
+  - multimethod methods: `(defmethod Name dispatch-value [args ...] ...)`
+
 ## Slices
 
 - `slice` creates views over vectors and strings:

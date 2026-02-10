@@ -468,21 +468,50 @@
 (defn class?
   [x]
   (and (map? x)
-       (contains? x %name)
-       (contains? x %schema)
-       (contains? x %invoke)))
+       (some? (%name x))
+       (vector? (%schema x))
+       (function? (%invoke x))))
+
+(defn multimethod?
+  [x]
+  ((get (require "multimethod") 'multimethod?) x))
 
 (defmacro class
   [name & fields]
   `((get (require "class") 'class) ',name [,@fields]))
 
+(defmacro defmulti
+  [name dispatch-fn]
+  (if (symbol? name)
+    `(def ,name ((get (require "multimethod") 'multimethod)
+                 ',name
+                 ,dispatch-fn))
+    (raise 'syntax "defmulti name should be Symbol, got %s" name)))
+
 (defmacro defmethod
-  [target params & body]
+  [target & rest]
   (if-match [['cons class ['quote method]] target]
-    (if (symbol? method)
-      `(put ,class ',method (fn ,params ,@body))
-      (raise 'syntax "defmethod method name should be Symbol, got %s" method))
-    (raise 'syntax "defmethod expects Class.method target, got %s" target)))
+    (if-match [[params & body] rest]
+      (if (symbol? method)
+        `(put ,class ',method (fn ,params ,@body))
+        (raise 'syntax "defmethod method name should be Symbol, got %s" method))
+      (raise 'syntax "defmethod expects params and body for Class.method target, got %s"
+             target))
+    (if (symbol? target)
+      (if-match [[dispatch-value params & body] rest]
+        (if (vector? params)
+          `((get (require "multimethod") 'add-method)
+            ,target
+            ,dispatch-value
+            (fn ,params ,@body))
+          (raise 'syntax "defmethod multimethod params should be Vector, got %s"
+                 params))
+        (raise 'syntax
+               "defmethod expects dispatch value, params and body for multimethod target, got %s"
+               target))
+      (raise 'syntax
+             "defmethod expects Class.method or multimethod Symbol target, got %s"
+             target))))
 
 (defmacro defclass
   [name & fields]

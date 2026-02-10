@@ -98,8 +98,8 @@
     (assert (= (:y p) -3))))
 
 ; invalid method target is rejected
-(assert (throws? '(syntax . "defmethod expects Class.method target, got bad-target")
-                 (defmethod bad-target [self] self)))
+(assert (throws? '(syntax . "defmethod expects Class.method or multimethod Symbol target, got 42")
+                 (defmethod 42 [self] self)))
 
 ; single inheritance
 (defclass Vehicle
