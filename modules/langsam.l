@@ -79,8 +79,25 @@
     (setproto sublet proto)
     sublet))
 
-(defmacro import [name]
-  `(def ,name (require ,(str name))))
+(defmacro import
+  [name & opts]
+  (if (nil? opts)
+    `(def ,name (require ,(str name)))
+    (if-match [[:refer refs] opts]
+      (do
+        (if (not (vector? refs))
+          (raise 'import "import :refer expects Vector, got %s" (type refs)))
+        `(do
+           ,@(map (fn [sym]
+                    (if (not (symbol? sym))
+                      (raise 'import
+                             "import :refer entries should be Symbol, got %s"
+                             (type sym)))
+                    `(def ,sym (get (require ,(str name)) ',sym)))
+                  refs))))
+      (raise 'import
+             "import supports (import name) or (import name :refer [symbols]), got %s"
+             (cons name opts)))))
 
 (defn update [x k f & rest]
   (let [oldv (get x k)
