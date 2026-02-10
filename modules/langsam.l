@@ -24,6 +24,34 @@
 (defn not= [x & rest]
   (not (apply = x rest)))
 
+(defn min
+  "Return the smallest argument."
+  [& args]
+  (if-match [[x & rest] args]
+    (let [result x
+          it (iter rest)]
+      (while it
+        (let [value @it]
+          (if (< value result)
+            (setq result value)))
+        (setq it (next it)))
+      result)
+    (raise 'min "min expects at least one argument")))
+
+(defn max
+  "Return the greatest argument."
+  [& args]
+  (if-match [[x & rest] args]
+    (let [result x
+          it (iter rest)]
+      (while it
+        (let [value @it]
+          (if (> value result)
+            (setq result value)))
+        (setq it (next it)))
+      result)
+    (raise 'max "max expects at least one argument")))
+
 (defn special? [x]
   (and (function? x)
        (not (:evalargs x))

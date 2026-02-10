@@ -47,6 +47,13 @@
 (assert (= (bit-shift-right 0x1234 8) 0x12))
 (assert (= (bit-shift-right 0x12 0) 0x12))
 
+(assert (= (min 5) 5))
+(assert (= (min 7 3 8 -2 9) -2))
+(assert (= (max 5) 5))
+(assert (= (max 7 3 8 -2 9) 9))
+(assert (throws? '(min . "min expects at least one argument") (min)))
+(assert (throws? '(max . "max expects at least one argument") (max)))
+
 (assert (throws? '(type . "argument y is Float, expected Integer")
                  (bit-and 3 1.0)))
 (assert (throws? '(type . "argument x is Float, expected Integer")
