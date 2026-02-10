@@ -60,3 +60,18 @@
 (let [not-mm 1]
   (assert (throws? '(defmethod . "defmethod target should be Multimethod, got Integer")
                    (defmethod not-mm :x [x] x))))
+
+; float dispatch keys should respect equality/hash contract
+(defmulti classify-float
+  (fn [x] x))
+
+(defmethod classify-float 0.0
+  [x]
+  :zero)
+
+(defmethod classify-float (Float "nan")
+  [x]
+  :nan)
+
+(assert (= (classify-float -0.0) :zero))
+(assert (= (classify-float (Float "-nan")) :nan))

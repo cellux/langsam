@@ -627,7 +627,14 @@ const LangsamType LT_INTEGER = &LANGSAM_T_INTEGER;
 // Float
 
 LangsamHash langsam_Float_hash(LangsamVM *vm, LV self, LangsamHash hash) {
-  return hash_float(hash, self.f);
+  LangsamFloat f = self.f;
+  if (isnan(f)) {
+    return hash_string(hash, "NaN", (LangsamSize)3);
+  }
+  if (f == 0) {
+    f = 0;
+  }
+  return hash_float(hash, f);
 }
 
 LV langsam_Float_cast(LangsamVM *vm, LV other) {
@@ -668,6 +675,14 @@ LV langsam_Float_cast(LangsamVM *vm, LV other) {
 }
 
 LV langsam_Float_cmp(LangsamVM *vm, LV self, LV other) {
+  bool lhs_nan = isnan(self.f);
+  bool rhs_nan = isnan(other.f);
+  if (lhs_nan || rhs_nan) {
+    if (lhs_nan && rhs_nan) {
+      return langsam_integer(0);
+    }
+    return langsam_integer(lhs_nan ? 1 : -1);
+  }
   if (self.f < other.f) {
     return langsam_integer(-1);
   } else if (self.f > other.f) {
