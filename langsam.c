@@ -2256,6 +2256,24 @@ static LangsamInteger next_power_of_two(LangsamInteger n) {
   return p;
 }
 
+#define LANGSAM_MAP_DEFAULT_LOADFACTOR_NUMERATOR 3
+#define LANGSAM_MAP_DEFAULT_LOADFACTOR_DENOMINATOR 4
+#define LANGSAM_MAP_DEFAULT_LOADFACTOR                                         \
+  ((LangsamFloat)LANGSAM_MAP_DEFAULT_LOADFACTOR_NUMERATOR /                    \
+   (LangsamFloat)LANGSAM_MAP_DEFAULT_LOADFACTOR_DENOMINATOR)
+
+static LangsamSize ceil_div(LangsamSize numerator, LangsamSize denominator) {
+  return numerator / denominator + ((numerator % denominator != 0) ? 1 : 0);
+}
+
+static LangsamSize map_required_nbuckets(LangsamSize nitems) {
+  // floor((3/4) * nbuckets) >= nitems => nbuckets >= ceil((nitems * 4) / 3).
+  LangsamSize min_buckets = ceil_div(
+      nitems * LANGSAM_MAP_DEFAULT_LOADFACTOR_DENOMINATOR,
+      LANGSAM_MAP_DEFAULT_LOADFACTOR_NUMERATOR);
+  return next_power_of_two(min_buckets);
+}
+
 LV langsam_Map_put(LangsamVM *vm, LV self, LV key, LV value) {
   LV item = langsam_Map_rawgep(vm, self, key);
   LANGSAM_CHECK(item);
@@ -2473,8 +2491,8 @@ LV langsam_Map_setproto(LangsamVM *vm, LV self, LV proto) {
 }
 
 LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {
-  // Keep `nbuckets` as a power of two so bucket selection can use a bitmask.
-  LangsamSize nbuckets = next_power_of_two(nitems);
+  // Keep `nbuckets` as a power of two and sized for the expected item count.
+  LangsamSize nbuckets = map_required_nbuckets(nitems);
   LangsamMap *m = langsam_gcalloc(vm, LT_MAP, LANGSAM_SIZEOF(LangsamMap));
   m->proto = proto;
   m->buckets = langsam_alloc(vm, LANGSAM_SIZEOF(LV) * nbuckets);
@@ -2483,7 +2501,7 @@ LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {
   }
   m->nbuckets = nbuckets;
   m->nitems = 0;
-  m->loadfactor = 0.75;
+  m->loadfactor = LANGSAM_MAP_DEFAULT_LOADFACTOR;
   return (LV){
       .type = LT_MAP,
       .p = m,
