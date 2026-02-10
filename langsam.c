@@ -854,12 +854,25 @@ static int charreprwidth(char c) {
   return 4;
 }
 
-static int hexdigit(int nybble) {
+static int to_hexdigit(int nybble) {
   if (nybble < 10) {
     return '0' + nybble;
   } else {
     return 'a' + (nybble - 10);
   }
+}
+
+static int from_hexdigit(uint8_t c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'a' && c <= 'f') {
+    return (c - 'a') + 10;
+  }
+  if (c >= 'A' && c <= 'F') {
+    return (c - 'A') + 10;
+  }
+  return -1;
 }
 
 static char *writecharrepr(char *p, char c) {
@@ -869,8 +882,8 @@ static char *writecharrepr(char *p, char c) {
   } else if (c >= 0x7f) {
     *p++ = '\\';
     *p++ = 'x';
-    *p++ = (char)(hexdigit(c >> 4));
-    *p++ = (char)(hexdigit(c & 0x0f));
+    *p++ = (char)(to_hexdigit(c >> 4));
+    *p++ = (char)(to_hexdigit(c & 0x0f));
   } else if (c >= 0x20) {
     *p++ = c;
   } else if (c == '\a') {
@@ -897,8 +910,8 @@ static char *writecharrepr(char *p, char c) {
   } else {
     *p++ = '\\';
     *p++ = 'x';
-    *p++ = (char)(hexdigit(c >> 4));
-    *p++ = (char)(hexdigit(c & 0x0f));
+    *p++ = (char)(to_hexdigit(c >> 4));
+    *p++ = (char)(to_hexdigit(c & 0x0f));
   }
   return p;
 }
@@ -4992,6 +5005,7 @@ static LV Reader_read_string(Reader *r) {
         StringBuilder_reset(&sb);
         return escape_result;
       } else if (langsam_nilp(escape_result)) {
+        StringBuilder_reset(&sb);
         return langsam_exceptionf(r->vm, "read",
                                   "incomplete character escape sequence");
       }
@@ -5018,6 +5032,32 @@ static LV Reader_read_string(Reader *r) {
       case 'v':
         c = 0x0b;
         break;
+      case 'x': {
+        LV hi_result = Reader_readbyte(r);
+        if (langsam_exceptionp(hi_result)) {
+          StringBuilder_reset(&sb);
+          return hi_result;
+        }
+        LV lo_result = Reader_readbyte(r);
+        if (langsam_exceptionp(lo_result)) {
+          StringBuilder_reset(&sb);
+          return lo_result;
+        }
+        if (langsam_nilp(hi_result) || langsam_nilp(lo_result)) {
+          StringBuilder_reset(&sb);
+          return langsam_exceptionf(r->vm, "read",
+                                    "incomplete character escape sequence");
+        }
+        int hi = from_hexdigit((uint8_t)hi_result.i);
+        int lo = from_hexdigit((uint8_t)lo_result.i);
+        if (hi < 0 || lo < 0) {
+          StringBuilder_reset(&sb);
+          return langsam_exceptionf(r->vm, "read",
+                                    "invalid hexadecimal character escape");
+        }
+        c = (uint8_t)((hi << 4) | lo);
+        break;
+      }
       }
     }
     StringBuilder_write_byte(&sb, c);

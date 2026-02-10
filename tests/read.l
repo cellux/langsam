@@ -64,6 +64,19 @@
   (assert (= (get s 9) 0x0b))
   (assert (= (type s) String)))
 
+(let [s (read-string "\"\\x41\\x4a\\x7f\"")]
+  (assert (= s "AJ\x7f"))
+  (assert (= (get s 0) 0x41))
+  (assert (= (get s 1) 0x4a))
+  (assert (= (get s 2) 0x7f))
+  (assert (= (type s) String)))
+
+(assert (throws? '(read . "invalid hexadecimal character escape")
+                 (read-string "\"\\x4g\"")))
+
+(assert (throws? '(read . "incomplete character escape sequence")
+                 (read-string "\"\\x")))
+
 (let [c (read-string "(foo . bar)")]
   (assert (= c (cons 'foo 'bar)))
   (assert (= (type c) Cons)))
