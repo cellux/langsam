@@ -28,6 +28,12 @@
 (assert (= ((fn [x] x) 5) 5))
 (assert (= ((fn [x y] (+ x y)) 2 3) 5))
 
+(let [f (fn [&opt ((Integer n) 0)] n)]
+  (assert (= (f) 0))
+  (assert (= (f 7) 7))
+  (assert (throws? '(bind . "type mismatch: (Integer n)")
+                   (f 7.5))))
+
 (let [foo (Function {:params '[a b]
                      :body '((cons a b))
                      :evalargs false

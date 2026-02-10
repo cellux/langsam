@@ -2833,16 +2833,16 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       if (LVEQ(pat, amp_symbol)) {
         bs = LANGSAM_BIND_REST;
       } else {
-        LV sym, val;
+        LV bind_pat, val;
         LV symsetp = langsam_nil;
         if (pat.type == LT_SYMBOL) {
-          sym = pat;
+          bind_pat = pat;
           val = langsam_nil;
         } else if (pat.type == LT_CONS) {
           LV head = langsam_car(pat);
           LV tail = langsam_cdr(pat);
-          if (head.type == LT_SYMBOL && tail.type == LT_CONS) {
-            sym = head;
+          if (tail.type == LT_CONS) {
+            bind_pat = head;
             val = langsam_car(tail);
             tail = langsam_cdr(tail);
             if (tail.type == LT_CONS) {
@@ -2856,8 +2856,7 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           } else {
             return langsam_exceptionf(
                 vm, "syntax",
-                "&opt parameter with default value should look like (sym "
-                "default) or (sym default symsetp), got %s",
+                "&opt parameter with default value should look like (pattern default) or (pattern default symsetp), got %s",
                 langsam_cstr(vm, pat));
           }
         } else {
@@ -2874,7 +2873,7 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
           val = bind_eval_in_env(vm, env, val);
           LANGSAM_CHECK(val);
         }
-        LV bind_value_result = langsam_bind(vm, env, sym, val);
+        LV bind_value_result = langsam_bind(vm, env, bind_pat, val);
         LANGSAM_CHECK(bind_value_result);
         if (langsam_somep(symsetp)) {
           LV bind_symsetp_result =
