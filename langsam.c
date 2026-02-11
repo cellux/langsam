@@ -1019,6 +1019,14 @@ LV langsam_format(LangsamVM *vm, const char *fmt, ...) {
 
 char *langsam_cstr(LangsamVM *vm, LV v) {
   LV vs = langsam_str(vm, v);
+  if (langsam_exceptionp(vs) || vs.type != LT_STRING) {
+    LV vr = langsam_repr(vm, v);
+    if (!langsam_exceptionp(vr) && vr.type == LT_STRING) {
+      LangsamString *repr = vr.p;
+      return repr->p;
+    }
+    return "<error while converting value to string>";
+  }
   LangsamString *s = vs.p;
   return s->p;
 }
