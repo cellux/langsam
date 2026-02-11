@@ -1,3 +1,6 @@
+(let [s (make-stream "")]
+  (assert (s.eof)))
+
 (let [s (stream "")]
   (assert (s.eof)))
 

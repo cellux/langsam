@@ -1,27 +1,99 @@
-(defn type? [x] (= (type x) Type))
+; ------------------------------
+; Predicates and Core Utilities
+; ------------------------------
 
-(defn nil? [x] (= x nil))
-(defn some? [x] (not= x nil))
+(defn type?
+  "Return true when x is a Type."
+  [x]
+  (= (type x) Type))
 
-(defn boolean? [x] (= (type x) Boolean))
-(defn integer? [x] (= (type x) Integer))
-(defn float? [x] (= (type x) Float))
-(defn string? [x] (= (type x) String))
-(defn symbol? [x] (= (type x) Symbol))
-(defn keyword? [x] (= (type x) Keyword))
-(defn opword? [x] (= (type x) Opword))
-(defn cons? [x] (= (type x) Cons))
-(defn vector? [x] (= (type x) Vector))
-(defn map? [x] (= (type x) Map))
-(defn function? [x] (= (type x) Function))
+(defn nil?
+  "Return true when x is nil."
+  [x]
+  (= x nil))
 
-(defn raise [kind fmt & args]
+(defn some?
+  "Return true when x is not nil."
+  [x]
+  (not= x nil))
+
+(defn boolean?
+  "Return true when x is a Boolean."
+  [x]
+  (= (type x) Boolean))
+
+(defn integer?
+  "Return true when x is an Integer."
+  [x]
+  (= (type x) Integer))
+
+(defn float?
+  "Return true when x is a Float."
+  [x]
+  (= (type x) Float))
+
+(defn string?
+  "Return true when x is a String."
+  [x]
+  (= (type x) String))
+
+(defn symbol?
+  "Return true when x is a Symbol."
+  [x]
+  (= (type x) Symbol))
+
+(defn keyword?
+  "Return true when x is a Keyword."
+  [x]
+  (= (type x) Keyword))
+
+(defn opword?
+  "Return true when x is an Opword."
+  [x]
+  (= (type x) Opword))
+
+(defn cons?
+  "Return true when x is a Cons."
+  [x]
+  (= (type x) Cons))
+
+(defn proper-list?
+  "Return true when x is a nil-terminated Cons list."
+  [x]
+  (if (nil? x)
+    true
+    (if (cons? x)
+      (proper-list? (cdr x))
+      false)))
+
+(defn vector?
+  "Return true when x is a Vector."
+  [x]
+  (= (type x) Vector))
+
+(defn map?
+  "Return true when x is a Map."
+  [x]
+  (= (type x) Map))
+
+(defn function?
+  "Return true when x is a Function."
+  [x]
+  (= (type x) Function))
+
+(defn raise
+  "Raise an exception payload built from kind and formatted message."
+  [kind fmt & args]
   (throw (cons kind (apply format fmt args))))
 
-(defn not [x]
+(defn not
+  "Return logical negation of x."
+  [x]
   (if x false true))
 
-(defn not= [x & rest]
+(defn not=
+  "Return true when x and rest are not all equal."
+  [x & rest]
   (not (apply = x rest)))
 
 (defn min
@@ -52,15 +124,21 @@
       result)
     (raise 'max "max expects at least one argument")))
 
-(defn special? [x]
+(defn special?
+  "Return true when x is a special form function."
+  [x]
   (and (function? x)
        (not (:evalargs x))
        (not (:evalresult x))))
 
-(defmacro when [cond & body]
+(defmacro when
+  "Evaluate body when cond is truthy."
+  [cond & body]
   `(if ,cond (do ,@body)))
 
-(defmacro unless [cond & body]
+(defmacro unless
+  "Evaluate body when cond is falsey."
+  [cond & body]
   `(if (not ,cond) (do ,@body)))
 
 (def cond
@@ -71,15 +149,20 @@
                       (let [[fallback] clauses]
                         fallback))
                     nil))]
-    (macro cond [& clauses]
+    (macro cond
+      "Evaluate clauses in order and return the first matching result."
+      [& clauses]
       (subcond clauses))))
 
-(defn sublet [proto &opt (size 64)]
+(defn sublet
+  "Create a child map with proto as prototype."
+  [proto &opt (size 64)]
   (let [sublet (Map size)]
     (setproto sublet proto)
     sublet))
 
 (defmacro import
+  "Bind a module map or selected symbols from a module."
   [name & opts]
   (if (nil? opts)
     `(def ,name (require ,(str name)))
@@ -99,55 +182,108 @@
              "import supports (import name) or (import name :refer [symbols]), got %s"
              (cons name opts))))
 
-(defn update [x k f & rest]
+(defn update
+  "Update key k in x by applying f to the existing value."
+  [x k f & rest]
   (let [oldv (get x k)
         newv (apply f oldv rest)]
     (put x k newv)))
 
-(defmacro comment [& body])
+(defmacro comment
+  "Ignore body forms."
+  [& body])
 
-(def reset setcdr)
+(def reset
+  setcdr
+  "Set ref cdr to value and return nil.")
 
-(defmacro setq [x val]
+(defn swap
+  "Update ref by applying f to its current value and return the new value."
+  [ref f & rest]
+  (let [newv (apply f @ref rest)]
+    (reset ref newv)
+    newv))
+
+(defmacro setq
+  "Set an existing lexical binding."
+  [x val]
   `(reset (gep (curlet) ',x) ,val))
 
-(defn swap [ref f & rest]
-  (reset ref (apply f @ref rest)))
-
-(defmacro swapq [x f & rest]
+(defmacro swapq
+  "Update binding x by applying f."
+  [x f & rest]
   `(swap (gep (curlet) ',x) ,f ,@rest))
 
-(defn inc [x] (+ x 1))
-(defmacro incq [x] `(swapq ,x ,inc))
+(defn inc
+  "Return x + 1."
+  [x]
+  (+ x 1))
 
-(defn dec [x] (- x 1))
-(defmacro decq [x] `(swapq ,x ,dec))
+(defmacro incq
+  "Increment binding x in place."
+  [x]
+  `(swapq ,x ,inc))
 
-(defn even? [x] (= (mod x 2) 0))
-(defn odd? [x] (not= (mod x 2) 0))
+(defn dec
+  "Return x - 1."
+  [x]
+  (- x 1))
 
-(defn zero? [x]
+(defmacro decq
+  "Decrement binding x in place."
+  [x]
+  `(swapq ,x ,dec))
+
+; -------------------
+; Numeric Predicates
+; -------------------
+
+(defn even?
+  "Return true when integer x is even."
+  [x]
+  (= (mod x 2) 0))
+
+(defn odd?
+  "Return true when integer x is odd."
+  [x]
+  (not= (mod x 2) 0))
+
+(defn zero?
+  "Return true when numeric x equals zero."
+  [x]
   (cond-match x
     (Integer i) (= i 0)
     (Float f) (= f 0.0)
     false))
 
-(defn nonzero? [x]
+(defn nonzero?
+  "Return true when numeric x is not zero."
+  [x]
   (not (zero? x)))
 
-(defn pos? [x]
+(defn pos?
+  "Return true when numeric x is positive."
+  [x]
   (cond-match x
     (Integer i) (> i 0)
     (Float f) (> f 0.0)
     false))
 
-(defn neg? [x]
+(defn neg?
+  "Return true when numeric x is negative."
+  [x]
   (cond-match x
     (Integer i) (< i 0)
     (Float f) (< f 0.0)
     false))
 
-(defn map [f coll]
+; ---------------------------
+; Sequence and Data Functions
+; ---------------------------
+
+(defn map
+  "Map f over coll and return a list."
+  [f coll]
   (let [result nil
         it (iter coll)]
     (while it
@@ -155,10 +291,19 @@
       (setq it (next it)))
     (nreverse result)))
 
-(defn mapv [f coll]
+(defn mapv
+  "Map f over coll and return a Vector."
+  [f coll]
   (Vector (map f coll)))
 
-(defn reduce [f init coll]
+(defn mapcat
+  "Map f over coll and concatenate results one level into a list."
+  [f coll]
+  (flatten1 (map f coll)))
+
+(defn reduce
+  "Fold coll from left with accumulator init and function f."
+  [f init coll]
   (let [result init
         it (iter coll)]
     (while it
@@ -166,7 +311,9 @@
       (setq it (next it)))
     result))
 
-(defn filter [f coll]
+(defn filter
+  "Return a list of elements in coll where f is truthy."
+  [f coll]
   (let [result nil
         it (iter coll)]
     (while it
@@ -179,79 +326,92 @@
 (defn drop
   "Drop the first n elements from coll."
   [n coll]
-  (if (nil? coll)
-    nil
-    (if (<= n 0)
-      coll
-      (let [it (iter coll)
-            i 0]
-        (while (and it (< i n))
-          (setq it (next it))
-          (incq i))
-        (let [result nil]
-          (while it
-            (setq result (cons @it result))
-            (setq it (next it)))
-          (let [result (nreverse result)]
-            (if (cons? coll)
-              result
-              ((type coll) result))))))))
+  (cond
+   (nil? coll) nil
+   (<= n 0) coll
+   (cons? coll) (let [result coll
+                      i 0]
+                  (while (and (cons? result) (< i n))
+                    (setq result (cdr result))
+                    (incq i))
+                  (if (cons? result) result nil))
+   (let [it (iter coll)
+         i 0
+         result nil]
+     (while (and it (< i n))
+       (setq it (next it))
+       (incq i))
+     (while it
+       (setq result (cons @it result))
+       (setq it (next it)))
+     ((type coll) (nreverse result)))))
 
 (defn tail
   "Return coll without its first element."
   [coll]
   (drop 1 coll))
 
-(def range
-  (let [empty? (fn [start end step]
-                 (if (pos? step)
-                   (>= start end)
-                   (<= start end)))
-        make-state (fn [start end step]
-                     (if (or (not (integer? start))
-                             (not (integer? end))
-                             (not (integer? step)))
-                       (raise 'range "range expects Integer arguments, got %s %s %s"
-                              (type start) (type end) (type step)))
-                     (if (= step 0)
-                       (raise 'range "range step cannot be 0"))
-                     (if (empty? start end step)
-                       nil
-                       (let [it {:i start
-                                 :end end
-                                 :step step
-                                 :consumed false}]
-                         (put it %iter (fn [self] self))
-                         (put it %deref (fn [self]
-                                          (if (:consumed self)
-                                            (raise 'deref "attempt to deref consumed RangeIterator")
-                                            (:i self))))
-                         (put it %invoke (fn [self]
-                                           (if (:consumed self)
-                                             (raise 'invoke "attempt to advance consumed RangeIterator")
-                                             (let [next-i (+ (:i self) (:step self))]
-                                               (if (empty? next-i (:end self) (:step self))
-                                                 (do
-                                                   (put self :consumed true)
-                                                   nil)
-                                                 (do
-                                                   (put self :i next-i)
-                                                   self))))))
-                         it)))]
-    (fn range
-      "Return an iterator over an integer range."
-      [& args]
-      (let [n (len args)]
-        (if (= n 1)
-          (let [[end] args]
-            (make-state 0 end 1))
-          (if (= n 2)
-            (let [[start end] args]
-              (make-state start end 1))
-            (if (= n 3)
-              (let [[start end step] args]
-                (make-state start end step))
-              (raise 'range "range expects 1 to 3 args, got %s" n))))))))
+(defn -range-empty?
+  [start end step]
+  (cond
+   (pos? step) (>= start end)
+   (<= start end)))
+
+(defn -range-iterator
+  [start end step]
+  (cond
+   (or (not (integer? start))
+       (not (integer? end))
+       (not (integer? step)))
+   (raise 'range "range expects Integer arguments, got %s %s %s"
+          (type start) (type end) (type step))
+
+   (= step 0)
+   (raise 'range "range step cannot be 0")
+
+   (-range-empty? start end step)
+   nil
+
+   (let [it {:i start
+             :end end
+             :step step
+             :consumed false}]
+     (put it %iter (fn [self] self))
+     (put it %deref (fn [self]
+                      (if (:consumed self)
+                        (raise 'deref "attempt to deref consumed RangeIterator")
+                        (:i self))))
+     (put it %invoke (fn [self]
+                       (if (:consumed self)
+                         (raise 'invoke "attempt to advance consumed RangeIterator")
+                         (let [next-i (+ (:i self) (:step self))]
+                           (if (-range-empty? next-i (:end self) (:step self))
+                             (do
+                               (put self :consumed true)
+                               nil)
+                             (do
+                               (put self :i next-i)
+                               self))))))
+     it)))
+
+(defn range
+  "Return an iterator over an integer range."
+  [& args]
+  (let [n (len args)]
+    (cond
+     (= n 1)
+     (let [[end] args]
+       (-range-iterator 0 end 1))
+
+     (= n 2)
+     (let [[start end] args]
+       (-range-iterator start end 1))
+
+     (= n 3)
+     (let [[start end step] args]
+       (-range-iterator start end step))
+
+     (raise 'range "range expects 1 to 3 args, got %s" n))))
 
 (defn member?
   "Return true when x is equal to an element in coll."
@@ -286,37 +446,55 @@
       (setq it (next it)))
     ok))
 
+; ---------------------------------
+; Logical and Binding Control Forms
+; ---------------------------------
+
 (def gensym
   (let [counter 0]
-    (fn gensym [&opt (prefix 'gensym)]
+    (fn gensym
+      "Return a fresh symbol using prefix."
+      [&opt (prefix 'gensym)]
       (let [sym (Symbol (str prefix "#" counter))]
         (incq counter)
         sym))))
 
-(defmacro and [x & rest]
+(defmacro and
+  "Return first falsey form, otherwise the last form."
+  [x & rest]
   (if rest
     (let [val# (gensym 'val)]
       `(let [,val# ,x]
          (if ,val# (and ,@rest) ,val#)))
     x))
 
-(defmacro or [x & rest]
+(defmacro or
+  "Return first truthy form, otherwise the last falsey form."
+  [x & rest]
   (if rest
     (let [val# (gensym 'val)]
       `(let [,val# ,x]
          (if ,val# ,val# (or ,@rest))))
     x))
 
-(defmacro when-let [bindings & body]
+(defmacro when-let
+  "Evaluate body when all if-let bindings are truthy."
+  [bindings & body]
   `(if-let ,bindings (do ,@body)))
 
-(defmacro while-let [bindings & body]
+(defmacro while-let
+  "Loop while if-let bindings continue to match truthy values."
+  [bindings & body]
   `(while (if-let ,bindings (do ,@body true) false)))
 
-(defmacro when-match [bindings & body]
+(defmacro when-match
+  "Evaluate body when if-match bindings match."
+  [bindings & body]
   `(if-match ,bindings (do ,@body)))
 
-(defmacro while-match [bindings & body]
+(defmacro while-match
+  "Loop while if-match bindings continue to match."
+  [bindings & body]
   `(while (if-match ,bindings (do ,@body true) false)))
 
 (def cond-let
@@ -330,6 +508,7 @@
                         result))
                     `(raise 'cond-let "no match")))]
     (macro cond-let [& clauses]
+      "Evaluate clauses in order, returning first truthy-binding match."
       (subcond clauses))))
 
 (def cond-match
@@ -343,6 +522,7 @@
                         result))
                     `(raise 'cond-match "no match")))]
     (macro cond-match [item & clauses]
+      "Evaluate clauses in order, returning first pattern match result."
       (let [item# (gensym 'item)]
         `(let [,item# ,item]
            ,(subcond item# clauses))))))
@@ -358,17 +538,22 @@
                         result))
                     `(raise 'case "no match")))]
     (macro case [item & clauses]
+      "Evaluate item once and return the first matching pattern result."
       (let [item# (gensym 'item)]
         `(let [,item# ,item]
            ,(subcase item# clauses))))))
 
-(defmacro prog1 [head & rest]
+(defmacro prog1
+  "Evaluate head, then rest, and return head's value."
+  [head & rest]
   (let [result# (gensym 'result)]
     `(do (def ,result# ,head)
          ,@rest
          ,result#)))
 
-(defmacro for [bindings & body]
+(defmacro for
+  "Iterate over binding pairs and evaluate body."
+  [bindings & body]
   (if-match [[pat coll & rest] bindings]
     (let [it# (gensym 'it)]
       `(let [,it# (iter ,coll)]
@@ -378,7 +563,13 @@
              (setq ,it# (next ,it#))))))
     `(do ,@body)))
 
-(defn group-by [keyfn coll]
+; ------------------------------
+; Collection Transform Utilities
+; ------------------------------
+
+(defn group-by
+  "Group coll by keyfn into a map of lists."
+  [keyfn coll]
   (let [groups {}
         it (iter coll)]
     (while it
@@ -388,7 +579,9 @@
       (setq it (next it)))
     groups))
 
-(defn separate [pred coll]
+(defn separate
+  "Return [items-where-pred-true items-where-pred-false]."
+  [pred coll]
   (let [left nil
         right nil
         it (iter coll)]
@@ -400,7 +593,9 @@
       (setq it (next it)))
     [(nreverse left) (nreverse right)]))
 
-(defn partition [n coll]
+(defn partition
+  "Partition coll into vectors of up to n items."
+  [n coll]
   (let [groups nil
         it (iter coll)]
     (while it
@@ -413,15 +608,21 @@
         (setq groups (cons (Vector (nreverse group)) groups))))
     (nreverse groups)))
 
-(defn comp [f g]
+(defn comp
+  "Compose f after g."
+  [f g]
   (fn [& rest] (f (apply g rest))))
 
-(defn iterable? [x]
+(defn iterable?
+  "Return true when x supports iter."
+  [x]
   (catch [_ false]
     (iter x)
     true))
 
-(defn catv [& parts]
+(defn catv
+  "Concatenate parts into a Vector, flattening iterables one level."
+  [& parts]
   (let [result nil]
     (for [part parts]
       (if (iterable? part)
@@ -430,7 +631,9 @@
         (setq result (cons part result))))
     (Vector (nreverse result))))
 
-(defn flatten [coll]
+(defn flatten
+  "Recursively flatten nested iterables preserving outer type."
+  [coll]
   (def result nil)
   (for [item coll]
     (if (iterable? item)
@@ -439,7 +642,9 @@
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
 
-(defn flatten1 [coll]
+(defn flatten1
+  "Flatten only the first nesting level preserving outer type."
+  [coll]
   (def result nil)
   (for [item coll]
     (if (iterable? item)
@@ -448,12 +653,20 @@
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
 
-(defmacro throws? [expected-payload & body]
-  (let [catch-result# (gensym 'catch-result)]
-    `(let [,catch-result# (catch [payload (cons %exception-payload payload)] ,@body)]
-       (assert (= ,catch-result# (cons %exception-payload ,expected-payload))))))
+; ------------------------
+; Exception Helper Macros
+; ------------------------
 
-(defmacro try [& body]
+(defmacro throws?
+  "Assert body throws an exception with expected payload."
+  [expected-payload & body]
+  (let [catch-result# (gensym 'catch-result)]
+    `(let [,catch-result# (catch [payload (cons %payload payload)] ,@body)]
+       (assert (= ,catch-result# (cons %payload ,expected-payload))))))
+
+(defmacro try
+  "Evaluate body with optional catch and finally clauses."
+  [& body]
   (let [keyfn (fn [item] (if (cons? item)
                            (case (car item)
                              %catch :catch
@@ -461,33 +674,56 @@
                              :body)
                            :body))
         {:keys [body catch finally]} (group-by keyfn body)
-        finally-forms (flatten1 (map cdr finally))
+        finally-forms (mapcat cdr (nreverse finally))
+        body-forms (nreverse body)
+        catch-forms (nreverse catch)
         ex# (gensym 'ex)
-        ex-patterns (map (fn [[_ pattern & body]]
-                           `(,pattern (prog1 (do ,@body) ,@finally-forms)))
-                      (nreverse catch))]
-    `(catch [,ex# (case ,ex#
-                    ,@(flatten1 ex-patterns)
-                    (throw ,ex#))]
-       ,@(nreverse body)
-       ,@finally-forms)))
+        payload# (gensym 'payload)
+        outcome# (gensym 'outcome)
+        value# (gensym 'value)
+        ex-payload# (gensym 'ex-payload)
+        ex-patterns (map (fn [[_ pattern & catch-body]]
+                           `(,pattern (do ,@catch-body)))
+                      catch-forms)]
+    `(let [,outcome# (catch [,payload# [:error ,payload#]]
+                       [:ok (catch [,ex# (case ,ex#
+                                           ,@(flatten1 ex-patterns)
+                                           (throw ,ex#))]
+                              ,@body-forms)])]
+       ,@finally-forms
+       (case ,outcome#
+         [:ok ,value#] ,value#
+         [:error ,ex-payload#] (throw ,ex-payload#)))))
+
+; -----------------------
+; Macro Expansion Helpers
+; -----------------------
 
 (defn macro-form?*
+  "Return true when form resolves to a macro in env."
   [form env]
-  (if-match [[(Symbol head) & rest] form]
-    (macro? (eval head env))))
+  (if (cons? form)
+    (let [head (car form)
+          tail (cdr form)]
+      (if (and (symbol? head) (proper-list? tail))
+        (macro? (eval head env))
+        false))
+    false))
 
 (defmacro macro-form?
+  "Return true when form resolves to a macro in the current env."
   [form]
   `(macro-form?* ,form (curlet)))
 
 (defn macroexpand*
+  "Expand form repeatedly in env until no macro call remains."
   [form env]
   (if (macro-form?* form env)
     (macroexpand* (macroexpand-1 form env) env)
     form))
 
 (defmacro macroexpand
+  "Fully macroexpand form in the current env."
   [form]
   `(macroexpand* ,form (curlet)))
 
@@ -495,28 +731,47 @@
   (let [old-fn fn
         map-env (old-fn [f coll env]
                   (map (old-fn [x] (f x env)) coll))
-        expand-qq (fn [form env]
+        expand-qq (old-fn
+                    "Expand quasiquote contents while tracking quasiquote nesting level."
+                    [form env level]
                     (case form
-                      (cons x y) (if (cons? y)
-                                   (case x
-                                     'unquote (cons 'unquote
+                      (cons x y)
+                      (if (cons? y)
+                        (case x
+                          'quasiquote (cons 'quasiquote
+                                            (expand-qq y env (+ level 1)))
+                          'unquote (if (= level 1)
+                                     (cons 'unquote
+                                           (macroexpand-all* y env))
+                                     (cons 'unquote
+                                           (expand-qq y env (- level 1))))
+                          'unquote-splicing (if (= level 1)
+                                              (cons 'unquote-splicing
                                                     (macroexpand-all* y env))
-                                     'unquote-splicing (cons 'unquote-splicing
-                                                             (macroexpand-all* y env))
-                                     form)
-                                   (cons (expand-qq x env)
-                                         (expand-qq y env)))
-                      (Vector x) (Vector (map-env expand-qq x env))
-                      (Map x) (Map (map-env expand-qq x env))
+                                              (cons 'unquote-splicing
+                                                    (expand-qq y env (- level 1))))
+                          (cons (expand-qq x env level)
+                                (expand-qq y env level)))
+                        (cons (expand-qq x env level)
+                              (expand-qq y env level)))
+                      (Vector x) (Vector (map-env (old-fn [item env]
+                                                    (expand-qq item env level))
+                                                  x
+                                                  env))
+                      (Map x) (Map (map-env (old-fn [item env]
+                                             (expand-qq item env level))
+                                            x
+                                            env))
                       form))]
     (fn macroexpand-all*
+      "Recursively macroexpand a form tree in env."
       [form env]
       (let [form (macroexpand* form env)]
         (case form
           (cons x y) (if (cons? y)
                        (case x
                          'quote form
-                         'quasiquote (cons 'quasiquote (expand-qq y env))
+                         'quasiquote (cons 'quasiquote (expand-qq y env 1))
                          (map-env macroexpand-all* form env))
                        (cons (macroexpand-all* x env) (macroexpand-all* y env)))
           (Vector x) (Vector (map-env macroexpand-all* x env))
@@ -524,22 +779,29 @@
           form)))))
 
 (defmacro macroexpand-all
+  "Recursively macroexpand a form tree in the current env."
   [form]
   `(macroexpand-all* ,form (curlet)))
 
-(defmacro -> [head & rest]
+(defmacro ->
+  "Thread head through forms as first argument."
+  [head & rest]
   (case rest
     [[beg & end] & tail] `(-> (,beg ,head ,@end) ,@tail)
     [beg & tail] `(-> (,beg ,head) ,@tail)
     head))
 
-(defmacro ->> [head & rest]
+(defmacro ->>
+  "Thread head through forms as last argument."
+  [head & rest]
   (case rest
     [[beg & end] & tail] `(->> (,beg ,@end ,head) ,@tail)
     [beg & tail] `(->> (,beg ,head) ,@tail)
     head))
 
-(defmacro with-syms [syms & body]
+(defmacro with-syms
+  "Bind generated symbols for each symbol in syms while running body."
+  [syms & body]
   (let [bindings (-> syms
                      (->> (map (fn [sym] [(Symbol (str sym "#")) `(gensym ',sym)])))
                      flatten1
@@ -561,6 +823,10 @@
           (setq it (next it)))))
     m))
 
+; --------------------------
+; Class and Multimethod Core
+; --------------------------
+
 (defn class?
   "Return true if x is a class."
   [x]
@@ -580,6 +846,7 @@
     (type x)))
 
 (defn multimethod?
+  "Return true when x has multimethod shape."
   [x]
   (and (map? x)
        (%multimethod x)
@@ -588,16 +855,19 @@
        (function? (%invoke x))))
 
 (defn -class-enum?
+  "Return true when spec is an enum declaration."
   [spec]
   (and (vector? spec)
        (> (len spec) 0)
        (= (get spec 0) :enum)))
 
 (defn -class-enum-contains?
+  "Return true when value appears in enum spec."
   [spec value]
   (member? value (drop 1 spec)))
 
 (defn -class-coerce-value
+  "Coerce and validate a class field value against spec."
   [class-name field spec value]
   (cond
    (nil? value) nil
@@ -617,6 +887,7 @@
           class-name field spec)))
 
 (defn -class-compile-validators
+  "Compile :validate options into a validator vector."
   [opts]
   (if (contains? opts :validate)
     (let [validate (:validate opts)]
@@ -635,12 +906,14 @@
     []))
 
 (defn -class-run-validators
+  "Run validators for one class field value."
   [class-name field validators value]
   (for [validator validators]
     (if (not (validator value))
       (raise 'class "%s.%s failed validator" class-name field))))
 
 (defn -class-compile-field
+  "Compile one class field declaration."
   [field]
   (if (not (vector? field))
     (raise 'class "class field schema should be Vector, got %s" field))
@@ -661,12 +934,14 @@
          :validators validators}))))
 
 (defn -class-compile-schema
+  "Compile class schema declarations."
   [schema]
   (if (not (vector? schema))
     (raise 'class "class schema should be Vector, got %s" schema))
   (mapv -class-compile-field schema))
 
 (defn -class-split-spec
+  "Split class options map from field schema entries."
   [raw-schema]
   (if (not (vector? raw-schema))
     (raise 'class "class schema should be Vector, got %s" raw-schema))
@@ -678,6 +953,7 @@
      :schema raw-schema}))
 
 (defn -class-resolve-parent
+  "Resolve optional class parent from opts."
   [opts]
   (if (contains? opts :extends)
     (let [parent (:extends opts)]
@@ -687,6 +963,7 @@
     nil))
 
 (defn -class-merge-schema
+  "Merge parent and child schemas while rejecting duplicate fields."
   [class-name parent-schema own-schema]
   (let [seen {}
         merged nil]
@@ -705,6 +982,7 @@
     (Vector (nreverse merged))))
 
 (defn -class-construct
+  "Construct and validate a class instance from input map."
   [class input]
   (if (not (map? input))
     (raise 'class "%s constructor expects Map, got %s"
@@ -727,6 +1005,7 @@
     instance))
 
 (defn -make-class
+  "Create a class value from name and schema vector."
   [name schema]
   (let [{:keys [opts schema]} (-class-split-spec schema)
         parent (-class-resolve-parent opts)
@@ -745,10 +1024,12 @@
     class))
 
 (defmacro make-class
+  "Create a class value from inline field declarations."
   [name & fields]
   `(-make-class ',name [,@fields]))
 
-(defn -multimethod-resolve-method
+(defn resolve-method
+  "Resolve dispatch method or :default method for mm."
   [mm dispatch-value]
   (let [methods (%methods mm)
         method (get methods dispatch-value)]
@@ -759,7 +1040,8 @@
           default-method
           nil)))))
 
-(defn -multimethod-add-method
+(defn add-method
+  "Attach a dispatch method to a multimethod."
   [mm dispatch-value method]
   (if (not (multimethod? mm))
     (raise 'defmethod "defmethod target should be Multimethod, got %s" (type mm)))
@@ -768,7 +1050,8 @@
   (put (%methods mm) dispatch-value method)
   mm)
 
-(defn -multimethod
+(defn make-multimethod
+  "Create a multimethod with dispatch-fn."
   [name dispatch-fn]
   (if (not (function? dispatch-fn))
     (raise 'defmulti "defmulti dispatch function should be Function, got %s"
@@ -780,7 +1063,7 @@
     (put mm %invoke
          (fn [self & args]
            (let [dispatch-value (apply (%dispatch self) args)
-                 method (-multimethod-resolve-method self dispatch-value)]
+                 method (resolve-method self dispatch-value)]
              (if (nil? method)
                (raise 'invoke "no method in %s for dispatch value %s"
                       (%name self) dispatch-value))
@@ -788,12 +1071,14 @@
     mm))
 
 (defmacro defmulti
+  "Define a named multimethod."
   [name dispatch-fn]
   (if (symbol? name)
-    `(def ,name (-multimethod ',name ,dispatch-fn))
+    `(def ,name (make-multimethod ',name ,dispatch-fn))
     (raise 'syntax "defmulti name should be Symbol, got %s" name)))
 
 (defmacro defmethod
+  "Define a class method or multimethod implementation."
   [target & rest]
   (let [method-fn (fn [doc params body]
                     (if doc
@@ -815,7 +1100,7 @@
                            (cond-match rest
                              [dispatch-value (String doc) params & body]
                              (if (vector? params)
-                               `(-multimethod-add-method
+                               `(add-method
                                  ,name
                                  ,dispatch-value
                                  ,(method-fn doc params body))
@@ -823,7 +1108,7 @@
                                       params))
                              [dispatch-value params & body]
                              (if (vector? params)
-                               `(-multimethod-add-method
+                               `(add-method
                                  ,name
                                  ,dispatch-value
                                  ,(method-fn nil params body))
@@ -844,8 +1129,13 @@
              target))))
 
 (defmacro defclass
+  "Define and bind a class value."
   [name & fields]
   `(def ,name (make-class ,name ,@fields)))
+
+; ----------------
+; Stream Abstractions
+; ----------------
 
 (defclass Stream)
 
@@ -1014,22 +1304,28 @@
           part
           [part false])))))
 
-(defmulti stream class)
+(defmulti make-stream class)
 
-(defmethod stream String
+(defmethod make-stream String
+  "Create a StringStream from String."
   [s]
   (StringStream {:source s :offset 0}))
 
-(defmethod stream StringSlice
+(defmethod make-stream StringSlice
+  "Create a StringStream from StringSlice."
   [s]
-  (stream (String s)))
+  (make-stream (String s)))
 
-(defmethod stream StringStream
+(defmethod make-stream StringStream
+  "Return StringStream unchanged."
   [s]
   s)
 
-(defmethod stream :default
+(defmethod make-stream :default
+  "Raise for unsupported stream source values."
   [x]
   (raise 'stream "cannot create stream from %s" (class x)))
+
+(def stream make-stream)
 
 (gc)

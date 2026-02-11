@@ -1,5 +1,7 @@
 (assert (class? Stream))
+(assert (= (make-stream "") {:source "" :offset 0}))
 (assert (= (stream "") {:source "" :offset 0}))
+(assert (= (stream "") (make-stream "")))
 
 (assert (class? StringStream))
 (let [s (StringStream {:source "ab" :offset 0})]

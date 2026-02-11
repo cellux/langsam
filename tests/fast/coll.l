@@ -16,6 +16,11 @@
              (map (fn [x] (/ x 2))))
           '(2 3 4)))
 
+(assert (= (mapcat (fn [x] [x (* x 10)]) '(1 2 3))
+           '(1 10 2 20 3 30)))
+(assert (= (mapcat (fn [x] (if (even? x) [x] nil)) [1 2 3 4])
+           '(2 4)))
+
 (assert (= (catv) []))
 (assert (= (catv [1 2] '(3 4) 5) [1 2 3 4 5]))
 (assert (= (catv [1 [2 3]] '(4)) [1 [2 3] 4]))
@@ -42,6 +47,12 @@
 (assert (= (drop 2 '(1 2 3 4)) '(3 4)))
 (assert (= (drop 10 '(1 2)) '()))
 (assert (= (drop 1 nil) nil))
+(let [xs '(1 2 3 4)]
+  (assert (eq (drop 2 xs) (cdr (cdr xs)))))
+(let [xs '(1 2 . 3)]
+  (assert (eq (drop 1 xs) (cdr xs)))
+  (assert (= (drop 1 xs) '(2 . 3)))
+  (assert (= (drop 2 xs) nil)))
 (assert (= (tail [1 2 3]) [2 3]))
 (assert (= (tail '(1 2 3)) '(2 3)))
 (assert (= (tail nil) nil))

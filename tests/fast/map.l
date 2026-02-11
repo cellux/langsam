@@ -1,11 +1,17 @@
 (assert (= (Map 8) {}))
 
 (assert (= (kvs->map []) {}))
+(assert (= (kvs->map nil) {}))
 (assert (= (kvs->map [:a 3 :b 5 :c 8]) {:a 3 :b 5 :c 8}))
 (assert (= (kvs->map '(:a 3 :b 5 :c 8)) {:a 3 :b 5 :c 8}))
+(assert (= (kvs->map (range 0 6)) {0 1 2 3 4 5}))
 (assert (= (kvs->map [:a 3 :a 5]) {:a 5}))
 (assert (throws? '(kvs->map . "kvs->map expects key/value pairs")
                  (kvs->map [:a 3 :b])))
+(assert (throws? '(kvs->map . "kvs->map expects key/value pairs")
+                 (kvs->map (range 0 5))))
+(assert (throws? '(iter . "Integer does not support iter")
+                 (kvs->map 5)))
 
 (let [m {:a 3 :b 5 :c 8}]
   (assert (= (Map m) m))

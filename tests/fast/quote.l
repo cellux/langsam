@@ -18,3 +18,11 @@
 (assert (= `[1 ,@'(2 3) 4] [1 2 3 4]))
 
 (assert (= `{:a ,(+ 1 2) :b 4} {:a 3 :b 4}))
+
+; These use explicit forms because reader sugar cannot represent
+; malformed unquote/unquote-splicing calls without changing the error path.
+(assert (throws? '(syntax . "unquote needs argument")
+                 (quasiquote (unquote))))
+
+(assert (throws? '(syntax . "unquote-splicing needs argument")
+                 (quasiquote (unquote-splicing))))

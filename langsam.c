@@ -4089,15 +4089,16 @@ static LV eval_macrop(LangsamVM *vm, LV args) {
 }
 
 static LV eval_macroexpand_1(LangsamVM *vm, LV args) {
-  LANGSAM_ARG(macro_call, args);
+  LANGSAM_ARG(form, args);
+  LV original_form = form;
   LANGSAM_ARG_OPT(env, args);
   if (langsam_nilp(env)) {
     env = vm->curlet;
   }
   LANGSAM_ARG_TYPE(env, LT_MAP);
-  LANGSAM_ARG(macro_sym, macro_call);
+  LANGSAM_ARG(head, form);
   LANGSAM_CHECK(langsam_pushlet(vm, env));
-  LV macro = langsam_eval(vm, macro_sym);
+  LV macro = langsam_eval(vm, head);
   if (langsam_exceptionp(macro)) {
     langsam_poplet(vm);
     return macro;
@@ -4105,9 +4106,9 @@ static LV eval_macroexpand_1(LangsamVM *vm, LV args) {
   LangsamFunction *f = is_macro(macro);
   if (f == NULL) {
     langsam_poplet(vm);
-    return macro_call;
+    return original_form;
   }
-  LV result = fn_invoke(vm, f, macro_call);
+  LV result = fn_invoke(vm, f, form);
   langsam_poplet(vm);
   return result;
 }

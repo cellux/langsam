@@ -16,3 +16,27 @@
 (let [thrown-payload :foo
       caught-payload (catch [x x] (Exception thrown-payload))]
   (assert (= caught-payload thrown-payload)))
+
+(let [f 1]
+  (assert (throws? '(oops . "boom")
+          (try
+            (throw '(oops . "boom"))
+            (%catch (cons 'other _) :wrong-branch)
+            (%finally (swapq f + 7)))))
+  (assert (= f 8)))
+
+(let [f 2]
+  (assert (throws? '(handler . "boom")
+          (try
+            (throw '(oops . "boom"))
+            (%catch (cons 'oops _) (raise 'handler "boom"))
+            (%finally (swapq f * 3)))))
+  (assert (= f 6)))
+
+(let [trace ""
+      result (try
+               :ok
+               (%finally (swapq trace str "a"))
+               (%finally (swapq trace str "b")))]
+  (assert (= result :ok))
+  (assert (= trace "ab")))

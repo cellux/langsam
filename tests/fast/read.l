@@ -53,6 +53,9 @@
 (assert (throws? '(read . "incomplete character escape sequence")
                  (read-string "\"foo\\")))
 
+(assert (throws? '(read . "missing argument to , (unquote) operator")
+                 (read-string ",")))
+
 (let [s (read-string "\"foo\a\b\f\n\r\t\vbar\"")]
   (assert (= s "foo\a\b\f\n\r\t\vbar"))
   (assert (= (get s 3) 0x07))
