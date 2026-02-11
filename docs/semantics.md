@@ -41,6 +41,24 @@ Stdlib wrappers:
 
 Use `contains?` for presence checks when `nil` is a valid stored value.
 
+## `reset` and `swap`
+
+- `reset` is a low-level alias of `setcdr`.
+- `reset` expects a `Cons` cell, mutates its `cdr`, and returns `nil`.
+- A raw map entry `(key . value)` is also a `Cons` cell, typically obtained from `gep`.
+- `gep map key` may return:
+  - a direct map entry pair
+  - an inherited entry pair found via prototype lookup
+  - `nil` when the key is missing everywhere
+- Typical binding updates use `gep` to obtain that entry pair, for example:
+  - `(def ref (gep (curlet) 'x))` where `ref` is `('x . current-value)`.
+  - `(reset ref value)` mutates the same pair to `('x . value)`.
+- If `gep` returns `nil`, calling `reset`/`swap` on that result raises (because no `Cons` cell is available to mutate/deref).
+- `deref` applied to a `Cons` cell returns its cdr.
+- `@x` is shorthand for `(deref x)`.
+- `swap` expects a `Cons` cell, applies a function to `@ref` (the current `cdr` value), stores the result via `reset`, and forwards optional extra args to that function.
+- `swap` returns the new stored value.
+
 ## Reader Desugaring
 
 Reader output for member/namespace sugar is symbolic AST:
