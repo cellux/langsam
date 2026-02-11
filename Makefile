@@ -39,6 +39,10 @@ MODULE_L_OBJS := $(MODULE_L_SRCS:.l=.lo)
 
 CORE_OBJS := langsam.o driver.o
 
+TEST_FAST_SRCS := $(sort $(wildcard tests/fast/*.l))
+TEST_SLOW_SRCS := $(sort $(wildcard tests/slow/*.l))
+TEST_SRCS := $(TEST_FAST_SRCS) $(TEST_SLOW_SRCS)
+
 langsam: $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS)
 	$(CC) -o $@ $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS) $(LDFLAGS)
 
@@ -54,24 +58,31 @@ modules/%.lc: modules/%.l bin2c.py
 %.lo: %.lc
 	$(CC) -c -o $@ -x c $<
 
+.PHONY: fasttest
+fasttest: langsam
+	./langsam $(TEST_FAST_SRCS)
+
+.PHONY: slowtest
+slowtest: langsam
+	./langsam $(TEST_SLOW_SRCS)
+
 .PHONY: test
-test: langsam
-	./langsam tests/*.l
+test: fasttest slowtest
 
 .PHONY: bench
 bench: langsam
 	@echo "bench/perf_smoke.l x10"
 	@bash -lc 'time -p for i in $$(seq 1 10); do ./langsam bench/perf_smoke.l >/dev/null; done'
-	@echo "tests/*.l x20"
-	@bash -lc 'time -p for i in $$(seq 1 20); do ./langsam tests/*.l >/dev/null; done'
+	@echo "tests/fast/*.l + tests/slow/*.l x20"
+	@bash -lc 'time -p for i in $$(seq 1 20); do ./langsam $(TEST_SRCS) >/dev/null; done'
 
 .PHONY: vtest
 vtest: langsam
-	valgrind --leak-check=full --show-leak-kinds=all ./langsam tests/*.l
+	valgrind --leak-check=full --show-leak-kinds=all ./langsam $(TEST_SRCS)
 
 .PHONY: gdb
 gdb: langsam
-	gdb -x langsam.gdb --args ./langsam tests/*.l
+	gdb -x langsam.gdb --args ./langsam $(TEST_SRCS)
 
 .PHONY: debug
 debug:

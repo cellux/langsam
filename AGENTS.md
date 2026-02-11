@@ -27,14 +27,16 @@ The first implementation will be hosted on top of the qemu q35 machine using x86
 
 **Build and Test**
 - Build: `make`
-- Test suite: `make test`
+- Fast tests: `make fasttest`
+- Slow tests: `make slowtest`
+- Full test suite: `make test`
 - Valgrind: `make vtest`
 - Debugging: `make gdb`
 - Important: rebuild `langsam` before running tests (for example `make` or `make test`), because Langsam modules are embedded into the binary at link time.
 
 **Tests**
-- Tests are plain Langsam scripts in `tests/*.l`.
-- The test runner is invoked via `make test`
+- Tests are plain Langsam scripts in `tests/fast/*.l` and `tests/slow/*.l`.
+- The test runners are invoked via `make fasttest`, `make slowtest`, and `make test` (runs both).
 
 **Modules**
 - Native modules are discovered from:
