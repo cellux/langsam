@@ -3980,6 +3980,15 @@ static LV eval_apply(LangsamVM *vm, LV args) {
 static LV eval_def(LangsamVM *vm, LV args) {
   LANGSAM_ARG(lhs, args);
   LANGSAM_ARG(rhs, args);
+  LANGSAM_ARG_OPT(doc, args);
+  if (langsam_somep(doc)) {
+    LANGSAM_ARG_TYPE(doc, LT_STRING);
+  }
+  if (langsam_somep(args)) {
+    return langsam_exceptionf(
+        vm, "syntax",
+        "def expects (def lhs value &opt docstring), got extra form(s)");
+  }
   rhs = langsam_eval(vm, rhs);
   LANGSAM_CHECK(rhs);
   LV bind_result = langsam_bind(vm, vm->curlet, lhs, rhs);
