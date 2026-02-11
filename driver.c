@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "langsam.h"
 
@@ -36,6 +37,38 @@ static LV loadfd(LangsamVM *vm, int fd) {
   return langsam_invoke(vm, loadfd, args);
 }
 
+static void write_stderr_all(const char *s, size_t len) {
+  while (len > 0) {
+    ssize_t wrote = write(STDERR_FILENO, s, len);
+    if (wrote <= 0) {
+      return;
+    }
+    s += (size_t)wrote;
+    len -= (size_t)wrote;
+  }
+}
+
+static void write_stderr_cstr(const char *s) {
+  write_stderr_all(s, strlen(s));
+}
+
+static void print_error_value(LangsamVM *vm, const char *source, LV value) {
+  LV error_message = langsam_str(vm, value);
+  if (langsam_exceptionp(error_message) || error_message.type != LT_STRING) {
+    write_stderr_cstr(source);
+    write_stderr_cstr(": <error while converting value to string>\n");
+    return;
+  }
+  LangsamString *message = error_message.p;
+  write_stderr_cstr(source);
+  write_stderr_cstr(": ");
+  if (message->len > 0) {
+    size_t message_len = (size_t)message->len;
+    write_stderr_all(message->p, message_len);
+  }
+  write_stderr_cstr("\n");
+}
+
 int main(int argc, char **argv) {
   LangsamVM vm;
   LV init_result = langsam_init(&vm, NULL);
@@ -68,8 +101,7 @@ int main(int argc, char **argv) {
         result = loadfile(&vm, argv[i]);
       }
       if (langsam_exceptionp(result)) {
-        char *error_message = langsam_cstr(&vm, result);
-        fprintf(stderr, "%s: %s\n", argv[i], error_message);
+        print_error_value(&vm, argv[i], result);
         langsam_close(&vm);
         return 1;
       }
@@ -78,8 +110,7 @@ int main(int argc, char **argv) {
     langsam_enable_repl_mode(&vm);
     LV result = loadfd(&vm, 0);
     if (langsam_exceptionp(result)) {
-      char *error_message = langsam_cstr(&vm, result);
-      fprintf(stderr, "Error while loading from <stdin>: %s\n", error_message);
+      print_error_value(&vm, "Error while loading from <stdin>", result);
       langsam_close(&vm);
       return 1;
     }

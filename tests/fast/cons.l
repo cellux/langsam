@@ -46,6 +46,11 @@
   (assert (throws? '(get . "Cons index -2 out of range (0..1)")
                    (get c -2))))
 
+(assert (throws? '(type . "argument cons is Nil, expected Cons")
+                 (setcar nil :x)))
+(assert (throws? '(type . "argument cons is Nil, expected Cons")
+                 (setcdr nil :x)))
+
 (let [x {:value 10
          'add (fn [self & rest] (reduce + (:value self) rest))}]
   (assert (= (:value x) 10))
