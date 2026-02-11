@@ -1,4 +1,4 @@
-(assert (class? Stream))
+(assert (class? BaseStream))
 (assert (= (make-stream "") {:source "" :offset 0}))
 (assert (= (stream "") {:source "" :offset 0}))
 (assert (= (stream "") (make-stream "")))

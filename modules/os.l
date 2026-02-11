@@ -1,5 +1,5 @@
 (defclass FileStream
-  {:extends Stream}
+  {:extends BaseStream}
   [:file File {:required true}]
   [:buffer String {:required true}]
   [:ended Boolean {:required true}])
@@ -111,12 +111,12 @@
         (put self :ended true)))
     result))
 
-(defmethod stream File
+(defmethod make-stream File
   "Create a FileStream from an os/File."
   [file]
   (FileStream {:file file :buffer "" :ended false}))
 
-(defmethod stream FileStream
+(defmethod make-stream FileStream
   "Return file streams unchanged."
   [s]
   s)

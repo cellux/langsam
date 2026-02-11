@@ -1137,9 +1137,9 @@
 ; Stream Abstractions
 ; ----------------
 
-(defclass Stream)
+(defclass BaseStream)
 
-(defmethod Stream.read-char
+(defmethod BaseStream.read-char
   "Read and return one-character String, or nil at EOF."
   [self]
   (let [part (self.read 1)]
@@ -1147,7 +1147,7 @@
       nil
       part)))
 
-(defmethod Stream.read-byte
+(defmethod BaseStream.read-byte
   "Read one byte as Integer in 0..255, or nil at EOF."
   [self]
   (let [part (self.read-char)]
@@ -1155,7 +1155,7 @@
       nil
       (get part 0))))
 
-(defmethod Stream.read-be
+(defmethod BaseStream.read-be
   "Read n bytes in big-endian order and return an Integer."
   [self (Integer n)]
   (let [class-name (%name (class self))]
@@ -1171,7 +1171,7 @@
         (decq remaining))
       result)))
 
-(defmethod Stream.read-le
+(defmethod BaseStream.read-le
   "Read n bytes in little-endian order and return an Integer."
   [self (Integer n)]
   (let [class-name (%name (class self))]
@@ -1189,14 +1189,14 @@
         (decq remaining))
       result)))
 
-(defmethod Stream.readln
+(defmethod BaseStream.readln
   "Read a single line terminated by \\n without including the terminator."
   [self]
   (let [[line _] (self.read-until "\n")]
     line))
 
 (defclass StringStream
-  {:extends Stream}
+  {:extends BaseStream}
   [:source String {:required true}]
   [:offset Integer {:required true}])
 
