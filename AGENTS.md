@@ -5,17 +5,18 @@ This file helps agents and contributors get oriented quickly in this repo.
 **Project Overview**
 - Langsam is a small Lisp-like language implemented in C with a minimal standard library written in Langsam itself.
 
-**Long-Term Bootstrap Roadmap**
-- The long-term goal is a full self-hosting systems stack, built incrementally:
-  1. Implement a Forth in assembly language called **Grund**.
-  2. Implement **Langsam** in Grund.
-  3. Implement **Schell** as a library in Langsam.
-  4. Reimplement Langsam in **Schnell** and replace the old version with the new one.
-  5. Compile and bootstrap an operating system called **Oben**, written in Schnell, using the latest and fastest Langsam.
-- End state: a working, running OS built from scratch.
-- Constraint: this entire pipeline is intended to happen in memory during system boot.
+**Long-Term Goal**
+- The long-term target is a fully self-hosting systems stack with these layers:
+  1. **Grund**: a minimal Forth dialect written in assembly
+  2. **Langsam**: an interpreter for this language, reimplemented in Grund
+  3. **Schnell**: a C-like language implemented in and embedded into Langsam (its compiler is a Langsam library)
+  4. **Oben**: an operating system bootstrapped from source at boot time (`Grund -> Langsam -> Schnell`)
 
-The first implementation will be hosted on top of the qemu q35 machine using x86-64 architecture.
+Initial development is hosted on Linux.
+
+After Oben runs reliably on Linux, the next ports are the QEMU q35 VM and Raspberry Pi.
+
+With the stack written in Langsam and Schnell, porting Oben should mostly reduce to porting Grund and adding the new backend target to the Schnell compiler.
 
 **Key Entry Points**
 - `langsam.c` holds the VM, core types, reader, evaluator, GC, and most native functionality.
