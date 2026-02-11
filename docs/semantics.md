@@ -28,6 +28,11 @@ Stdlib wrappers:
 - truthy forms: `when-let`, `while-let`, `cond-let`
 - match forms: `when-match`, `while-match`, `cond-match`
 
+## Stdlib Helper Naming
+
+- Core stdlib helper functions prefixed with `-` are private implementation details.
+- `-`-prefixed helpers are not part of the stable public API and may change without compatibility guarantees.
+
 ## Map Presence and Value
 
 - `get map key` returns the value or `nil`.

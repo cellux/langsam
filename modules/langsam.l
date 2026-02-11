@@ -581,18 +581,216 @@
 
 (defn multimethod?
   [x]
-  ((get (require "multimethod") 'multimethod?) x))
+  (and (map? x)
+       (%multimethod x)
+       (function? (%dispatch x))
+       (map? (%methods x))
+       (function? (%invoke x))))
+
+(defn -class-enum?
+  [spec]
+  (and (vector? spec)
+       (> (len spec) 0)
+       (= (get spec 0) :enum)))
+
+(defn -class-enum-contains?
+  [spec value]
+  (member? value (drop 1 spec)))
+
+(defn -class-coerce-value
+  [class-name field spec value]
+  (cond
+   (nil? value) nil
+   (type? spec)
+   (if (= (type value) spec)
+     value
+     (raise 'class "%s.%s expects %s, got %s"
+            class-name field spec (type value)))
+   (class? spec)
+   (spec value)
+   (-class-enum? spec)
+   (if (-class-enum-contains? spec value)
+     value
+     (raise 'class "%s.%s expects one of %s, got %s"
+            class-name field spec value))
+   (raise 'class "%s.%s has unsupported schema type: %s"
+          class-name field spec)))
+
+(defn -class-compile-validators
+  [opts]
+  (if (contains? opts :validate)
+    (let [validate (:validate opts)]
+      (cond
+       (function? validate) [validate]
+       (vector? validate)
+       (do
+         (for [validator validate]
+           (if (not (function? validator))
+             (raise 'class
+                    "class field :validate entries should be Function, got %s"
+                    (type validator))))
+         validate)
+       (raise 'class "class field :validate should be Function or Vector, got %s"
+              (type validate))))
+    []))
+
+(defn -class-run-validators
+  [class-name field validators value]
+  (for [validator validators]
+    (if (not (validator value))
+      (raise 'class "%s.%s failed validator" class-name field))))
+
+(defn -class-compile-field
+  [field]
+  (if (not (vector? field))
+    (raise 'class "class field schema should be Vector, got %s" field))
+  (let [n (len field)]
+    (if (or (< n 2) (> n 3))
+      (raise 'class
+             "class field schema expects [field type &opt opts], got %s"
+             field))
+    (let [[field-name spec &opt (opts {})] field]
+      (if (not (keyword? field-name))
+        (raise 'class "class field name should be Keyword, got %s" field-name))
+      (if (not (map? opts))
+        (raise 'class "class field options should be Map, got %s" opts))
+      (let [validators (-class-compile-validators opts)]
+        {:name field-name
+         :spec spec
+         :required (if (contains? opts :required) (:required opts) false)
+         :validators validators}))))
+
+(defn -class-compile-schema
+  [schema]
+  (if (not (vector? schema))
+    (raise 'class "class schema should be Vector, got %s" schema))
+  (mapv -class-compile-field schema))
+
+(defn -class-split-spec
+  [raw-schema]
+  (if (not (vector? raw-schema))
+    (raise 'class "class schema should be Vector, got %s" raw-schema))
+  (if (and (> (len raw-schema) 0)
+           (map? (get raw-schema 0)))
+    {:opts (get raw-schema 0)
+     :schema (drop 1 raw-schema)}
+    {:opts {}
+     :schema raw-schema}))
+
+(defn -class-resolve-parent
+  [opts]
+  (if (contains? opts :extends)
+    (let [parent (:extends opts)]
+      (if (not (class? parent))
+        (raise 'class "class :extends should be Class, got %s" (type parent)))
+      parent)
+    nil))
+
+(defn -class-merge-schema
+  [class-name parent-schema own-schema]
+  (let [seen {}
+        merged nil]
+    (for [entry parent-schema]
+      (let [field (:name entry)]
+        (if (contains? seen field)
+          (raise 'class "%s has duplicate field: %s" class-name field))
+        (put seen field true)
+        (setq merged (cons entry merged))))
+    (for [entry own-schema]
+      (let [field (:name entry)]
+        (if (contains? seen field)
+          (raise 'class "%s has duplicate field: %s" class-name field))
+        (put seen field true)
+        (setq merged (cons entry merged))))
+    (Vector (nreverse merged))))
+
+(defn -class-construct
+  [class input]
+  (if (not (map? input))
+    (raise 'class "%s constructor expects Map, got %s"
+           (%name class) (type input)))
+  (let [instance (Map input)
+        schema (%schema class)]
+    (for [entry schema]
+      (let [field (:name entry)
+            spec (:spec entry)
+            required (:required entry)
+            validators (:validators entry)
+            present (contains? input field)]
+        (if (and required (not present))
+          (raise 'class "%s.%s is required" (%name class) field))
+        (if present
+          (let [value (-class-coerce-value (%name class) field spec (get input field))]
+            (-class-run-validators (%name class) field validators value)
+            (put instance field value)))))
+    (setproto instance class)
+    instance))
+
+(defn -make-class
+  [name schema]
+  (let [{:keys [opts schema]} (-class-split-spec schema)
+        parent (-class-resolve-parent opts)
+        compiled-schema (-class-compile-schema schema)
+        merged-schema (-class-merge-schema name
+                                           (if parent (%schema parent) [])
+                                           compiled-schema)
+        class {%name name
+               %schema merged-schema
+               %own-schema compiled-schema
+               %parent parent}]
+    (if parent
+      (setproto class parent))
+    (put class %invoke (fn [self input]
+                         (-class-construct self input)))
+    class))
 
 (defmacro make-class
   [name & fields]
-  `((get (require "class") 'make-class) ',name [,@fields]))
+  `(-make-class ',name [,@fields]))
+
+(defn -multimethod-resolve-method
+  [mm dispatch-value]
+  (let [methods (%methods mm)
+        method (get methods dispatch-value)]
+    (if (function? method)
+      method
+      (let [default-method (get methods :default)]
+        (if (function? default-method)
+          default-method
+          nil)))))
+
+(defn -multimethod-add-method
+  [mm dispatch-value method]
+  (if (not (multimethod? mm))
+    (raise 'defmethod "defmethod target should be Multimethod, got %s" (type mm)))
+  (if (not (function? method))
+    (raise 'defmethod "defmethod value should be Function, got %s" (type method)))
+  (put (%methods mm) dispatch-value method)
+  mm)
+
+(defn -multimethod
+  [name dispatch-fn]
+  (if (not (function? dispatch-fn))
+    (raise 'defmulti "defmulti dispatch function should be Function, got %s"
+           (type dispatch-fn)))
+  (let [mm {%name name
+            %multimethod true
+            %dispatch dispatch-fn
+            %methods {}}]
+    (put mm %invoke
+         (fn [self & args]
+           (let [dispatch-value (apply (%dispatch self) args)
+                 method (-multimethod-resolve-method self dispatch-value)]
+             (if (nil? method)
+               (raise 'invoke "no method in %s for dispatch value %s"
+                      (%name self) dispatch-value))
+             (apply method args))))
+    mm))
 
 (defmacro defmulti
   [name dispatch-fn]
   (if (symbol? name)
-    `(def ,name ((get (require "multimethod") 'multimethod)
-                 ',name
-                 ,dispatch-fn))
+    `(def ,name (-multimethod ',name ,dispatch-fn))
     (raise 'syntax "defmulti name should be Symbol, got %s" name)))
 
 (defmacro defmethod
@@ -617,7 +815,7 @@
                            (cond-match rest
                              [dispatch-value (String doc) params & body]
                              (if (vector? params)
-                               `((get (require "multimethod") 'add-method)
+                               `(-multimethod-add-method
                                  ,name
                                  ,dispatch-value
                                  ,(method-fn doc params body))
@@ -625,7 +823,7 @@
                                       params))
                              [dispatch-value params & body]
                              (if (vector? params)
-                               `((get (require "multimethod") 'add-method)
+                               `(-multimethod-add-method
                                  ,name
                                  ,dispatch-value
                                  ,(method-fn nil params body))
@@ -649,7 +847,172 @@
   [name & fields]
   `(def ,name (make-class ,name ,@fields)))
 
-(def StringStream (get (require "string") 'StringStream))
+(defclass Stream)
+
+(defmethod Stream.read-char
+  "Read and return one-character String, or nil at EOF."
+  [self]
+  (let [part (self.read 1)]
+    (if (= (len part) 0)
+      nil
+      part)))
+
+(defmethod Stream.read-byte
+  "Read one byte as Integer in 0..255, or nil at EOF."
+  [self]
+  (let [part (self.read-char)]
+    (if (nil? part)
+      nil
+      (get part 0))))
+
+(defmethod Stream.read-be
+  "Read n bytes in big-endian order and return an Integer."
+  [self (Integer n)]
+  (let [class-name (%name (class self))]
+    (if (<= n 0)
+      (raise 'stream "%s.read-be expects positive Integer n, got %s" class-name n))
+    (let [remaining n
+          result 0]
+      (while (> remaining 0)
+        (let [byte (self.read-byte)]
+          (if (nil? byte)
+            (raise 'stream "unexpected EOF in %s.read-be" class-name))
+          (setq result (bit-or (bit-shift-left result 8) byte)))
+        (decq remaining))
+      result)))
+
+(defmethod Stream.read-le
+  "Read n bytes in little-endian order and return an Integer."
+  [self (Integer n)]
+  (let [class-name (%name (class self))]
+    (if (<= n 0)
+      (raise 'stream "%s.read-le expects positive Integer n, got %s" class-name n))
+    (let [remaining n
+          shift 0
+          result 0]
+      (while (> remaining 0)
+        (let [byte (self.read-byte)]
+          (if (nil? byte)
+            (raise 'stream "unexpected EOF in %s.read-le" class-name))
+          (setq result (bit-or result (bit-shift-left byte shift))))
+        (setq shift (+ shift 8))
+        (decq remaining))
+      result)))
+
+(defmethod Stream.readln
+  "Read a single line terminated by \\n without including the terminator."
+  [self]
+  (let [[line _] (self.read-until "\n")]
+    line))
+
+(defclass StringStream
+  {:extends Stream}
+  [:source String {:required true}]
+  [:offset Integer {:required true}])
+
+(defn -stream-read-end
+  "Return the end index for read/peek where n<=0 means read to EOF."
+  [(Integer start) (Integer source-len) (Integer n)]
+  (if (<= n 0)
+    source-len
+    (min source-len (+ start n))))
+
+(defn -string-match-at?
+  "Return true when marker bytes match source at index at."
+  [(String source) (Integer at) (String marker) (Integer marker-len)]
+  (let [j 0
+        ok true]
+    (while (and ok (< j marker-len))
+      (if (= (get source (+ at j)) (get marker j))
+        (incq j)
+        (setq ok false)))
+    ok))
+
+(defn -string-find-from
+  "Return first marker index in source at/after start, else nil."
+  [(String source) (Integer start) (String marker)]
+  (let [source-len (len source)
+        marker-len (len marker)]
+    (if (= marker-len 0)
+      (raise 'stream "read-until marker cannot be empty"))
+    (let [head (get marker 0)
+          i start
+          limit (- source-len marker-len)
+          found nil]
+      (while (and (<= i limit) (nil? found))
+        (if (and (= (get source i) head)
+                 (-string-match-at? source i marker marker-len))
+          (setq found i)
+          (incq i)))
+      found)))
+
+(defmethod StringStream.eof
+  "Return true when the stream offset is at or beyond source length."
+  [self]
+  (>= (:offset self) (len (:source self))))
+
+(defmethod StringStream.read
+  "Read n chars from the current offset; n<=0 reads to EOF."
+  [self &opt ((Integer n) 0)]
+  (let [source (:source self)
+        start (:offset self)
+        source-len (len source)
+        end (-stream-read-end start source-len n)
+        part (if (= start end)
+               ""
+               (String (slice source start end)))]
+    (put self :offset end)
+    part))
+
+(defmethod StringStream.peek
+  "Return n chars without consuming them; n<=0 peeks to EOF."
+  [self &opt ((Integer n) 0)]
+  (let [source (:source self)
+        start (:offset self)
+        source-len (len source)
+        end (-stream-read-end start source-len n)]
+    (if (= start end)
+      ""
+      (String (slice source start end)))))
+
+(defmethod StringStream.read-byte
+  "Read one byte as Integer in 0..255, or nil at EOF."
+  [self]
+  (if (self.eof)
+    nil
+    (let [pos (:offset self)
+          byte (get (:source self) pos)]
+      (put self :offset (+ pos 1))
+      byte)))
+
+(defmethod StringStream.read-until
+  "Read until marker. Returns [part found?] unless keep-marker=true."
+  [self (String marker) &opt (keep-marker false)]
+  (let [source (:source self)
+        start (:offset self)
+        source-len (len source)
+        marker-len (len marker)
+        marker-pos (-string-find-from source start marker)]
+    (if marker-pos
+      (let [part-end marker-pos
+            stream-end (+ marker-pos marker-len)
+            part (if (= start part-end)
+                   ""
+                   (String (slice source start part-end)))
+            part+marker (if (= start stream-end)
+                          ""
+                          (String (slice source start stream-end)))]
+        (put self :offset stream-end)
+        (if keep-marker
+          part+marker
+          [part true]))
+      (let [part (if (= start source-len)
+                   ""
+                   (String (slice source start source-len)))]
+        (put self :offset source-len)
+        (if keep-marker
+          part
+          [part false])))))
 
 (defmulti stream class)
 

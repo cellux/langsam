@@ -1,12 +1,10 @@
-(import stream :refer [Stream])
-
 (defclass FileStream
   {:extends Stream}
   [:file File {:required true}]
   [:buffer String {:required true}]
   [:ended Boolean {:required true}])
 
-(defn filestream-fill
+(defn -filestream-fill
   "Fill buffer until it has at least want chars, or EOF when want<=0."
   [self (Integer want)]
   (while (and (not (:ended self))
@@ -17,7 +15,7 @@
         (put self :ended true)
         (put self :buffer (str (:buffer self) part))))))
 
-(defn filestream-take
+(defn -filestream-take
   "Take n chars from buffer and consume them."
   [self (Integer n)]
   (let [buf (:buffer self)
@@ -38,7 +36,7 @@
   (if (> (len (:buffer self)) 0)
     false
     (do
-      (filestream-fill self 1)
+      (-filestream-fill self 1)
       (and (:ended self)
            (= (len (:buffer self)) 0)))))
 
@@ -47,21 +45,21 @@
   [self &opt ((Integer n) 0)]
   (if (<= n 0)
     (do
-      (filestream-fill self 0)
-      (filestream-take self (len (:buffer self))))
+      (-filestream-fill self 0)
+      (-filestream-take self (len (:buffer self))))
     (do
-      (filestream-fill self n)
-      (filestream-take self n))))
+      (-filestream-fill self n)
+      (-filestream-take self n))))
 
 (defmethod FileStream.peek
   "Return n chars without consuming them; n<=0 peeks to EOF."
   [self &opt ((Integer n) 0)]
   (if (<= n 0)
     (do
-      (filestream-fill self 0)
+      (-filestream-fill self 0)
       (:buffer self))
     (do
-      (filestream-fill self n)
+      (-filestream-fill self n)
       (let [buf (:buffer self)
             end (min (len buf) n)]
         (if (= end 0)

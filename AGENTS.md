@@ -58,6 +58,7 @@ The first implementation will be hosted on top of the qemu q35 machine using x86
 - C is compiled with strict warnings and diagnostics (`-Wall -Wextra -Wpedantic`, plus `-Wconversion`, `-Wshadow`, `-Wcast-qual`, `-Wstrict-prototypes`, `-Wmissing-prototypes`, `-Wformat=2`, `-Wsign-conversion`, `-Wundef`, `-Wpointer-arith`).
 - Exceptions are first-class `LV` values; most API calls return `LV` and use `LANGSAM_CHECK`.
 - The REPL is enabled when no script args are provided.
+- Stdlib helper names prefixed with `-` are internal/private and not part of the supported public API.
 - In Langsam, write function docstrings on their own line in `defn` headers, for example:
   ```lisp
   (defn name

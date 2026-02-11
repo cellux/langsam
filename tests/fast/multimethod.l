@@ -129,7 +129,5 @@
   (+ x 1))
 
 (assert (= (with-doc-method 4) 5))
-(let [method ((get (require "multimethod") 'resolve-method)
-              with-doc-method
-              Integer)]
+(let [method (get (%methods with-doc-method) Integer)]
   (assert (= (:doc method) "Increment integer values.")))
