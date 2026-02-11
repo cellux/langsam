@@ -97,7 +97,7 @@
                   refs))))
       (raise 'import
              "import supports (import name) or (import name :refer [symbols]), got %s"
-             (cons name opts)))))
+             (cons name opts))))
 
 (defn update [x k f & rest]
   (let [oldv (get x k)
@@ -562,6 +562,7 @@
     m))
 
 (defn class?
+  "Return true if x is a class."
   [x]
   (and (map? x)
        (some? (%name x))
@@ -569,6 +570,7 @@
        (function? (%invoke x))))
 
 (defn class
+  "Return the class or type of x."
   [x]
   (if (map? x)
     (let [proto (getproto x)]
