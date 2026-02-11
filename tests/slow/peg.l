@@ -153,7 +153,7 @@
   (assert (= (s.read) "ef")))
 
 ; stream behavior for anchored match (file stream)
-(let [path "/tmp/peg-match-filestream.txt"]
+(let [path "/tmp/langsam-peg-match-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "abcdef")
     (os/close f))
@@ -190,7 +190,7 @@
 (assert (= (peg/find '(sequence "xx" (capture "ab")) "xxabzz") ["ab"]))
 
 ; find semantics (consumes scanned input, file stream)
-(let [path "/tmp/peg-find-filestream.txt"]
+(let [path "/tmp/langsam-peg-find-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "xxabczz")
     (os/close f))
@@ -212,7 +212,7 @@
   (assert (s.eof)))
 
 ; find-all semantics (consumes to EOF, file stream)
-(let [path "/tmp/peg-findall-filestream.txt"]
+(let [path "/tmp/langsam-peg-findall-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "xxabyyabz")
     (os/close f))
@@ -234,7 +234,7 @@
   (assert (s.eof)))
 
 ; replace semantics (consumes to EOF, file stream)
-(let [path "/tmp/peg-replace-filestream.txt"]
+(let [path "/tmp/langsam-peg-replace-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "zzabyyab")
     (os/close f))
@@ -253,7 +253,7 @@
   (assert (s.eof)))
 
 ; replacef semantics (consumes to EOF, file stream)
-(let [path "/tmp/peg-replacef-filestream.txt"]
+(let [path "/tmp/langsam-peg-replacef-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "abxxab")
     (os/close f))

@@ -3,10 +3,10 @@
 (assert (= (type os) Map))
 (assert (= (type os/open) Function))
 
-(def test-path "/tmp/opentest.txt")
+(def test-path "/tmp/langsam-os-opentest.txt")
 (def test-string "Hello, rumble\n")
 
-(let [test-path "/tmp/opentest.txt"
+(let [test-path "/tmp/langsam-os-opentest.txt"
       test-data "Hello, world!\n"]
   (try
     (let [f (os/open test-path (+ os/O_CREAT os/O_WRONLY) 0o666)]
@@ -18,7 +18,7 @@
       (assert (= data test-string)))
     (%finally (catch [_ nil] (os/unlink test-path)))))
 
-(let [test-path "/tmp/filestream.txt"
+(let [test-path "/tmp/langsam-os-filestream.txt"
       test-data "hello, rumble\nworld"]
   (try
     (let [f (os/open test-path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
@@ -37,7 +37,7 @@
       (s.close))
     (%finally (catch [_ nil] (os/unlink test-path)))))
 
-(let [test-path "/tmp/filestream-bytes.bin"
+(let [test-path "/tmp/langsam-os-filestream-bytes.bin"
       test-data "\x01\x02\x03\x04\x05\x06\x07"]
   (try
     (let [f (os/open test-path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]

@@ -1,8 +1,8 @@
 (assert (throws? '(parse . "unexpected token: ;")
                  (raise 'parse "unexpected token: %s" ";")))
 
-(assert (throws? '(io . "path=\"/tmp/a\"")
-                 (raise 'io "path=%r" "/tmp/a")))
+(assert (throws? '(io . "path=\"/tmp/langsam-raise-a\"")
+                 (raise 'io "path=%r" "/tmp/langsam-raise-a")))
 
 (assert (throws? '(state . "counter=42 ratio=1.250000")
                  (raise 'state "counter=%d ratio=%f" 42 1.25)))
