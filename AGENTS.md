@@ -30,6 +30,7 @@ The first implementation will be hosted on top of the qemu q35 machine using x86
 - Fast tests: `make fasttest`
 - Slow tests: `make slowtest`
 - Full test suite: `make test`
+- Parallel test jobs: optional `TEST_JOBS` override (defaults to CPU core count), for example `make test TEST_JOBS=8`
 - Valgrind: `make vtest`
 - Debugging: `make gdb`
 - Important: rebuild `langsam` before running tests (for example `make` or `make test`), because Langsam modules are embedded into the binary at link time.
@@ -37,6 +38,7 @@ The first implementation will be hosted on top of the qemu q35 machine using x86
 **Tests**
 - Tests are plain Langsam scripts in `tests/fast/*.l` and `tests/slow/*.l`.
 - The test runners are invoked via `make fasttest`, `make slowtest`, and `make test` (runs both).
+- `test.py` is the Python test runner used by Make targets and supports `TEST_JOBS` parallelism.
 
 **Modules**
 - Native modules are discovered from:

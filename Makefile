@@ -42,6 +42,7 @@ CORE_OBJS := langsam.o driver.o
 TEST_FAST_SRCS := $(sort $(wildcard tests/fast/*.l))
 TEST_SLOW_SRCS := $(sort $(wildcard tests/slow/*.l))
 TEST_SRCS := $(TEST_FAST_SRCS) $(TEST_SLOW_SRCS)
+TEST_JOBS ?= $(shell nproc || echo 1)
 
 langsam: $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS)
 	$(CC) -o $@ $(CORE_OBJS) $(MODULE_C_OBJS) $(MODULE_L_OBJS) $(LDFLAGS)
@@ -60,14 +61,15 @@ modules/%.lc: modules/%.l bin2c.py
 
 .PHONY: fasttest
 fasttest: langsam
-	./langsam $(TEST_FAST_SRCS)
+	python3 test.py --jobs $(TEST_JOBS) --langsam ./langsam $(TEST_FAST_SRCS)
 
 .PHONY: slowtest
 slowtest: langsam
-	./langsam $(TEST_SLOW_SRCS)
+	python3 test.py --jobs $(TEST_JOBS) --langsam ./langsam $(TEST_SLOW_SRCS)
 
 .PHONY: test
-test: fasttest slowtest
+test: langsam
+	python3 test.py --jobs $(TEST_JOBS) --langsam ./langsam $(TEST_SRCS)
 
 .PHONY: bench
 bench: langsam
