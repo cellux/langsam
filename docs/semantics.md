@@ -83,7 +83,7 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 
 ## Class System
 
-- Classes are maps carrying `%name`, `%schema`, and `%invoke`; `class?` checks this shape.
+- Classes are maps marked with a truthy `%class` field (and typically carry `%name`, `%schema`, and `%invoke`); `class?` checks the `%class` marker.
 - `(make-class Name [:field Spec {:required true} ...])` returns a class value and does not bind `Name`.
 - Class definitions may start with an options map:
   - `(make-class Child {:extends Parent} [:field Spec] ...)`
@@ -145,8 +145,29 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 - `StringSlice` is a view of a base string range; converting it with `str` or `String`
   materializes a regular `String`.
 
-## Iterator Exhaustion
+## Iterators
 
-- `iter` returns `nil` for empty collections.
-- `next` returns `nil` when an iterator is exhausted.
-- Calling `deref` or `next` on a consumed iterator object raises an exception.
+- Iteration protocol:
+  - `(iter x)` produces an iterator, or `nil` when there is nothing to iterate.
+  - `(deref it)` (or `@it`) returns the current item.
+  - `(next it)` is shorthand for `(it)` and advances the iterator.
+- Canonical loop shape:
+  - `(let [it (iter coll)] (while it ... @it ... (setq it (next it))))`
+- Built-in iterable values:
+  - `nil` and `Cons` (via `ConsIterator`)
+  - `Vector` (via `VectorIterator`)
+  - `VectorSlice` (via `VectorSliceIterator`)
+  - `Map` (via `MapIterator`)
+- `String` and `StringSlice` are indexable (`get`, `slice`) but are not iterable.
+- Calling `iter` on a non-iterable value raises an `iter` exception.
+- Iterator exhaustion:
+  - `next` returns `nil` when an iterator is exhausted.
+  - calling `deref` or `next` on an already consumed iterator raises.
+- Map iteration:
+  - default map iteration yields `[key value]` vectors.
+  - it iterates only the map's own entries (not inherited prototype entries).
+  - entry order is implementation detail and should not be relied on.
+- Map protocol hooks:
+  - maps may define `%iter`, `%deref`, and `%invoke` to override behavior.
+  - these hooks are resolved through prototypes.
+  - stdlib `range` uses this mechanism with a map-backed `RangeIterator`.
