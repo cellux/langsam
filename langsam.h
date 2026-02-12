@@ -58,7 +58,7 @@ typedef struct LangsamValue LangsamValue;
 #define LV LangsamValue
 
 struct LangsamT {
-  char *name;
+  char *typename;
   bool gcmanaged;
   LangsamSize (*gcmark)(LangsamVM *vm, void *p);
   LangsamSize (*gcfree)(LangsamVM *vm, void *p);
@@ -80,6 +80,7 @@ struct LangsamT {
   LV (*deref)(LangsamVM *vm, LV self);
   LV (*invoke)(LangsamVM *vm, LV self, LV args);
   LV (*eval)(LangsamVM *vm, LV self);
+  LV (*name)(LangsamVM *vm, LV self);
   LV (*repr)(LangsamVM *vm, LV self);
   LV (*str)(LangsamVM *vm, LV self);
 };
@@ -104,6 +105,7 @@ LV langsam_iter(LangsamVM *vm, LV self);
 LV langsam_deref(LangsamVM *vm, LV self);
 LV langsam_invoke(LangsamVM *vm, LV self, LV args);
 LV langsam_eval(LangsamVM *vm, LV self);
+LV langsam_name(LangsamVM *vm, LV self);
 LV langsam_repr(LangsamVM *vm, LV self);
 LV langsam_str(LangsamVM *vm, LV self);
 
@@ -347,6 +349,7 @@ LV langsam_stringslice(LangsamVM *vm, LV string, LangsamIndex start,
 
 LV langsam_Symbol_cast(LangsamVM *vm, LV other);
 LV langsam_Symbol_eval(LangsamVM *vm, LV self);
+LV langsam_Symbol_name(LangsamVM *vm, LV self);
 LV langsam_Symbol_repr(LangsamVM *vm, LV self);
 
 LV langsam_symbol(LangsamVM *vm, char *name);
@@ -356,6 +359,7 @@ LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len);
 
 LV langsam_Keyword_cast(LangsamVM *vm, LV other);
 LV langsam_Keyword_invoke(LangsamVM *vm, LV self, LV args);
+LV langsam_Keyword_name(LangsamVM *vm, LV self);
 LV langsam_Keyword_repr(LangsamVM *vm, LV self);
 
 LV langsam_keyword(LangsamVM *vm, char *name);
@@ -363,6 +367,7 @@ LV langsam_keyword(LangsamVM *vm, char *name);
 // Opword
 
 LV langsam_Opword_cast(LangsamVM *vm, LV other);
+LV langsam_Opword_name(LangsamVM *vm, LV self);
 LV langsam_Opword_repr(LangsamVM *vm, LV self);
 
 LV langsam_opword(LangsamVM *vm, char *name);
@@ -486,6 +491,7 @@ LV langsam_Function_cast(LangsamVM *vm, LV other);
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key);
 LV langsam_Function_put(LangsamVM *vm, LV self, LV key, LV value);
 LV langsam_Function_invoke(LangsamVM *vm, LV self, LV args);
+LV langsam_Function_name(LangsamVM *vm, LV self);
 LV langsam_Function_repr(LangsamVM *vm, LV self);
 
 // core functions and helpers

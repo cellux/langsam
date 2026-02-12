@@ -295,6 +295,16 @@ LV langsam_eval(LangsamVM *vm, LV self) {
   return result;
 }
 
+LV langsam_name(LangsamVM *vm, LV self) {
+  LangsamType t = self.type;
+  if (t->name == NULL) {
+    char *self_type_name = langsam_ctypename(vm, self.type);
+    return langsam_exceptionf(vm, "name", "%s does not support name",
+                              self_type_name);
+  }
+  return t->name(vm, self);
+}
+
 LV langsam_repr(LangsamVM *vm, LV self) {
   if (vm->reprdepth == LANGSAM_MAX_REPR_DEPTH) {
     return langsam_exceptionf(vm, "repr", "infinite recursion");
@@ -344,7 +354,7 @@ LV langsam_Type_invoke(LangsamVM *vm, LV self, LV args) {
 
 LV langsam_Type_repr(LangsamVM *vm, LV self) {
   LangsamType t = self.p;
-  return langsam_format(vm, "%s", t->name);
+  return langsam_format(vm, "%s", t->typename);
 }
 
 LV langsam_type(LangsamType t) { return (LV){.type = LT_TYPE, .p = t}; }
@@ -354,7 +364,7 @@ char *langsam_ctypename(LangsamVM *vm, LangsamType t) {
 }
 
 static struct LangsamT LANGSAM_T_TYPE = {
-    .name = "Type",
+    .typename = "Type",
     .gcmanaged = false,
     .hash = langsam_Type_hash,
     .invoke = langsam_Type_invoke,
@@ -378,7 +388,7 @@ LV langsam_Nil_repr(LangsamVM *vm, LV self) {
 }
 
 static struct LangsamT LANGSAM_T_NIL = {
-    .name = "Nil",
+    .typename = "Nil",
     .gcmanaged = false,
     .truthy = langsam_Nil_truthy,
     .hash = langsam_Nil_hash,
@@ -463,7 +473,7 @@ bool langsam_exceptionpk(LangsamVM *vm, LV v, char *kind) {
 }
 
 static struct LangsamT LANGSAM_T_EXCEPTION = {
-    .name = "Exception",
+    .typename = "Exception",
     .gcmanaged = true,
     .gcmark = langsam_Exception_gcmark,
     .hash = langsam_Exception_hash,
@@ -500,7 +510,7 @@ LV langsam_boolean(LangsamBoolean b) {
 }
 
 static struct LangsamT LANGSAM_T_BOOLEAN = {
-    .name = "Boolean",
+    .typename = "Boolean",
     .gcmanaged = false,
     .hash = langsam_Boolean_hash,
     .cast = langsam_Boolean_cast,
@@ -609,7 +619,7 @@ LV langsam_integer(LangsamInteger i) {
 }
 
 static struct LangsamT LANGSAM_T_INTEGER = {
-    .name = "Integer",
+    .typename = "Integer",
     .gcmanaged = false,
     .hash = langsam_Integer_hash,
     .cast = langsam_Integer_cast,
@@ -731,7 +741,7 @@ LV langsam_Float_repr(LangsamVM *vm, LV self) {
 LV langsam_float(LangsamFloat f) { return (LV){.type = LT_FLOAT, .f = f}; }
 
 static struct LangsamT LANGSAM_T_FLOAT = {
-    .name = "Float",
+    .typename = "Float",
     .gcmanaged = false,
     .hash = langsam_Float_hash,
     .cast = langsam_Float_cast,
@@ -1032,7 +1042,7 @@ char *langsam_cstr(LangsamVM *vm, LV v) {
 }
 
 static struct LangsamT LANGSAM_T_STRING = {
-    .name = "String",
+    .typename = "String",
     .gcmanaged = true,
     .gcmark = langsam_String_gcmark,
     .gcfree = langsam_String_gcfree,
@@ -1154,7 +1164,7 @@ LV langsam_stringslice(LangsamVM *vm, LV string, LangsamIndex start,
 }
 
 static struct LangsamT LANGSAM_T_STRINGSLICE = {
-    .name = "StringSlice",
+    .typename = "StringSlice",
     .gcmanaged = true,
     .gcmark = langsam_StringSlice_gcmark,
     .hash = langsam_StringSlice_hash,
@@ -1184,6 +1194,13 @@ LV langsam_Symbol_eval(LangsamVM *vm, LV self) {
   return langsam_get(vm, vm->curlet, self);
 }
 
+LV langsam_Symbol_name(LangsamVM *vm, LV self) {
+  return (LV){
+      .type = LT_STRING,
+      .p = self.p,
+  };
+}
+
 LV langsam_Symbol_repr(LangsamVM *vm, LV self) {
   return (LV){
       .type = LT_STRING,
@@ -1203,11 +1220,12 @@ LV langsam_symboln(LangsamVM *vm, char *name, LangsamSize len) {
 }
 
 static struct LangsamT LANGSAM_T_SYMBOL = {
-    .name = "Symbol",
+    .typename = "Symbol",
     .gcmanaged = false,
     .hash = langsam_String_hash,
     .cast = langsam_Symbol_cast,
     .eval = langsam_Symbol_eval,
+    .name = langsam_Symbol_name,
     .repr = langsam_Symbol_repr,
 };
 
@@ -1242,6 +1260,13 @@ LV langsam_Keyword_repr(LangsamVM *vm, LV self) {
   return langsam_format(vm, ":%s", s->p);
 }
 
+LV langsam_Keyword_name(LangsamVM *vm, LV self) {
+  return (LV){
+      .type = LT_STRING,
+      .p = self.p,
+  };
+}
+
 LV langsam_keyword(LangsamVM *vm, char *name) {
   LV vs = langsam_istring(vm, name);
   vs.type = LT_KEYWORD;
@@ -1249,11 +1274,12 @@ LV langsam_keyword(LangsamVM *vm, char *name) {
 }
 
 static struct LangsamT LANGSAM_T_KEYWORD = {
-    .name = "Keyword",
+    .typename = "Keyword",
     .gcmanaged = false,
     .hash = langsam_String_hash,
     .cast = langsam_Keyword_cast,
     .invoke = langsam_Keyword_invoke,
+    .name = langsam_Keyword_name,
     .repr = langsam_Keyword_repr,
 };
 
@@ -1281,6 +1307,13 @@ LV langsam_Opword_repr(LangsamVM *vm, LV self) {
   return langsam_format(vm, "%%%s", s->p);
 }
 
+LV langsam_Opword_name(LangsamVM *vm, LV self) {
+  return (LV){
+      .type = LT_STRING,
+      .p = self.p,
+  };
+}
+
 LV langsam_opword(LangsamVM *vm, char *name) {
   LV vs = langsam_istring(vm, name);
   vs.type = LT_OPWORD;
@@ -1288,11 +1321,12 @@ LV langsam_opword(LangsamVM *vm, char *name) {
 }
 
 static struct LangsamT LANGSAM_T_OPWORD = {
-    .name = "Opword",
+    .typename = "Opword",
     .gcmanaged = false,
     .hash = langsam_String_hash,
     .cast = langsam_Opword_cast,
     .invoke = langsam_Keyword_invoke,
+    .name = langsam_Opword_name,
     .repr = langsam_Opword_repr,
 };
 
@@ -1508,7 +1542,7 @@ LV langsam_cons(LangsamVM *vm, LV car, LV cdr) {
 bool langsam_consp(LV v) { return v.type == LT_CONS; }
 
 static struct LangsamT LANGSAM_T_CONS = {
-    .name = "Cons",
+    .typename = "Cons",
     .gcmanaged = true,
     .gcmark = langsam_Cons_gcmark,
     .hash = langsam_Cons_hash,
@@ -1553,7 +1587,7 @@ LV langsam_ConsIterator_invoke(LangsamVM *vm, LV self, LV args) {
 }
 
 static struct LangsamT LANGSAM_T_CONSITERATOR = {
-    .name = "ConsIterator",
+    .typename = "ConsIterator",
     .gcmanaged = true,
     .gcmark = langsam_ConsIterator_gcmark,
     .deref = langsam_ConsIterator_deref,
@@ -1813,7 +1847,7 @@ LV langsam_vector(LangsamVM *vm, LangsamSize len) {
 }
 
 static struct LangsamT LANGSAM_T_VECTOR = {
-    .name = "Vector",
+    .typename = "Vector",
     .gcmanaged = true,
     .gcmark = langsam_Vector_gcmark,
     .gcfree = langsam_Vector_gcfree,
@@ -1852,7 +1886,7 @@ LV langsam_VectorIterator_invoke(LangsamVM *vm, LV self, LV args) {
 }
 
 static struct LangsamT LANGSAM_T_VECTORITERATOR = {
-    .name = "VectorIterator",
+    .typename = "VectorIterator",
     .gcmanaged = true,
     .gcmark = langsam_VectorIterator_gcmark,
     .deref = langsam_VectorIterator_deref,
@@ -1979,7 +2013,7 @@ LV langsam_vectorslice(LangsamVM *vm, LV vector, LangsamIndex start, LangsamSize
 }
 
 static struct LangsamT LANGSAM_T_VECTORSLICE = {
-    .name = "VectorSlice",
+    .typename = "VectorSlice",
     .gcmanaged = true,
     .gcmark = langsam_VectorSlice_gcmark,
     .hash = langsam_VectorSlice_hash,
@@ -2020,7 +2054,7 @@ LV langsam_VectorSliceIterator_invoke(LangsamVM *vm, LV self, LV args) {
 }
 
 static struct LangsamT LANGSAM_T_VECTORSLICEITERATOR = {
-    .name = "VectorSliceIterator",
+    .typename = "VectorSliceIterator",
     .gcmanaged = true,
     .gcmark = langsam_VectorSliceIterator_gcmark,
     .deref = langsam_VectorSliceIterator_deref,
@@ -2517,7 +2551,7 @@ LV langsam_map(LangsamVM *vm, LV proto, LangsamSize nitems) {
 }
 
 static struct LangsamT LANGSAM_T_MAP = {
-    .name = "Map",
+    .typename = "Map",
     .gcmanaged = true,
     .gcmark = langsam_Map_gcmark,
     .gcfree = langsam_Map_gcfree,
@@ -2568,7 +2602,7 @@ LV langsam_MapIterator_invoke(LangsamVM *vm, LV self, LV args) {
 }
 
 static struct LangsamT LANGSAM_T_MAPITERATOR = {
-    .name = "MapIterator",
+    .typename = "MapIterator",
     .gcmanaged = true,
     .gcmark = langsam_MapIterator_gcmark,
     .deref = langsam_MapIterator_deref,
@@ -3307,6 +3341,14 @@ LV langsam_Function_invoke(LangsamVM *vm, LV self, LV args) {
   return result;
 }
 
+LV langsam_Function_name(LangsamVM *vm, LV self) {
+  LangsamFunction *f = self.p;
+  if (langsam_nilp(f->name)) {
+    return langsam_nil;
+  }
+  return langsam_name(vm, f->name);
+}
+
 LV langsam_Function_repr(LangsamVM *vm, LV self) {
   LangsamFunction *f = self.p;
   char *type;
@@ -3325,7 +3367,7 @@ LV langsam_Function_repr(LangsamVM *vm, LV self) {
 }
 
 static struct LangsamT LANGSAM_T_FUNCTION = {
-    .name = "Function",
+    .typename = "Function",
     .gcmanaged = true,
     .gcmark = langsam_Function_gcmark,
     .hash = langsam_Function_hash,
@@ -3333,6 +3375,7 @@ static struct LangsamT LANGSAM_T_FUNCTION = {
     .get = langsam_Function_get,
     .put = langsam_Function_put,
     .invoke = langsam_Function_invoke,
+    .name = langsam_Function_name,
     .repr = langsam_Function_repr,
 };
 
@@ -3799,6 +3842,11 @@ static LV eval_eval(LangsamVM *vm, LV args) {
 static LV eval_repr(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return langsam_repr(vm, obj);
+}
+
+static LV eval_name(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  return langsam_name(vm, obj);
 }
 
 static LV eval_str(LangsamVM *vm, LV args) {
@@ -4472,6 +4520,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "iter", eval_iter);
   langsam_defn(vm, env, "deref", eval_deref);
   langsam_defn(vm, env, "eval", eval_eval);
+  langsam_defn(vm, env, "name", eval_name);
   langsam_defn(vm, env, "repr", eval_repr);
   langsam_defn(vm, env, "str", eval_str);
   langsam_defn(vm, env, "format", eval_format);

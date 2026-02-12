@@ -50,7 +50,7 @@ static LV os_File_len(LangsamVM *vm, LV self) {
 }
 
 static struct LangsamT os_File_T = {
-    .name = "File",
+    .typename = "File",
     .gcmanaged = true,
     .hash = os_File_hash,
     .cast = os_File_cast,
