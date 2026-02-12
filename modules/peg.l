@@ -6,15 +6,6 @@
       (put out k v))
     out))
 
-(defn keyword-name
-  "Return keyword text without leading :."
-  [k]
-  (let [s (String k)
-        n (len s)]
-    (if (= n 0)
-      ""
-      (String (slice s 1 n)))))
-
 (defn make-default-aliases
   "Build Janet-like default PEG aliases."
   []
@@ -30,7 +21,7 @@
               :W '(! :w)}
         out (map-copy base)]
     (for [[k _] base]
-      (let [name (keyword-name k)
+      (let [name (name k)
             plus (Keyword (str name "+"))
             star (Keyword (str name "*"))]
         (put out plus (cons 'some (cons k nil)))
@@ -57,9 +48,7 @@
 (defn peg-op-accumulate-alias?
   "Return true when op should behave like accumulate (%)."
   [op]
-  (let [op-text (str op)]
-    (and (> (len op-text) 0)
-         (= (get op-text 0) 37))))
+  (opword? op))
 
 (defn peg-validate-reference
   "Ensure keyword/symbol ref resolves in rules/default aliases."
@@ -1806,35 +1795,34 @@
                          (setq ret (peg-match-set source cur-pos limit charset))
                          (setq mode :return))
                        (raise 'peg "set expects 1 arg, got %s" argc))
-                     (let [op-text (str op)]
-                       (if (and (> (len op-text) 0) (= (get op-text 0) 37))
-                         (if (or (= argc 1) (= argc 2))
-                           (do
-                             (setq stack (cons {:kind :accumulate
-                                                :cap cap-count
-                                                :tag (if (= argc 2) (get argv 1) nil)}
-                                               stack))
-                             (setq cur-pattern (get argv 0)))
-                           (raise 'peg "accumulate expects 1 or 2 args, got %s" argc))
-                         (if (integer? op)
-                           (if (= argc 1)
-                             (let [n op
-                                   child (get argv 0)]
-                               (if (< n 0)
-                                 (raise 'peg "repeat count must be non-negative, got %s" n))
-                               (if (= n 0)
-                                 (do
-                                   (setq ret cur-pos)
-                                   (setq mode :return))
-                                 (do
-                                   (setq stack (cons {:kind :repeat
-                                                      :child child
-                                                      :remaining n
-                                                      :start-cap cap-count}
-                                                     stack))
-                                   (setq cur-pattern child))))
-                             (raise 'peg "numeric repeat expects 1 arg, got %s" argc))
-                           (raise 'peg "unsupported PEG operator: %s" op))))))
+                    (if (peg-op-accumulate-alias? op)
+                        (if (or (= argc 1) (= argc 2))
+                          (do
+                            (setq stack (cons {:kind :accumulate
+                                               :cap cap-count
+                                               :tag (if (= argc 2) (get argv 1) nil)}
+                                              stack))
+                            (setq cur-pattern (get argv 0)))
+                          (raise 'peg "accumulate expects 1 or 2 args, got %s" argc))
+                        (if (integer? op)
+                          (if (= argc 1)
+                            (let [n op
+                                  child (get argv 0)]
+                              (if (< n 0)
+                                (raise 'peg "repeat count must be non-negative, got %s" n))
+                              (if (= n 0)
+                                (do
+                                  (setq ret cur-pos)
+                                  (setq mode :return))
+                                (do
+                                  (setq stack (cons {:kind :repeat
+                                                     :child child
+                                                     :remaining n
+                                                     :start-cap cap-count}
+                                                    stack))
+                                  (setq cur-pattern child))))
+                            (raise 'peg "numeric repeat expects 1 arg, got %s" argc))
+                          (raise 'peg "unsupported PEG operator: %s" op)))))
                  (raise 'peg "unsupported PEG pattern type: %s" (type cur-pattern)))))))
         (if (nil? stack)
           (do
