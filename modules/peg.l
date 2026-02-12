@@ -1,11 +1,3 @@
-(defn map-copy
-  "Return a shallow copy of map m."
-  [m]
-  (let [out (Map (+ (len m) 1))]
-    (for [[k v] m]
-      (put out k v))
-    out))
-
 (defn make-default-aliases
   "Build Janet-like default PEG aliases."
   []
@@ -19,7 +11,7 @@
               :S '(! :s)
               :w '(choice :a :d)
               :W '(! :w)}
-        out (map-copy base)]
+        out (clone base)]
     (for [[k _] base]
       (let [name (name k)
             plus (Keyword (str name "+"))
@@ -392,14 +384,14 @@
   (if (compiled-peg? peg-src)
     peg-src
     (let [grammar (if (map? peg-src) peg-src nil)
-          rules (if grammar (map-copy grammar) {})
+          rules (if grammar (clone grammar) {})
           compiled {:kind :compiled-peg
                     :source peg-src
                     :grammar grammar
                     :root (peg-root peg-src)
                     :nodes {}
                     :rules rules
-                    :defaults (map-copy peg-default-aliases)}]
+                    :defaults (clone peg-default-aliases)}]
       (peg-validate-compiled compiled)
       compiled)))
 

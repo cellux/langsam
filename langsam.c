@@ -94,6 +94,16 @@ LV langsam_cast(LangsamVM *vm, LV type, LV other) {
   return t->cast(vm, other);
 }
 
+LV langsam_clone(LangsamVM *vm, LV self) {
+  LangsamType t = self.type;
+  if (t->clone == NULL) {
+    char *self_type_name = langsam_ctypename(vm, self.type);
+    return langsam_exceptionf(vm, "clone", "%s does not support clone",
+                              self_type_name);
+  }
+  return t->clone(vm, self);
+}
+
 LV langsam_equal(LangsamVM *vm, LV self, LV other) {
   bool eq = LVEQ(self, other);
   if (eq) {
@@ -1761,6 +1771,14 @@ LV langsam_Vector_cast(LangsamVM *vm, LV other) {
   return self;
 }
 
+LV langsam_Vector_clone(LangsamVM *vm, LV self) {
+  LangsamVector *v = self.p;
+  LV result = langsam_vector_uninitialized(vm, v->len);
+  LangsamVector *copy = result.p;
+  memcpy(copy->items, v->items, (size_t)(LANGSAM_SIZEOF(LV) * v->len));
+  return result;
+}
+
 LV langsam_Vector_equal(LangsamVM *vm, LV self, LV other) {
   LangsamVector *v1 = self.p;
   LangsamVector *v2 = other.p;
@@ -1853,6 +1871,7 @@ static struct LangsamT LANGSAM_T_VECTOR = {
     .gcfree = langsam_Vector_gcfree,
     .hash = langsam_Vector_hash,
     .cast = langsam_Vector_cast,
+    .clone = langsam_Vector_clone,
     .equal = langsam_Vector_equal,
     .add = langsam_Vector_add,
     .get = langsam_Vector_get,
@@ -2138,21 +2157,6 @@ LV langsam_Map_cast(LangsamVM *vm, LV other) {
   return self;
 }
 
-static LV langsam_Map_getop(LangsamVM *vm, LV self, char *name) {
-  LV key = langsam_opword(vm, name);
-  LV item = langsam_Map_gep(vm, self, key);
-  LANGSAM_CHECK(item);
-  if (langsam_consp(item)) {
-    return langsam_cdr(item);
-  }
-  return langsam_nil;
-}
-
-static LV langsam_Map_invoke_op(LangsamVM *vm, LV op, LV self, LV args) {
-  args = langsam_cons(vm, langsam_quote(vm, self), args);
-  return langsam_invoke(vm, op, args);
-}
-
 static LV langsam_Map_iter_entries(LangsamVM *vm, LV self) {
   LV items = langsam_Map_items(vm, self);
   if (langsam_nilp(items)) {
@@ -2166,6 +2170,38 @@ static LV langsam_Map_iter_entries(LangsamVM *vm, LV self) {
       .type = LT_MAPITERATOR,
       .p = p,
   };
+}
+
+LV langsam_Map_clone(LangsamVM *vm, LV self) {
+  LangsamMap *m = self.p;
+  LV result = langsam_map(vm, m->proto, m->nitems);
+  LangsamMap *copy = result.p;
+  copy->loadfactor = m->loadfactor;
+  LV it = langsam_Map_iter_entries(vm, self);
+  while (langsam_truthy(vm, it)) {
+    LV item = langsam_deref(vm, it);
+    LV k = langsam_MapIteratorItem_k(item);
+    LV v = langsam_MapIteratorItem_v(item);
+    LV put_result = langsam_put(vm, result, k, v);
+    LANGSAM_CHECK(put_result);
+    it = langsam_next(vm, it);
+  }
+  return result;
+}
+
+static LV langsam_Map_getop(LangsamVM *vm, LV self, char *name) {
+  LV key = langsam_opword(vm, name);
+  LV item = langsam_Map_gep(vm, self, key);
+  LANGSAM_CHECK(item);
+  if (langsam_consp(item)) {
+    return langsam_cdr(item);
+  }
+  return langsam_nil;
+}
+
+static LV langsam_Map_invoke_op(LangsamVM *vm, LV op, LV self, LV args) {
+  args = langsam_cons(vm, langsam_quote(vm, self), args);
+  return langsam_invoke(vm, op, args);
 }
 
 LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
@@ -2196,24 +2232,15 @@ LV langsam_Map_equal(LangsamVM *vm, LV self, LV other) {
 }
 
 LV langsam_Map_add(LangsamVM *vm, LV self, LV other) {
-  LangsamMap *m1 = self.p;
-  LangsamMap *m2 = other.p;
-  LangsamSize nitems = m1->nitems + m2->nitems;
-  LV result = langsam_map(vm, m1->proto, nitems);
-  LV it1 = langsam_Map_iter_entries(vm, self);
-  while (langsam_truthy(vm, it1)) {
-    LV item = langsam_deref(vm, it1);
-    LV k = langsam_MapIteratorItem_k(item);
-    LV v = langsam_MapIteratorItem_v(item);
-    langsam_put(vm, result, k, v);
-    it1 = langsam_next(vm, it1);
-  }
+  LV result = langsam_clone(vm, self);
+  LANGSAM_CHECK(result);
   LV it2 = langsam_Map_iter_entries(vm, other);
   while (langsam_truthy(vm, it2)) {
     LV otheritem = langsam_deref(vm, it2);
     LV k = langsam_MapIteratorItem_k(otheritem);
     LV v = langsam_MapIteratorItem_v(otheritem);
-    langsam_put(vm, result, k, v);
+    LV put_result = langsam_put(vm, result, k, v);
+    LANGSAM_CHECK(put_result);
     it2 = langsam_next(vm, it2);
   }
   return result;
@@ -2557,6 +2584,7 @@ static struct LangsamT LANGSAM_T_MAP = {
     .gcfree = langsam_Map_gcfree,
     .hash = langsam_Map_hash,
     .cast = langsam_Map_cast,
+    .clone = langsam_Map_clone,
     .equal = langsam_Map_equal,
     .add = langsam_Map_add,
     .get = langsam_Map_get,
@@ -3844,6 +3872,11 @@ static LV eval_repr(LangsamVM *vm, LV args) {
   return langsam_repr(vm, obj);
 }
 
+static LV eval_clone(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(obj, args);
+  return langsam_clone(vm, obj);
+}
+
 static LV eval_name(LangsamVM *vm, LV args) {
   LANGSAM_ARG(obj, args);
   return langsam_name(vm, obj);
@@ -4520,6 +4553,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "iter", eval_iter);
   langsam_defn(vm, env, "deref", eval_deref);
   langsam_defn(vm, env, "eval", eval_eval);
+  langsam_defn(vm, env, "clone", eval_clone);
   langsam_defn(vm, env, "name", eval_name);
   langsam_defn(vm, env, "repr", eval_repr);
   langsam_defn(vm, env, "str", eval_str);
