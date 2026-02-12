@@ -5,11 +5,11 @@
               :D '(not :d)
               :a '(range "az" "AZ")
               :A '(not :a)
-              :h '(choice :d (range "af" "AF"))
+              :h '(or :d (range "af" "AF"))
               :H '(not :h)
               :s '(set " \t\r\n\0\v\f")
               :S '(not :s)
-              :w '(choice :a :d)
+              :w '(or :a :d)
               :W '(not :w)}
         out (clone base)]
     (for [[k _] base]
@@ -81,13 +81,13 @@
                argc (len args)
                argv (Vector args)]
            (case op
-             'choice
+             'or
              (for [arg args]
                (setq stack (cons arg stack)))
              '+
              (for [arg args]
                (setq stack (cons arg stack)))
-             'sequence
+             'and
              (for [arg args]
                (setq stack (cons arg stack)))
              '*
@@ -646,9 +646,9 @@
         argc (len args)
         argv (Vector args)]
     (case op
-      'choice (peg-eval-choice compiled source pos limit memo active args)
+      'or (peg-eval-choice compiled source pos limit memo active args)
       '+ (peg-eval-choice compiled source pos limit memo active args)
-      'sequence (peg-eval-sequence compiled source pos limit memo active args)
+      'and (peg-eval-sequence compiled source pos limit memo active args)
       '* (peg-eval-sequence compiled source pos limit memo active args)
       'any (if (= argc 1)
              (peg-eval-any compiled source pos limit memo active (get argv 0))
@@ -1057,7 +1057,7 @@
                        argc (len args)
                        argv (Vector args)]
                    (case op
-                     'choice
+                     'or
                      (if (= argc 0)
                        (do
                          (setq ret nil)
@@ -1083,7 +1083,7 @@
                                             :cap cap-count}
                                            stack))
                          (setq cur-pattern (get argv 0))))
-                     'sequence
+                     'and
                      (if (= argc 0)
                        (do
                          (setq ret cur-pos)
@@ -1317,9 +1317,9 @@
                      (if (= argc 1)
                        (let [target (get argv 0)]
                          (setq cur-pattern
-                               (peg-form2 'sequence
+                               (peg-form2 'and
                                           (peg-form1 'any
-                                                     (peg-form2 'sequence
+                                                     (peg-form2 'and
                                                                 (peg-form1 'not target)
                                                                 true))
                                           (peg-form1 'look target))))
@@ -1328,7 +1328,7 @@
                      (if (= argc 1)
                        (let [target (get argv 0)]
                          (setq cur-pattern
-                               (peg-form2 'sequence
+                               (peg-form2 'and
                                           (peg-form1 'to target)
                                           target)))
                        (raise 'peg "thru expects 1 arg, got %s" argc))
@@ -1350,10 +1350,10 @@
                              child (get argv 1)]
                          (setq cur-pattern
                                (peg-form1 'opt
-                                          (peg-form2 'sequence
+                                          (peg-form2 'and
                                                      child
                                                      (peg-form1 'any
-                                                                (peg-form2 'sequence sep child))))))
+                                                                (peg-form2 'and sep child))))))
                        (raise 'peg "split expects 2 args, got %s" argc))
                      'opt
                      (if (= argc 1)

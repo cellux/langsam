@@ -6,7 +6,7 @@
 
 (assert (throws? '(peg . "unknown PEG reference: :missing")
                  (peg/compile {:main :start
-                               :start '(sequence :missing "a")})))
+                               :start '(and :missing "a")})))
 
 ; compile-time validation: arity checks
 (assert (throws? '(peg . "any expects 1 arg, got 0")
@@ -51,7 +51,7 @@
       pattern 0
       i 0]
   (while (< i depth)
-    (setq pattern (cons 'sequence (cons 0 (cons pattern nil))))
+    (setq pattern (cons 'and (cons 0 (cons pattern nil))))
     (incq i))
   (let [compiled (peg/compile pattern)]
     (assert (= (:kind compiled) :compiled-peg))))

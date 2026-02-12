@@ -10,16 +10,16 @@
   (assert (= (:rules compiled) {}))
   (assert (map? (:defaults compiled)))
   (assert (= (get (:defaults compiled) :d) '(range "09")))
-  (assert (= (get (:defaults compiled) :w) '(choice :a :d)))
+  (assert (= (get (:defaults compiled) :w) '(or :a :d)))
   (assert (= (get (:defaults compiled) :d+) '(some :d)))
   (assert (= (get (:defaults compiled) :d*) '(any :d))))
 
-(let [grammar {:main '(sequence "a" "b")
+(let [grammar {:main '(and "a" "b")
                :ws :s}
       compiled (peg/compile grammar)]
   (assert (= (:source compiled) grammar))
   (assert (= (:grammar compiled) grammar))
-  (assert (= (:root compiled) '(sequence "a" "b")))
+  (assert (= (:root compiled) '(and "a" "b")))
   (assert (= (:rules compiled) grammar)))
 
 (assert (throws? '(peg . "grammar map requires :main rule")
@@ -49,10 +49,14 @@
 (assert (= (peg/match '(range "az") "M") nil))
 
 ; core combinators and aliases
-(assert (= (peg/match '(sequence "ab" "cd") "abcdef") []))
+(assert (= (peg/match '(and "ab" "cd") "abcdef") []))
 (assert (= (peg/match '(* "ab" "cd") "abcdef") []))
-(assert (= (peg/match '(choice "ab" "cd") "cdef") []))
+(assert (= (peg/match '(or "ab" "cd") "cdef") []))
 (assert (= (peg/match '(+ "ab" "cd") "abef") []))
+(assert (throws? '(peg . "unsupported PEG operator: sequence")
+                 (peg/match '(sequence "ab" "cd") "abcdef")))
+(assert (throws? '(peg . "unsupported PEG operator: choice")
+                 (peg/match '(choice "ab" "cd") "cdef")))
 
 (assert (= (peg/match '(any "ab") "ababx") []))
 (assert (= (peg/match '(some "ab") "ababx") []))
@@ -92,21 +96,21 @@
 
 ; grammar refs and recursion
 (assert (= (peg/match {:main :ab
-                       :ab '(sequence "a" "b")}
+                       :ab '(and "a" "b")}
                       "ab")
            []))
 (assert (= (peg/match {:main 'ab
-                       'ab '(sequence "a" "b")}
+                       'ab '(and "a" "b")}
                       "ab")
            []))
 
 ; recursive grammars should evaluate without hitting evaluator recursion depth
 (assert (= (peg/match {:main :s
-                       :s '(choice (sequence "(" :s ")" :s) "")}
+                       :s '(or (and "(" :s ")" :s) "")}
                       "(()())")
            []))
 (assert (= (peg/match {:main :expr
-                       :expr '(choice (sequence :expr "a") "")}
+                       :expr '(or (and :expr "a") "")}
                       "aaaa")
            []))
 
@@ -114,27 +118,27 @@
 (assert (= (peg/match '(capture "ab") "abz") ["ab"]))
 (assert (= (peg/match '(<- "ab") "abz") ["ab"]))
 (assert (= (peg/match '(quote "ab") "abz") ["ab"]))
-(assert (= (peg/match '(group (sequence (capture "a") (capture "b"))) "ab")
+(assert (= (peg/match '(group (and (capture "a") (capture "b"))) "ab")
            [["a" "b"]]))
-(assert (= (peg/match '(choice (sequence (capture "a") "x")
-                               (sequence (capture "a") "b"))
+(assert (= (peg/match '(or (and (capture "a") "x")
+                               (and (capture "a") "b"))
                       "ab")
            ["a"]))
-(assert (= (peg/match '(sequence (position) "x") "x\ny") [0]))
-(assert (= (peg/match '(sequence (line) (column) "x") "x\ny") [1 1]))
-(assert (= (peg/match '(sequence (line) (column) "y") "x\ny" 2) [2 1]))
-(assert (= (peg/match '(sequence (line :loc) (column :loc) "y") "x\ny" 2) [2 1]))
-(assert (= (peg/match '(sequence (capture "ab" :x) (backref :x)) "ab") ["ab" "ab"]))
-(assert (= (peg/match '(sequence (capture "ab" :x) (-> :x :y)) "ab") ["ab" "ab"]))
-(assert (= (peg/match '(sequence (capture "ab" :x) (backmatch :x)) "abab") ["ab"]))
-(assert (= (peg/match '(sequence (capture "ab") (backmatch)) "abab") ["ab"]))
+(assert (= (peg/match '(and (position) "x") "x\ny") [0]))
+(assert (= (peg/match '(and (line) (column) "x") "x\ny") [1 1]))
+(assert (= (peg/match '(and (line) (column) "y") "x\ny" 2) [2 1]))
+(assert (= (peg/match '(and (line :loc) (column :loc) "y") "x\ny" 2) [2 1]))
+(assert (= (peg/match '(and (capture "ab" :x) (backref :x)) "ab") ["ab" "ab"]))
+(assert (= (peg/match '(and (capture "ab" :x) (-> :x :y)) "ab") ["ab" "ab"]))
+(assert (= (peg/match '(and (capture "ab" :x) (backmatch :x)) "abab") ["ab"]))
+(assert (= (peg/match '(and (capture "ab") (backmatch)) "abab") ["ab"]))
 (assert (= (peg/match '(drop (capture "ab")) "ab") []))
-(assert (= (peg/match '(sequence (capture "ab" :x)
+(assert (= (peg/match '(and (capture "ab" :x)
                                 (unref (capture "cd" :x) :x)
                                 (backref :x))
                       "abcd")
            ["ab" "cd" "ab"]))
-(assert (= (peg/match '(sequence (capture "ab" :x)
+(assert (= (peg/match '(and (capture "ab" :x)
                                 (drop (capture "cd" :x))
                                 (backref :x))
                       "abcd")
@@ -188,7 +192,7 @@
   (assert (= (peg/find 0 s 2) []))
   (assert (= (s.read) "c")))
 
-(assert (= (peg/find '(sequence "xx" (capture "ab")) "xxabzz") ["ab"]))
+(assert (= (peg/find '(and "xx" (capture "ab")) "xxabzz") ["ab"]))
 
 ; find semantics (consumes scanned input, file stream)
 (let [path "/tmp/langsam-peg-find-filestream.txt"]
@@ -265,36 +269,36 @@
   (os/unlink path))
 
 ; additional combinators
-(assert (= (peg/match '(sequence (to "ab") "ab") "xxabyy") []))
+(assert (= (peg/match '(and (to "ab") "ab") "xxabyy") []))
 (assert (= (peg/match '(to "ab") "xxxx") nil))
 (assert (= (peg/match '(thru "ab") "xxabyy") []))
-(assert (= (peg/match '(sub "abcd" (sequence "ab" "c")) "abcde") []))
+(assert (= (peg/match '(sub "abcd" (and "ab" "c")) "abcde") []))
 (assert (= (peg/match '(sub "ab" "abc") "abc") nil))
 (assert (= (peg/match '(split "," "ab") "ab,ab,ab!") []))
 (assert (= (peg/match '(split "," "ab") "zzz") []))
 (assert (= (peg/match '(split "," (capture "ab")) "ab,ab") ["ab" "ab"]))
 
 ; additional capture operators
-(assert (= (peg/match '(replace (sequence (capture "a") (capture "b")) "X") "ab") ["X"]))
+(assert (= (peg/match '(replace (and (capture "a") (capture "b")) "X") "ab") ["X"]))
 (assert (= (peg/match '(/ (capture "ab") "X") "ab") ["X"]))
-(assert (= (peg/match '(replace (choice (capture "a") (capture "b")) {"a" 1 "b" 2}) "b") [2]))
+(assert (= (peg/match '(replace (or (capture "a") (capture "b")) {"a" 1 "b" 2}) "b") [2]))
 (let [f (fn [x y] (+ x y))]
-  (assert (= (peg/match `(replace (sequence (capture "a") (capture "b")) ,f) "ab") ["ab"])))
+  (assert (= (peg/match `(replace (and (capture "a") (capture "b")) ,f) "ab") ["ab"])))
 
-(assert (= (peg/match '(sequence (constant 42) "a") "a") [42]))
-(assert (= (peg/match '(sequence (constant "x" :k) (backref :k)) "") ["x" "x"]))
-(assert (= (peg/match '(sequence (argument 0) "a") "a" 0 99) [99]))
+(assert (= (peg/match '(and (constant 42) "a") "a") [42]))
+(assert (= (peg/match '(and (constant "x" :k) (backref :k)) "") ["x" "x"]))
+(assert (= (peg/match '(and (argument 0) "a") "a" 0 99) [99]))
 (assert (= (peg/match '(argument 3) "" 0 :x) [nil]))
 
-(assert (= (peg/match '(accumulate (sequence (capture "a") (capture "b"))) "ab") [["a" "b"]]))
-(assert (= (peg/match '(% (sequence (capture "a") (capture "b"))) "ab") [["a" "b"]]))
+(assert (= (peg/match '(accumulate (and (capture "a") (capture "b"))) "ab") [["a" "b"]]))
+(assert (= (peg/match '(% (and (capture "a") (capture "b"))) "ab") [["a" "b"]]))
 (let [f (fn [x y] (+ x y))]
-  (assert (= (peg/match `(cmt (sequence (capture "a") (capture "b")) ,f) "ab") ["ab"])))
-(assert (= (peg/match '(only-tags (sequence (capture "a") (capture "b" :x) (capture "c"))) "abc")
+  (assert (= (peg/match `(cmt (and (capture "a") (capture "b")) ,f) "ab") ["ab"])))
+(assert (= (peg/match '(only-tags (and (capture "a") (capture "b" :x) (capture "c"))) "abc")
            ["b"]))
-(assert (= (peg/match '(nth 1 (sequence (capture "a") (capture "b") (capture "c"))) "abc")
+(assert (= (peg/match '(nth 1 (and (capture "a") (capture "b") (capture "c"))) "abc")
            ["b"]))
-(assert (= (peg/match '(nth -1 (sequence (capture "a") (capture "b"))) "ab")
+(assert (= (peg/match '(nth -1 (and (capture "a") (capture "b"))) "ab")
            ["b"]))
 
 (assert (= (peg/match '(uint 2) "\x34\x12") [0x1234]))
@@ -303,7 +307,7 @@
 (assert (= (peg/match '(int-be 2) "\xFF\xFE") [-2]))
 
 (let [s (stream "\x03abcZ")]
-  (assert (= (peg/match '(lenprefix 1 (sequence "ab")) s) []))
+  (assert (= (peg/match '(lenprefix 1 (and "ab")) s) []))
   (assert (= (s.read) "cZ")))
 (assert (= (peg/match '(lenprefix 1 "a") "\x05ab") nil))
 
@@ -316,5 +320,5 @@
 (assert (throws? '(peg . "parse error at line 1 column 1: boom")
                  (peg/match '(error (capture "boom")) "boom")))
 
-(assert (= (peg/match '(sequence (capture "ab") (capture "cd" :x) (backmatch)) "abcdab")
+(assert (= (peg/match '(and (capture "ab") (capture "cd" :x) (backmatch)) "abcdab")
            ["ab" "cd"]))
