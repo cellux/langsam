@@ -2896,6 +2896,8 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV opt_symbol = langsam_symbol(vm, "&opt");
   LV amp_symbol = langsam_symbol(vm, "&");
   LangsamBindVectorState bs = LANGSAM_BIND_POS;
+  bool opt_param_bound = false;
+  bool rest_bound = false;
   LV rest = langsam_nil;
   while (langsam_truthy(vm, it_lhs)) {
     LV pat = langsam_deref(vm, it_lhs);
@@ -2919,8 +2921,13 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       break;
     case LANGSAM_BIND_OPT:
       if (LVEQ(pat, amp_symbol)) {
+        if (!opt_param_bound) {
+          return langsam_exceptionf(
+              vm, "syntax", "&opt must be followed by at least one parameter");
+        }
         bs = LANGSAM_BIND_REST;
       } else {
+        opt_param_bound = true;
         LV bind_pat, val;
         LV symsetp = langsam_nil;
         if (pat.type == LT_SYMBOL) {
@@ -2939,6 +2946,12 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
                 return langsam_exceptionf(vm, "syntax",
                                           "symsetp should be Symbol, got %s",
                                           langsam_ctypename(vm, symsetp.type));
+              }
+              if (langsam_somep(langsam_cdr(tail))) {
+                return langsam_exceptionf(
+                    vm, "syntax",
+                    "&opt parameter with default value should look like (pattern default) or (pattern default symsetp), got %s",
+                    langsam_cstr(vm, pat));
               }
             }
           } else {
@@ -2971,16 +2984,25 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
       }
       break;
     case LANGSAM_BIND_REST:
-      if (langsam_somep(rest)) {
+      if (rest_bound) {
         return langsam_exceptionf(vm, "syntax",
                                   "& must be followed by a single form");
       }
+      rest_bound = true;
       rest = collect_rest(vm, it_rhs);
       LV result = langsam_bind(vm, env, pat, rest);
       LANGSAM_CHECK(result);
       break;
     }
     it_lhs = langsam_next(vm, it_lhs);
+  }
+  if (bs == LANGSAM_BIND_OPT && !opt_param_bound) {
+    return langsam_exceptionf(vm, "syntax",
+                              "&opt must be followed by at least one parameter");
+  }
+  if (bs == LANGSAM_BIND_REST && !rest_bound) {
+    return langsam_exceptionf(vm, "syntax",
+                              "& must be followed by a single form");
   }
   return env;
 }
@@ -3151,6 +3173,10 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
         return langsam_exceptionf(vm, "syntax", "unquote needs argument");
       }
       LV form = langsam_car(tail);
+      if (langsam_somep(langsam_cdr(tail))) {
+        return langsam_exceptionf(vm, "syntax",
+                                  "unquote expects a single argument");
+      }
       return langsam_eval(vm, form);
     } else if (LVEQ(head, unquote_splicing)) {
       LV tail = langsam_cdr(obj);
@@ -3159,6 +3185,10 @@ LV langsam_quasiquote(LangsamVM *vm, LV obj) {
                                   "unquote-splicing needs argument");
       }
       LV form = langsam_car(tail);
+      if (langsam_somep(langsam_cdr(tail))) {
+        return langsam_exceptionf(
+            vm, "syntax", "unquote-splicing expects a single argument");
+      }
       LV evaluated_form = langsam_eval(vm, form);
       LANGSAM_CHECK(evaluated_form);
       LV it = langsam_iter(vm, evaluated_form);

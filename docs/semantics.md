@@ -28,6 +28,8 @@ Stdlib wrappers:
 - truthy forms: `when-let`, `while-let`, `cond-let`
 - match forms: `when-match`, `while-match`, `cond-match`
 
+For full binding and destructuring semantics, see `docs/bind.md`.
+
 ## Stdlib Helper Naming
 
 - Core stdlib helper functions prefixed with `-` are private implementation details.
@@ -70,6 +72,10 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 
 - `((cons foo 'bar) x y)` behaves like:
   `(let [obj foo] ((get obj 'bar) obj x y))`
+
+## Quote and Quasiquote
+
+- For quote/quasiquote reader sugar and runtime semantics, see `docs/quote.md`.
 
 ## Missing vs `nil`
 

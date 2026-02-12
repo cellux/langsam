@@ -26,3 +26,9 @@
 
 (assert (throws? '(syntax . "unquote-splicing needs argument")
                  (quasiquote (unquote-splicing))))
+
+(assert (throws? '(syntax . "unquote expects a single argument")
+                 (quasiquote (unquote 1 2))))
+
+(assert (throws? '(syntax . "unquote-splicing expects a single argument")
+                 (quasiquote (unquote-splicing [1 2] [3 4]))))
