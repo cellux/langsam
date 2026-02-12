@@ -394,7 +394,7 @@ LangsamHash langsam_Nil_hash(LangsamVM *vm, LV self, LangsamHash hash) {
 LV langsam_Nil_len(LangsamVM *vm, LV self) { return langsam_integer(0); }
 
 LV langsam_Nil_repr(LangsamVM *vm, LV self) {
-  return langsam_symbol(vm, "nil");
+  return vm->sym.nil;
 }
 
 static struct LangsamT LANGSAM_T_NIL = {
@@ -2675,8 +2675,7 @@ static LV langsam_isap(LangsamVM *vm, LV child, LV target) {
 }
 
 static LV bind_check_isa(LangsamVM *vm, LV value, LV target) {
-  LV isa_symbol = langsam_symbol(vm, "isa?");
-  LV isa_fn = langsam_get(vm, vm->rootlet, isa_symbol);
+  LV isa_fn = langsam_get(vm, vm->rootlet, vm->sym.isap);
   LANGSAM_CHECK(isa_fn);
   if (isa_fn.type != LT_FUNCTION) {
     return langsam_exceptionf(vm, "syntax", "isa? should be Function, got %s",
@@ -2715,7 +2714,7 @@ static LV bind_quasiquoted_seq(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LANGSAM_CHECK(it_lhs);
   LV it_rhs = langsam_iter(vm, rhs);
   LANGSAM_CHECK(it_rhs);
-  LV unquote_splicing_symbol = langsam_symbol(vm, "unquote-splicing");
+  LV unquote_splicing_symbol = vm->sym.unquote_splicing;
   while (langsam_truthy(vm, it_lhs)) {
     LV item = langsam_deref(vm, it_lhs);
     if (langsam_consp(item) &&
@@ -2748,7 +2747,7 @@ static LV bind_quasiquoted_seq(LangsamVM *vm, LV env, LV lhs, LV rhs) {
 static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   if (lhs.type == LT_CONS) {
     LV head = langsam_car(lhs);
-    LV unquote_symbol = langsam_symbol(vm, "unquote");
+    LV unquote_symbol = vm->sym.unquote;
     if (LVEQ(head, unquote_symbol)) {
       LV tail = langsam_cdr(lhs);
       if (!langsam_consp(tail)) {
@@ -2777,7 +2776,7 @@ static LV bind_quasiquoted(LangsamVM *vm, LV env, LV lhs, LV rhs) {
 
 static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   LV head = langsam_car(lhs);
-  LV quote_symbol = langsam_symbol(vm, "quote");
+  LV quote_symbol = vm->sym.quote;
   if (LVEQ(head, quote_symbol)) {
     LV tail = langsam_cdr(lhs);
     if (!langsam_consp(tail)) {
@@ -2786,7 +2785,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return bind_quoted(vm, env, langsam_car(tail), rhs);
   }
-  LV quasiquote_symbol = langsam_symbol(vm, "quasiquote");
+  LV quasiquote_symbol = vm->sym.quasiquote;
   if (LVEQ(head, quasiquote_symbol)) {
     LV tail = langsam_cdr(lhs);
     if (!langsam_consp(tail)) {
@@ -2795,7 +2794,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return bind_quasiquoted(vm, env, langsam_car(tail), rhs);
   }
-  LV cons_symbol = langsam_symbol(vm, "cons");
+  LV cons_symbol = vm->sym.cons;
   if (LVEQ(head, cons_symbol)) {
     if (rhs.type != LT_CONS) {
       return langsam_exceptionf(vm, "bind", "attempt to bind value of %s to %s",
@@ -2826,7 +2825,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return env;
   }
-  LV and_symbol = langsam_symbol(vm, "and");
+  LV and_symbol = vm->sym.and_;
   if (LVEQ(head, and_symbol)) {
     LV pats = langsam_cdr(lhs);
     while (langsam_consp(pats)) {
@@ -2839,7 +2838,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return env;
   }
-  LV or_symbol = langsam_symbol(vm, "or");
+  LV or_symbol = vm->sym.or_;
   if (LVEQ(head, or_symbol)) {
     LV pats = langsam_cdr(lhs);
     while (langsam_consp(pats)) {
@@ -2852,7 +2851,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return bind_pattern_failed(vm, lhs, rhs);
   }
-  LV pred_symbol = langsam_symbol(vm, "pred");
+  LV pred_symbol = vm->sym.pred;
   if (LVEQ(head, pred_symbol)) {
     LV tail = langsam_cdr(lhs);
     LANGSAM_ARG(pred, tail);
@@ -2868,7 +2867,7 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     }
     return env;
   }
-  LV guard_symbol = langsam_symbol(vm, "guard");
+  LV guard_symbol = vm->sym.guard;
   if (LVEQ(head, guard_symbol)) {
     LV tail = langsam_cdr(lhs);
     LANGSAM_ARG(expr, tail);
@@ -2920,8 +2919,8 @@ static LV bind_vector(LangsamVM *vm, LV env, LV lhs, LV rhs) {
         langsam_ctypename(vm, rhs.type), langsam_ctypename(vm, lhs.type));
   }
   LANGSAM_CHECK(it_rhs);
-  LV opt_symbol = langsam_symbol(vm, "&opt");
-  LV amp_symbol = langsam_symbol(vm, "&");
+  LV opt_symbol = vm->sym.opt;
+  LV amp_symbol = vm->sym.amp;
   LangsamBindVectorState bs = LANGSAM_BIND_POS;
   bool opt_param_bound = false;
   bool rest_bound = false;
@@ -3042,7 +3041,7 @@ static LV bind_map(LangsamVM *vm, LV env, LV lhs, LV rhs) {
     LV pat = langsam_MapIteratorItem_k(item);
     LV key = langsam_MapIteratorItem_v(item);
     if (pat.type == LT_KEYWORD) {
-      LV keys = langsam_keyword(vm, "keys");
+      LV keys = vm->kw.keys;
       if (LVEQ(pat, keys)) {
         LV it_key = langsam_iter(vm, key);
         LANGSAM_CHECK(it_key);
@@ -3129,7 +3128,7 @@ LV langsam_bind(LangsamVM *vm, LV env, LV lhs, LV rhs) {
 }
 
 LV langsam_quote(LangsamVM *vm, LV obj) {
-  LV quote = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "quote"));
+  LV quote = langsam_get(vm, vm->rootlet, vm->sym.quote);
   LV result = langsam_nil;
   result = langsam_cons(vm, obj, result);
   result = langsam_cons(vm, quote, result);
@@ -3281,7 +3280,7 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
   }
   LangsamFunction *f =
       langsam_gcalloc(vm, LT_FUNCTION, LANGSAM_SIZEOF(LangsamFunction));
-  f->name = langsam_get(vm, other, langsam_keyword(vm, "name"));
+  f->name = langsam_get(vm, other, vm->kw.name);
   if (langsam_somep(f->name)) {
     if (f->name.type != LT_SYMBOL) {
       return langsam_exceptionf(
@@ -3289,25 +3288,24 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
           langsam_ctypename(vm, f->name.type), langsam_cstr(vm, f->name));
     }
   }
-  f->params = langsam_get(vm, other, langsam_keyword(vm, "params"));
+  f->params = langsam_get(vm, other, vm->kw.params);
   if (f->params.type != LT_VECTOR && f->params.type != LT_NIL) {
     return langsam_exceptionf(
         vm, "syntax", "Function parameters should be Vector or Nil, got %s",
         langsam_ctypename(vm, f->params.type));
   }
-  f->doc = langsam_get(vm, other, langsam_keyword(vm, "doc"));
+  f->doc = langsam_get(vm, other, vm->kw.doc);
   f->funclet = vm->curlet;
-  f->body = langsam_get(vm, other, langsam_keyword(vm, "body"));
+  f->body = langsam_get(vm, other, vm->kw.body);
   if (f->body.type != LT_CONS && f->body.type != LT_NIL) {
     return langsam_exceptionf(vm, "syntax",
                               "Function body should be Cons or Nil, got %s",
                               langsam_ctypename(vm, f->body.type));
   }
   f->fn = NULL;
-  f->evalargs = langsam_truthy(
-      vm, langsam_get(vm, other, langsam_keyword(vm, "evalargs")));
-  f->evalresult = langsam_truthy(
-      vm, langsam_get(vm, other, langsam_keyword(vm, "evalresult")));
+  f->evalargs = langsam_truthy(vm, langsam_get(vm, other, vm->kw.evalargs));
+  f->evalresult =
+      langsam_truthy(vm, langsam_get(vm, other, vm->kw.evalresult));
   return (LV){
       .type = LT_FUNCTION,
       .p = f,
@@ -3316,31 +3314,31 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
 
 LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   LangsamFunction *f = self.p;
-  LV name_key = langsam_keyword(vm, "name");
+  LV name_key = vm->kw.name;
   if (LVEQ(key, name_key)) {
     return f->name;
   }
-  LV params_key = langsam_keyword(vm, "params");
+  LV params_key = vm->kw.params;
   if (LVEQ(key, params_key)) {
     return f->params;
   }
-  LV doc_key = langsam_keyword(vm, "doc");
+  LV doc_key = vm->kw.doc;
   if (LVEQ(key, doc_key)) {
     return f->doc;
   }
-  LV funclet_key = langsam_keyword(vm, "funclet");
+  LV funclet_key = vm->kw.funclet;
   if (LVEQ(key, funclet_key)) {
     return f->funclet;
   }
-  LV body_key = langsam_keyword(vm, "body");
+  LV body_key = vm->kw.body;
   if (LVEQ(key, body_key)) {
     return f->body;
   }
-  LV evalargs_key = langsam_keyword(vm, "evalargs");
+  LV evalargs_key = vm->kw.evalargs;
   if (LVEQ(key, evalargs_key)) {
     return langsam_boolean(f->evalargs);
   }
-  LV evalresult_key = langsam_keyword(vm, "evalresult");
+  LV evalresult_key = vm->kw.evalresult;
   if (LVEQ(key, evalresult_key)) {
     return langsam_boolean(f->evalresult);
   }
@@ -3349,31 +3347,31 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
 
 LV langsam_Function_put(LangsamVM *vm, LV self, LV key, LV value) {
   LangsamFunction *f = self.p;
-  LV name_key = langsam_keyword(vm, "name");
+  LV name_key = vm->kw.name;
   if (LVEQ(key, name_key)) {
     f->name = value;
   }
-  LV params_key = langsam_keyword(vm, "params");
+  LV params_key = vm->kw.params;
   if (LVEQ(key, params_key)) {
     f->params = value;
   }
-  LV doc_key = langsam_keyword(vm, "doc");
+  LV doc_key = vm->kw.doc;
   if (LVEQ(key, doc_key)) {
     f->doc = value;
   }
-  LV funclet_key = langsam_keyword(vm, "funclet");
+  LV funclet_key = vm->kw.funclet;
   if (LVEQ(key, funclet_key)) {
     f->funclet = value;
   }
-  LV body_key = langsam_keyword(vm, "body");
+  LV body_key = vm->kw.body;
   if (LVEQ(key, body_key)) {
     f->body = value;
   }
-  LV evalargs_key = langsam_keyword(vm, "evalargs");
+  LV evalargs_key = vm->kw.evalargs;
   if (LVEQ(key, evalargs_key)) {
     f->evalargs = langsam_truep(value);
   }
-  LV evalresult_key = langsam_keyword(vm, "evalresult");
+  LV evalresult_key = vm->kw.evalresult;
   if (LVEQ(key, evalresult_key)) {
     f->evalresult = langsam_truep(value);
   }
@@ -3593,10 +3591,8 @@ LV langsam_gc(LangsamVM *vm) {
   }
   vm->gcmarkcolor = langsam_gcaltcolor(vm);
   LV result = langsam_map(vm, langsam_nil, 2);
-  langsam_put(vm, result, langsam_keyword(vm, "marked"),
-              langsam_integer(mark_total));
-  langsam_put(vm, result, langsam_keyword(vm, "swept"),
-              langsam_integer(free_total));
+  langsam_put(vm, result, vm->kw.marked, langsam_integer(mark_total));
+  langsam_put(vm, result, vm->kw.swept, langsam_integer(free_total));
   return result;
 }
 
@@ -4169,21 +4165,19 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
   }
   LV body = tail;
   LV desc = langsam_map(vm, langsam_nil, 6);
-  langsam_put(vm, desc, langsam_keyword(vm, "name"), name);
-  langsam_put(vm, desc, langsam_keyword(vm, "params"), params);
-  langsam_put(vm, desc, langsam_keyword(vm, "doc"), doc);
-  langsam_put(vm, desc, langsam_keyword(vm, "body"), body);
-  langsam_put(vm, desc, langsam_keyword(vm, "evalargs"),
-              langsam_boolean(evalargs));
-  langsam_put(vm, desc, langsam_keyword(vm, "evalresult"),
-              langsam_boolean(evalresult));
+  langsam_put(vm, desc, vm->kw.name, name);
+  langsam_put(vm, desc, vm->kw.params, params);
+  langsam_put(vm, desc, vm->kw.doc, doc);
+  langsam_put(vm, desc, vm->kw.body, body);
+  langsam_put(vm, desc, vm->kw.evalargs, langsam_boolean(evalargs));
+  langsam_put(vm, desc, vm->kw.evalresult, langsam_boolean(evalresult));
   return langsam_Function_cast(vm, desc);
 }
 
 static LV eval_defn(LangsamVM *vm, LV args) {
   LV function = make_function(vm, args, true, false);
   LANGSAM_CHECK(function);
-  LV name = langsam_get(vm, function, langsam_keyword(vm, "name"));
+  LV name = langsam_get(vm, function, vm->kw.name);
   if (langsam_nilp(name)) {
     return langsam_exceptionf(vm, "syntax", "missing function name");
   }
@@ -4198,7 +4192,7 @@ static LV eval_fn(LangsamVM *vm, LV args) {
 static LV eval_defmacro(LangsamVM *vm, LV args) {
   LV macro = make_function(vm, args, false, true);
   LANGSAM_CHECK(macro);
-  LV name = langsam_get(vm, macro, langsam_keyword(vm, "name"));
+  LV name = langsam_get(vm, macro, vm->kw.name);
   if (langsam_nilp(name)) {
     return langsam_exceptionf(vm, "syntax", "missing macro name");
   }
@@ -4410,7 +4404,7 @@ static LV eval_assert(LangsamVM *vm, LV args) {
   if (!langsam_truthy(vm, result)) {
     if (langsam_consp(expr)) {
       LV head = langsam_car(expr);
-      LV symeq = langsam_symbol(vm, "=");
+      LV symeq = vm->sym.eq;
       if (LVEQ(head, symeq)) {
         LV tail = langsam_cdr(expr);
         LANGSAM_ARG(actual_form, tail);
@@ -4717,11 +4711,9 @@ static LV make_nativefn(LangsamVM *vm, char *name, LangsamNativeFn fn,
                         bool evalargs, bool evalresult) {
   LV namesym = langsam_symbol(vm, name);
   LV desc = langsam_map(vm, langsam_nil, 4);
-  langsam_put(vm, desc, langsam_keyword(vm, "name"), namesym);
-  langsam_put(vm, desc, langsam_keyword(vm, "evalargs"),
-              langsam_boolean(evalargs));
-  langsam_put(vm, desc, langsam_keyword(vm, "evalresult"),
-              langsam_boolean(evalresult));
+  langsam_put(vm, desc, vm->kw.name, namesym);
+  langsam_put(vm, desc, vm->kw.evalargs, langsam_boolean(evalargs));
+  langsam_put(vm, desc, vm->kw.evalresult, langsam_boolean(evalresult));
   LV function = langsam_Function_cast(vm, desc);
   LangsamFunction *f = function.p;
   f->fn = fn;
@@ -4768,6 +4760,44 @@ void langsam_log(LangsamVM *vm, LangsamLogLevel level, const char *fmt, ...) {
 
 void langsam_module_os_load(LangsamVM *vm, LV env);
 
+static void langsam_init_core_symbols(LangsamVM *vm) {
+  vm->sym.nil = langsam_symbol(vm, "nil");
+  vm->sym.quote = langsam_symbol(vm, "quote");
+  vm->sym.quasiquote = langsam_symbol(vm, "quasiquote");
+  vm->sym.unquote = langsam_symbol(vm, "unquote");
+  vm->sym.unquote_splicing = langsam_symbol(vm, "unquote-splicing");
+  vm->sym.cons = langsam_symbol(vm, "cons");
+  vm->sym.and_ = langsam_symbol(vm, "and");
+  vm->sym.or_ = langsam_symbol(vm, "or");
+  vm->sym.pred = langsam_symbol(vm, "pred");
+  vm->sym.guard = langsam_symbol(vm, "guard");
+  vm->sym.amp = langsam_symbol(vm, "&");
+  vm->sym.opt = langsam_symbol(vm, "&opt");
+  vm->sym.isap = langsam_symbol(vm, "isa?");
+  vm->sym.dot = langsam_symbol(vm, ".");
+  vm->sym.deref = langsam_symbol(vm, "deref");
+  vm->sym.modules = langsam_symbol(vm, "modules");
+  vm->sym.loaders = langsam_symbol(vm, "loaders");
+  vm->sym.eq = langsam_symbol(vm, "=");
+}
+
+static void langsam_init_core_keywords(LangsamVM *vm) {
+  vm->kw.keys = langsam_keyword(vm, "keys");
+  vm->kw.name = langsam_keyword(vm, "name");
+  vm->kw.params = langsam_keyword(vm, "params");
+  vm->kw.doc = langsam_keyword(vm, "doc");
+  vm->kw.body = langsam_keyword(vm, "body");
+  vm->kw.evalargs = langsam_keyword(vm, "evalargs");
+  vm->kw.evalresult = langsam_keyword(vm, "evalresult");
+  vm->kw.funclet = langsam_keyword(vm, "funclet");
+  vm->kw.marked = langsam_keyword(vm, "marked");
+  vm->kw.swept = langsam_keyword(vm, "swept");
+}
+
+static void langsam_init_core_opwords(LangsamVM *vm) {
+  vm->op.splice = langsam_opword(vm, "splice");
+}
+
 LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->allocator = &langsam_default_allocator;
   if (opts) {
@@ -4782,6 +4812,9 @@ LV langsam_init(LangsamVM *vm, LangsamVMOpts *opts) {
   vm->lets = langsam_alloc(vm, LANGSAM_MAX_LETS * sizeof(LV));
   vm->numlets = 0;
   vm->strings = langsam_map(vm, langsam_nil, 4096);
+  langsam_init_core_symbols(vm);
+  langsam_init_core_keywords(vm);
+  langsam_init_core_opwords(vm);
   vm->rootlet = langsam_map(vm, langsam_nil, 4096);
   langsam_pushlet(vm, vm->rootlet);
   LV modules = langsam_map(vm, langsam_nil, 64);
@@ -5021,8 +5054,7 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
     LV rhs = StringBuilder_result_as_symbol(&rhs_sb);
     LV quoted_rhs = langsam_nil;
     quoted_rhs = langsam_cons(r->vm, rhs, quoted_rhs);
-    quoted_rhs =
-        langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), quoted_rhs);
+    quoted_rhs = langsam_cons(r->vm, r->vm->sym.quote, quoted_rhs);
     LV result = langsam_nil;
     if (seen_sep == '/') {
       // foo/bar => (foo 'bar)
@@ -5032,7 +5064,7 @@ static LV Reader_read_symbol(Reader *r, uint8_t first) {
       // foo.bar => (cons foo 'bar)
       result = langsam_cons(r->vm, quoted_rhs, result);
       result = langsam_cons(r->vm, lhs, result);
-      result = langsam_cons(r->vm, langsam_symbol(r->vm, "cons"), result);
+      result = langsam_cons(r->vm, r->vm->sym.cons, result);
     }
     return result;
   } else {
@@ -5275,7 +5307,7 @@ static LV Reader_read_cons(Reader *r) {
     if (c == ')') {
       if (len >= 3) {
         LV second = langsam_car(langsam_cdr(value));
-        LV dot_symbol = langsam_symbol(r->vm, ".");
+        LV dot_symbol = r->vm->sym.dot;
         if (LVEQ(second, dot_symbol)) {
           LV head = langsam_car(value);
           LV tail = langsam_cdr(langsam_cdr(value));
@@ -5413,21 +5445,21 @@ static LV Reader_read(Reader *r) {
                                 "missing argument to @ (deref) operator");
     }
     LV tail = langsam_cons(r->vm, form, langsam_nil);
-    return langsam_cons(r->vm, langsam_symbol(r->vm, "deref"), tail);
+    return langsam_cons(r->vm, r->vm->sym.deref, tail);
   } else if (c == '\'') {
     LV form = Reader_read(r);
     if (langsam_exceptionp(form)) {
       return form;
     }
     LV tail = langsam_cons(r->vm, form, langsam_nil);
-    return langsam_cons(r->vm, langsam_symbol(r->vm, "quote"), tail);
+    return langsam_cons(r->vm, r->vm->sym.quote, tail);
   } else if (c == '`') {
     LV form = Reader_read(r);
     if (langsam_exceptionp(form)) {
       return form;
     }
     LV tail = langsam_cons(r->vm, form, langsam_nil);
-    return langsam_cons(r->vm, langsam_symbol(r->vm, "quasiquote"), tail);
+    return langsam_cons(r->vm, r->vm->sym.quasiquote, tail);
   } else if (c == ',') {
     LV unquote_result = Reader_readbyte(r);
     if (langsam_exceptionp(unquote_result)) {
@@ -5443,15 +5475,14 @@ static LV Reader_read(Reader *r) {
         return form;
       }
       LV tail = langsam_cons(r->vm, form, langsam_nil);
-      return langsam_cons(r->vm, langsam_symbol(r->vm, "unquote-splicing"),
-                          tail);
+      return langsam_cons(r->vm, r->vm->sym.unquote_splicing, tail);
     } else {
       Reader_unreadbyte(r, uc);
       LV form = Reader_read(r);
       if (langsam_exceptionp(form))
         return form;
       LV tail = langsam_cons(r->vm, form, langsam_nil);
-      return langsam_cons(r->vm, langsam_symbol(r->vm, "unquote"), tail);
+      return langsam_cons(r->vm, r->vm->sym.unquote, tail);
     }
   } else {
     return Reader_read_symbol(r, c);
@@ -5556,8 +5587,7 @@ LV langsam_loadstringn(LangsamVM *vm, LV env, char *s, LangsamSize len) {
 
 void langsam_register_module_loader(LangsamVM *vm, char *name,
                                     LangsamNativeFn loader) {
-  LV loaders =
-      langsam_Map_rawgep(vm, vm->rootlet, langsam_symbol(vm, "loaders"));
+  LV loaders = langsam_Map_rawgep(vm, vm->rootlet, vm->sym.loaders);
   LV load_function = make_nativefn(vm, name, loader, false, false);
   langsam_setcdr(loaders,
                  langsam_cons(vm, load_function, langsam_cdr(loaders)));
@@ -5565,7 +5595,7 @@ void langsam_register_module_loader(LangsamVM *vm, char *name,
 
 LV langsam_require(LangsamVM *vm, char *module_name) {
   LV module_iname = langsam_istring(vm, module_name);
-  LV modules = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "modules"));
+  LV modules = langsam_get(vm, vm->rootlet, vm->sym.modules);
   LV module = langsam_get(vm, modules, module_iname);
   if (langsam_somep(module)) {
     return module;
@@ -5575,7 +5605,7 @@ LV langsam_require(LangsamVM *vm, char *module_name) {
   LV put_result = langsam_put(vm, modules, module_iname, module);
   LANGSAM_CHECK(put_result);
 
-  LV loaders = langsam_get(vm, vm->rootlet, langsam_symbol(vm, "loaders"));
+  LV loaders = langsam_get(vm, vm->rootlet, vm->sym.loaders);
   LV it = langsam_iter(vm, loaders);
   LANGSAM_CHECK(it);
   LV args = langsam_nil;

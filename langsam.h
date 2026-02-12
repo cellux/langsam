@@ -622,9 +622,50 @@ typedef struct {
   LangsamAllocator *allocator;
 } LangsamVMOpts;
 
+typedef struct {
+  LV nil;
+  LV quote;
+  LV quasiquote;
+  LV unquote;
+  LV unquote_splicing;
+  LV cons;
+  LV and_;
+  LV or_;
+  LV pred;
+  LV guard;
+  LV amp;
+  LV opt;
+  LV isap;
+  LV dot;
+  LV deref;
+  LV modules;
+  LV loaders;
+  LV eq;
+} LangsamCoreSymbols;
+
+typedef struct {
+  LV keys;
+  LV name;
+  LV params;
+  LV doc;
+  LV body;
+  LV evalargs;
+  LV evalresult;
+  LV funclet;
+  LV marked;
+  LV swept;
+} LangsamCoreKeywords;
+
+typedef struct {
+  LV splice;
+} LangsamCoreOpwords;
+
 struct LangsamVM {
   LangsamAllocator *allocator;
   LV strings;
+  LangsamCoreSymbols sym;
+  LangsamCoreKeywords kw;
+  LangsamCoreOpwords op;
   LV *roots;
   int numroots;
   LangsamGCHeader *gcobjects;
