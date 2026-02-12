@@ -4414,6 +4414,13 @@ static LV eval_gep(LangsamVM *vm, LV args) {
   return langsam_Map_gep(vm, map, key);
 }
 
+static LV eval_rawgep(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(map, args);
+  LANGSAM_ARG_TYPE(map, LT_MAP);
+  LANGSAM_ARG(key, args);
+  return langsam_Map_rawgep(vm, map, key);
+}
+
 static LV eval_containsp(LangsamVM *vm, LV args) {
   LANGSAM_ARG(map, args);
   LANGSAM_ARG_TYPE(map, LT_MAP);
@@ -4561,6 +4568,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "getproto", eval_getproto);
   langsam_defn(vm, env, "setproto", eval_setproto);
   langsam_defn(vm, env, "gep", eval_gep);
+  langsam_defn(vm, env, "rawgep", eval_rawgep);
   langsam_defn(vm, env, "next", eval_next);
   langsam_defspecial(vm, env, "quote", eval_quote);
   langsam_defspecial(vm, env, "quasiquote", eval_quasiquote);

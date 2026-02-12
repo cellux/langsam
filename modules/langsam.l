@@ -857,6 +857,19 @@
           (setq it (next it)))))
     m))
 
+(defn contains-own?
+  "Return true when map has key as an own entry (without prototype lookup)."
+  [map key]
+  (some? (rawgep map key)))
+
+(defn get-own
+  "Return own value at key from map, or nil when absent."
+  [map key]
+  (let [item (rawgep map key)]
+    (if item
+      (cdr item)
+      nil)))
+
 ; --------------------------
 ; Class and Multimethod Core
 ; --------------------------
@@ -865,9 +878,7 @@
   "Return true if x is a class."
   [x]
   (and (map? x)
-       (some? (%name x))
-       (vector? (%schema x))
-       (function? (%invoke x))))
+       (contains-own? x %class)))
 
 (defn class
   "Return the class or type of x."
@@ -880,13 +891,10 @@
     (type x)))
 
 (defn multimethod?
-  "Return true when x has multimethod shape."
+  "Return true when x is a multimethod."
   [x]
   (and (map? x)
-       (%multimethod x)
-       (function? (%dispatch x))
-       (map? (%methods x))
-       (function? (%invoke x))))
+       (contains-own? x %multimethod)))
 
 (defn -class-enum?
   "Return true when spec is an enum declaration."
@@ -1048,6 +1056,7 @@
                                            (if parent (%schema parent) [])
                                            compiled-schema)
         class {%name name
+               %class true
                %schema merged-schema
                %own-schema compiled-schema
                %parent parent}]

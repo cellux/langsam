@@ -153,6 +153,11 @@
 ; class? recognizes class values
 (assert (class? Car))
 (assert (not (class? {})))
+(assert (not (class? (Car {:make "Toyota" :model "Corolla" :engine {:type :petrol}}))))
+(let [fake {}
+      proto {%class true}]
+  (setproto fake proto)
+  (assert (not (class? fake))))
 
 ; class should not leak a binding into the global scope
 (assert (not (contains? (curlet) 'ClassMacroEphemeralPoint)))

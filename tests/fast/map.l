@@ -66,6 +66,16 @@
   (assert (contains? m :a))
   (assert (contains? m :b))
   (assert (not (contains? m :c)))
+  (assert (contains-own? m :a))
+  (assert (not (contains-own? m :b)))
+  (assert (not (contains-own? m :c)))
+  (assert (= (get-own m :a) nil))
+  (assert (= (get-own m :b) nil))
+  (let [item (rawgep m :a)]
+    (assert (cons? item))
+    (assert (= (car item) :a))
+    (assert (= (cdr item) nil)))
+  (assert (= (rawgep m :b) nil))
   (assert (= (get m :a) nil)))
 
 (let [m {:a 5 :b 3}]

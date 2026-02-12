@@ -2,6 +2,9 @@
 (defmulti describe-type
   (fn [x] (type x)))
 
+(assert (multimethod? describe-type))
+(assert (not (multimethod? {})))
+
 (defmethod describe-type Integer
   [x]
   (str "int:" x))
@@ -80,6 +83,12 @@
                  (defmulti bad-multi 1)))
 (assert (throws? '(syntax . "defmulti name should be Symbol, got :bad-name")
                  (defmulti :bad-name type)))
+
+; multimethod? checks own markers only, not inherited proto fields
+(let [fake {}
+      proto {%multimethod true}]
+  (setproto fake proto)
+  (assert (not (multimethod? fake))))
 
 ; defmethod multimethod validation
 (assert (throws? '(syntax . "defmethod multimethod params should be Vector, got x")
