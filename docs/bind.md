@@ -1,7 +1,8 @@
 # Binding and Destructuring
 
-This document describes how Langsam binding works across `let`, function parameters,
-`if-match`, and `if-let`.
+This document describes how Langsam binding works across `let`,
+function parameters, `if-match`, `if-let` and similar binding
+constructs.
 
 ## Core Model
 
@@ -37,11 +38,19 @@ This document describes how Langsam binding works across `let`, function paramet
 a        ; binds a to rhs
 ```
 
-- Non-symbol atom pattern (`Integer`, `:kw`, `5`, etc.): literal match with `=`.
+- Non-symbol atom pattern (`:kw`, `5`, etc.): literal match with `=`.
 
 ```lisp
 5        ; matches rhs only when (= 5 rhs)
 ```
+
+- Use `(Integer x)` for type-constrained binding.
+
+```lisp
+(Integer x)   ; rhs must be Integer, then binds x to rhs
+```
+
+This matches via `isa?` so it also works for classes and respects inheritance.
 
 ### Vector Patterns
 
@@ -104,7 +113,7 @@ Special cons-headed binding patterns:
 - `(or p1 p2 ...)`: first matching pattern wins.
 - `(pred f)`: predicate function `f` must return truthy for rhs.
 - `(guard expr)`: evaluates `expr` in current binding env; must be truthy.
-- `(Type pat)`: rhs type must be exactly `Type`, then `pat` is applied.
+- `(Head pat)`: uses `(isa? rhs Head)`; if truthy, then `pat` is applied.
 
 ### Quote and Quasiquote Patterns
 

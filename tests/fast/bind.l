@@ -85,6 +85,20 @@
   (assert (= (if-let [y false] y :none) :none))
   (assert (= (if-let [[a b] [1 2]] (+ a b) :none) 3)))
 
+(let [Animal (make-class BindAnimal [:name String])
+      Dog (make-class BindDog {:extends Animal} [:breed String])
+      a (Animal {:name "spot"})
+      d (Dog {:name "luna" :breed "mix"})]
+  (assert (isa? 5 Integer))
+  (assert (not (isa? 5 Float)))
+  (assert (isa? d Dog))
+  (assert (isa? d Animal))
+  (assert (not (isa? a Dog)))
+  (assert (= (if-match [(Dog x) d] (:breed x) :none) "mix"))
+  (assert (= (if-match [(Animal x) d] (:name x) :none) "luna"))
+  (assert (= (if-match [(Dog x) a] :bad :ok) :ok))
+  (assert (= (let [(Animal x) d] (:name x)) "luna")))
+
 (let [result nil]
   (for [x [0 false nil 2]]
     (when-let [v x]

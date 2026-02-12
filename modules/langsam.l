@@ -7,6 +7,10 @@
   [x]
   (= (type x) Type))
 
+(def -core-isa?
+  isa?
+  "Reference to the core isa? predicate.")
+
 (defn nil?
   "Return true when x is nil."
   [x]
@@ -889,6 +893,26 @@
         proto
         (type x)))
     (type x)))
+
+(defn instance?
+  "Return true when x is an instance of target-class (including inheritance)."
+  [x target-class]
+  (if (and (map? x) (not (class? x)) (class? target-class))
+    (let [cur (getproto x)
+          match false]
+      (while (and (class? cur) (not match))
+        (if (eq cur target-class)
+          (setq match true)
+          (setq cur (getproto cur))))
+      match)
+    false))
+
+(defn isa?
+  "Return true when x satisfies target class/type."
+  [x target]
+  (if (instance? x target)
+    true
+    (-core-isa? x target)))
 
 (defn multimethod?
   "Return true when x is a multimethod."

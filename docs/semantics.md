@@ -96,6 +96,8 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 - `(defclass Name ...)` is shorthand for `(def Name (make-class Name ...))`.
 - Construct instances by invoking a class with a map, e.g. `(Name {:field value})`.
 - `(class x)` returns the class prototype for class instances, otherwise `(type x)`.
+- `(instance? x ClassName)` checks class-instance membership (including inheritance).
+- Binding patterns can use class heads via `isa?`, e.g. `(if-match [(Name x) v] ...)`.
 - Field spec kinds:
   - a runtime type (`Integer`, `String`, etc.)
   - another class (nested coercion)

@@ -159,6 +159,18 @@
   (setproto fake proto)
   (assert (not (class? fake))))
 
+; instance? recognizes class instances (including inheritance)
+(let [v (Vehicle {:make "Toyota" :wheels 4})
+      s (Sedan {:make "Toyota" :model "Corolla" :wheels 4})]
+  (assert (instance? v Vehicle))
+  (assert (not (instance? v Sedan)))
+  (assert (instance? s Sedan))
+  (assert (instance? s Vehicle))
+  (assert (not (instance? {} Vehicle)))
+  (assert (not (instance? s Integer)))
+  ; class values are not treated as class instances
+  (assert (not (instance? Sedan Vehicle))))
+
 ; class should not leak a binding into the global scope
 (assert (not (contains? (curlet) 'ClassMacroEphemeralPoint)))
 (let [PointClass (make-class ClassMacroEphemeralPoint [:x Integer])

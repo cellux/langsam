@@ -2667,6 +2667,27 @@ static LV bind_eval_in_env(LangsamVM *vm, LV env, LV expr) {
   return result;
 }
 
+static LV langsam_isap(LangsamVM *vm, LV child, LV target) {
+  if (target.type != LT_TYPE) {
+    return langsam_false;
+  }
+  return langsam_boolean(child.type == target.p);
+}
+
+static LV bind_check_isa(LangsamVM *vm, LV value, LV target) {
+  LV isa_symbol = langsam_symbol(vm, "isa?");
+  LV isa_fn = langsam_get(vm, vm->rootlet, isa_symbol);
+  LANGSAM_CHECK(isa_fn);
+  if (isa_fn.type != LT_FUNCTION) {
+    return langsam_exceptionf(vm, "syntax", "isa? should be Function, got %s",
+                              langsam_ctypename(vm, isa_fn.type));
+  }
+  LV args = langsam_nil;
+  args = langsam_cons(vm, langsam_quote(vm, target), args);
+  args = langsam_cons(vm, langsam_quote(vm, value), args);
+  return langsam_invoke(vm, isa_fn, args);
+}
+
 static LV bind_get_associative(LangsamVM *vm, LV lhs, LV rhs, LV key) {
   LV value = langsam_get(vm, rhs, key);
   if (langsam_exceptionpk(vm, value, "get")) {
@@ -2860,13 +2881,19 @@ static LV bind_cons(LangsamVM *vm, LV env, LV lhs, LV rhs) {
   }
   if (head.type == LT_SYMBOL) {
     LV ev_head = langsam_eval(vm, head);
-    if (ev_head.type == LT_TYPE) {
-      if (ev_head.p != rhs.type) {
-        return langsam_exceptionf(vm, "bind", "type mismatch: %s",
-                                  langsam_cstr(vm, lhs));
-      }
+    LANGSAM_CHECK(ev_head);
+    if (ev_head.type == LT_TYPE || ev_head.type == LT_MAP) {
       LV tail = langsam_cdr(lhs);
       LANGSAM_ARG(pat, tail);
+      LV isa_result = bind_check_isa(vm, rhs, ev_head);
+      LANGSAM_CHECK(isa_result);
+      if (!langsam_truthy(vm, isa_result)) {
+        if (ev_head.type == LT_TYPE) {
+          return langsam_exceptionf(vm, "bind", "type mismatch: %s",
+                                    langsam_cstr(vm, lhs));
+        }
+        return bind_pattern_failed(vm, lhs, rhs);
+      }
       LV bind_result = langsam_bind(vm, env, pat, rhs);
       LANGSAM_CHECK(bind_result);
       return env;
@@ -4470,6 +4497,12 @@ static LV eval_type(LangsamVM *vm, LV args) {
   return langsam_type(x.type);
 }
 
+static LV eval_isap(LangsamVM *vm, LV args) {
+  LANGSAM_ARG(child, args);
+  LANGSAM_ARG(target, args);
+  return langsam_isap(vm, child, target);
+}
+
 static LV eval_cons(LangsamVM *vm, LV args) {
   return langsam_Cons_cast(vm, args);
 }
@@ -4600,6 +4633,7 @@ void langsam_module_langsam_load(LangsamVM *vm, LV env) {
   langsam_defn(vm, env, "gep", eval_gep);
   langsam_defn(vm, env, "rawgep", eval_rawgep);
   langsam_defn(vm, env, "next", eval_next);
+  langsam_defn(vm, env, "isa?", eval_isap);
   langsam_defspecial(vm, env, "quote", eval_quote);
   langsam_defspecial(vm, env, "quasiquote", eval_quasiquote);
   langsam_defspecial(vm, env, "def", eval_def);
