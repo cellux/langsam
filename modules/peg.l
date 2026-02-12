@@ -13,8 +13,8 @@
               :W '(not :w)}]
     (for [k (keys base)]
       (let [name (name k)
-            plus (Keyword (str name "+"))
-            star (Keyword (str name "*"))]
+            plus (keyword (str name "+"))
+            star (keyword (str name "*"))]
         (put base plus `(some ,k))
         (put base star `(any ,k))))
     base))

@@ -42,10 +42,18 @@
   [x]
   (= (type x) Symbol))
 
+(def symbol
+  Symbol
+  "Alias for the Symbol constructor.")
+
 (defn keyword?
   "Return true when x is a Keyword."
   [x]
   (= (type x) Keyword))
+
+(def keyword
+  Keyword
+  "Alias for the Keyword constructor.")
 
 (defn opword?
   "Return true when x is an Opword."
@@ -481,7 +489,7 @@
     (fn gensym
       "Return a fresh symbol using prefix."
       [&opt (prefix 'gensym)]
-      (let [sym (Symbol (str prefix "#" counter))]
+      (let [sym (symbol (str prefix "#" counter))]
         (incq counter)
         sym))))
 
@@ -829,7 +837,7 @@
   "Bind generated symbols for each symbol in syms while running body."
   [syms & body]
   (let [bindings (-> syms
-                     (->> (map (fn [sym] [(Symbol (str sym "#")) `(gensym ',sym)])))
+                     (->> (map (fn [sym] [(symbol (str sym "#")) `(gensym ',sym)])))
                      flatten1
                      Vector)]
     `(let ,bindings ,@body)))

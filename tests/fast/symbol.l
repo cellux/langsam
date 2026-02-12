@@ -1,4 +1,4 @@
-(assert (= (Symbol 'foo) 'foo))
-(assert (= (Symbol "foo") 'foo))
+(assert (= (symbol 'foo) 'foo))
+(assert (= (symbol "foo") 'foo))
 
-(assert (throws? '(cast . "cannot cast Integer to Symbol") (Symbol 1234)))
+(assert (throws? '(cast . "cannot cast Integer to Symbol") (symbol 1234)))
