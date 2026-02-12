@@ -65,8 +65,9 @@
 (assert (= (peg/match '(between 1 2 "ab") "ababab") []))
 
 (assert (= (peg/match '(not "ab") "cd") []))
-(assert (= (peg/match '(! "ab") "cd") []))
 (assert (= (peg/match '(not "ab") "ab") nil))
+(assert (throws? '(peg . "unsupported PEG operator: !")
+                 (peg/match '(! "ab") "cd")))
 
 (assert (= (peg/match '(look "ab") "abcd") []))
 (assert (= (peg/match '(look 2 "cd") "abcd") []))

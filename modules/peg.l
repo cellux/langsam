@@ -2,15 +2,15 @@
   "Build Janet-like default PEG aliases."
   []
   (let [base {:d '(range "09")
-              :D '(! :d)
+              :D '(not :d)
               :a '(range "az" "AZ")
-              :A '(! :a)
+              :A '(not :a)
               :h '(choice :d (range "af" "AF"))
-              :H '(! :h)
+              :H '(not :h)
               :s '(set " \t\r\n\0\v\f")
-              :S '(! :s)
+              :S '(not :s)
               :w '(choice :a :d)
-              :W '(! :w)}
+              :W '(not :w)}
         out (clone base)]
     (for [[k _] base]
       (let [name (name k)
@@ -156,10 +156,6 @@
                  (setq stack (cons (get argv 1) stack)))
                (raise 'peg "if-not expects 2 args, got %s" argc))
              'not
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "not expects 1 arg, got %s" argc))
-             '!
              (if (= argc 1)
                (setq stack (cons (get argv 0) stack))
                (raise 'peg "not expects 1 arg, got %s" argc))
@@ -699,9 +695,6 @@
       'not (if (= argc 1)
              (peg-eval-not compiled source pos limit memo active (get argv 0))
              (raise 'peg "not expects 1 arg, got %s" argc))
-      '! (if (= argc 1)
-           (peg-eval-not compiled source pos limit memo active (get argv 0))
-           (raise 'peg "not expects 1 arg, got %s" argc))
       'look (peg-eval-look compiled source pos limit memo active args)
       '> (peg-eval-look compiled source pos limit memo active args)
       'opt (if (= argc 1)
@@ -1260,15 +1253,6 @@
                          (setq cur-pattern (get argv 0)))
                        (raise 'peg "if-not expects 2 args, got %s" argc))
                      'not
-                     (if (= argc 1)
-                       (do
-                         (setq stack (cons {:kind :not
-                                            :start cur-pos
-                                            :cap cap-count}
-                                           stack))
-                         (setq cur-pattern (get argv 0)))
-                       (raise 'peg "not expects 1 arg, got %s" argc))
-                     '!
                      (if (= argc 1)
                        (do
                          (setq stack (cons {:kind :not

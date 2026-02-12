@@ -37,7 +37,7 @@ Implemented forms include:
 - Primitives: string, integer, `true`, `false`, `(range ...)`, `(set ...)`.
 - Core combinators and aliases:
   `choice/+`, `sequence/*`, `any`, `some`, `repeat`, `at-least`, `at-most`,
-  `between`, `if`, `if-not`, `not/!`, `look/>`, `opt/?`, `to`, `thru`,
+  `between`, `if`, `if-not`, `not`, `look/>`, `opt/?`, `to`, `thru`,
   `sub`, `split`, `(n patt)`.
 - Captures:
   `capture/<-/quote`, `group`, `replace//`, `constant`, `argument`,
