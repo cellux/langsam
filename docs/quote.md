@@ -81,17 +81,17 @@ For improper lists, the non-list tail is preserved as the final cdr.
 
 ## Nested Quasiquote
 
-Runtime `quasiquote` does not track quasiquote nesting depth as a separate mode.
-It recursively processes nested structures, so `unquote` forms inside nested
-`quasiquote` forms are still handled during evaluation.
+Runtime `quasiquote` tracks quasiquote nesting depth.
+Nested `quasiquote` increments depth, and `unquote`/`unquote-splicing`
+decrement depth. `unquote` and `unquote-splicing` are only evaluated when
+their depth matches the currently active `quasiquote`.
 
 ```lisp
 (quasiquote (a (quasiquote (b (unquote (+ 1 2))))))
-; => (a (quasiquote (b 3)))
+; => (a (quasiquote (b (unquote (+ 1 2)))))
 ```
 
-If you need nesting-aware transformation behavior, that is handled separately by
-stdlib macro-expansion utilities.
+This behavior is consistent with stdlib macro-expansion utilities.
 
 ## Error Cases
 

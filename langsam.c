@@ -3135,9 +3135,11 @@ LV langsam_quote(LangsamVM *vm, LV obj) {
   return result;
 }
 
+static LV langsam_quasiquote_at_level(LangsamVM *vm, LV obj, int level);
+
 static LV quasiquote_collect_item(LangsamVM *vm, LV item, LV *result,
-                                  LV splice) {
-  LV qqitem = langsam_quasiquote(vm, item);
+                                  LV splice, int level) {
+  LV qqitem = langsam_quasiquote_at_level(vm, item, level);
   if (langsam_exceptionp(qqitem)) {
     bool throw = true;
     LV payload = langsam_deref(vm, qqitem);
@@ -3162,76 +3164,101 @@ static LV quasiquote_collect_item(LangsamVM *vm, LV item, LV *result,
   return langsam_nil;
 }
 
-static LV quasiquote_collect_cons(LangsamVM *vm, LV list) {
-  LV splice = langsam_opword(vm, "splice");
+static LV quasiquote_collect_cons(LangsamVM *vm, LV list, int level) {
+  LV splice = vm->op.splice;
   LV result = langsam_nil;
   while (langsam_consp(list)) {
     LV item = langsam_car(list);
-    LV item_result = quasiquote_collect_item(vm, item, &result, splice);
+    LV item_result =
+        quasiquote_collect_item(vm, item, &result, splice, level);
     LANGSAM_CHECK(item_result);
     list = langsam_cdr(list);
   }
   return langsam_nreverse_with_last(result, list);
 }
 
-static LV quasiquote_collect_iterable(LangsamVM *vm, LV coll) {
-  LV splice = langsam_opword(vm, "splice");
+static LV quasiquote_collect_iterable(LangsamVM *vm, LV coll, int level) {
+  LV splice = vm->op.splice;
   LV result = langsam_nil;
   LV it = langsam_iter(vm, coll);
   LANGSAM_CHECK(it);
   while (langsam_truthy(vm, it)) {
     LV item = langsam_deref(vm, it);
-    LV item_result = quasiquote_collect_item(vm, item, &result, splice);
+    LV item_result = quasiquote_collect_item(vm, item, &result, splice, level);
     LANGSAM_CHECK(item_result);
     it = langsam_next(vm, it);
   }
   return langsam_nreverse(result);
 }
 
-LV langsam_quasiquote(LangsamVM *vm, LV obj) {
+static LV langsam_quasiquote_at_level(LangsamVM *vm, LV obj, int level) {
   if (obj.type == LT_CONS) {
     LV head = langsam_car(obj);
-    LV unquote = langsam_symbol(vm, "unquote");
-    LV unquote_splicing = langsam_symbol(vm, "unquote-splicing");
+    LV tail = langsam_cdr(obj);
+    LV quasiquote = vm->sym.quasiquote;
+    LV unquote = vm->sym.unquote;
+    LV unquote_splicing = vm->sym.unquote_splicing;
+
+    if (langsam_consp(tail) && LVEQ(head, quasiquote)) {
+      LV qqtail = langsam_quasiquote_at_level(vm, tail, level + 1);
+      LANGSAM_CHECK(qqtail);
+      return langsam_cons(vm, head, qqtail);
+    }
+
     if (LVEQ(head, unquote)) {
-      LV tail = langsam_cdr(obj);
-      if (!langsam_consp(tail)) {
+      if (!langsam_consp(tail) && level == 1) {
         return langsam_exceptionf(vm, "syntax", "unquote needs argument");
       }
-      LV form = langsam_car(tail);
-      if (langsam_somep(langsam_cdr(tail))) {
-        return langsam_exceptionf(vm, "syntax",
-                                  "unquote expects a single argument");
+      if (langsam_consp(tail)) {
+        if (level == 1) {
+          LV form = langsam_car(tail);
+          if (langsam_somep(langsam_cdr(tail))) {
+            return langsam_exceptionf(vm, "syntax",
+                                      "unquote expects a single argument");
+          }
+          return langsam_eval(vm, form);
+        }
+        LV qqtail = langsam_quasiquote_at_level(vm, tail, level - 1);
+        LANGSAM_CHECK(qqtail);
+        return langsam_cons(vm, head, qqtail);
       }
-      return langsam_eval(vm, form);
     } else if (LVEQ(head, unquote_splicing)) {
-      LV tail = langsam_cdr(obj);
-      if (!langsam_consp(tail)) {
+      if (!langsam_consp(tail) && level == 1) {
         return langsam_exceptionf(vm, "syntax",
                                   "unquote-splicing needs argument");
       }
-      LV form = langsam_car(tail);
-      if (langsam_somep(langsam_cdr(tail))) {
-        return langsam_exceptionf(
-            vm, "syntax", "unquote-splicing expects a single argument");
+      if (langsam_consp(tail)) {
+        if (level == 1) {
+          LV form = langsam_car(tail);
+          if (langsam_somep(langsam_cdr(tail))) {
+            return langsam_exceptionf(
+                vm, "syntax", "unquote-splicing expects a single argument");
+          }
+          LV evaluated_form = langsam_eval(vm, form);
+          LANGSAM_CHECK(evaluated_form);
+          LV it = langsam_iter(vm, evaluated_form);
+          LANGSAM_CHECK(it);
+          LV result = collect_rest(vm, it);
+          LV splice = vm->op.splice;
+          return langsam_exception(vm, langsam_cons(vm, splice, result));
+        }
+        LV qqtail = langsam_quasiquote_at_level(vm, tail, level - 1);
+        LANGSAM_CHECK(qqtail);
+        return langsam_cons(vm, head, qqtail);
       }
-      LV evaluated_form = langsam_eval(vm, form);
-      LANGSAM_CHECK(evaluated_form);
-      LV it = langsam_iter(vm, evaluated_form);
-      LANGSAM_CHECK(it);
-      LV result = collect_rest(vm, it);
-      LV splice = langsam_opword(vm, "splice");
-      return langsam_exception(vm, langsam_cons(vm, splice, result));
-    } else {
-      return quasiquote_collect_cons(vm, obj);
     }
+    return quasiquote_collect_cons(vm, obj, level);
   } else if (obj.type == LT_VECTOR || obj.type == LT_MAP) {
-    LV items = quasiquote_collect_iterable(vm, obj);
+    LV items = quasiquote_collect_iterable(vm, obj, level);
     LANGSAM_CHECK(items);
     return langsam_cast(vm, langsam_type(obj.type), items);
   } else {
     return obj;
   }
+}
+
+LV langsam_quasiquote(LangsamVM *vm, LV obj) {
+  return langsam_quasiquote_at_level(vm, obj, 1);
 }
 
 LV langsam_do(LangsamVM *vm, LV forms) {
