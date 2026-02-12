@@ -130,7 +130,10 @@
 
 ; defmethod supports multimethod docstrings
 (defmulti with-doc-method
+  "Dispatch by runtime type."
   type)
+
+(assert (= (:doc with-doc-method) "Dispatch by runtime type."))
 
 (defmethod with-doc-method Integer
   "Increment integer values."

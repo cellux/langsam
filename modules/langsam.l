@@ -1124,14 +1124,15 @@
 
 (defn make-multimethod
   "Create a multimethod with dispatch-fn."
-  [name dispatch-fn]
+  [name dispatch-fn &opt (doc nil)]
   (if (not (function? dispatch-fn))
     (raise 'defmulti "defmulti dispatch function should be Function, got %s"
            (type dispatch-fn)))
   (let [mm {%name name
             %multimethod true
             %dispatch dispatch-fn
-            %methods {}}]
+            %methods {}
+            :doc doc}]
     (put mm %invoke
          (fn [self & args]
            (let [dispatch-value (apply (%dispatch self) args)
@@ -1144,10 +1145,17 @@
 
 (defmacro defmulti
   "Define a named multimethod."
-  [name dispatch-fn]
-  (if (symbol? name)
+  [name & rest]
+  (if (not (symbol? name))
+    (raise 'syntax "defmulti name should be Symbol, got %s" name))
+  (cond-match rest
+    [(String doc) dispatch-fn]
+    `(def ,name (make-multimethod ',name ,dispatch-fn ,doc))
+    [dispatch-fn]
     `(def ,name (make-multimethod ',name ,dispatch-fn))
-    (raise 'syntax "defmulti name should be Symbol, got %s" name)))
+    (raise 'syntax
+           "defmulti expects (defmulti name dispatch-fn) or (defmulti name doc dispatch-fn), got %s"
+           (cons name rest))))
 
 (defmacro defmethod
   "Define a class method or multimethod implementation."
