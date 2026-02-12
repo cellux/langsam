@@ -73,6 +73,27 @@ Operationally, Langsam looks up `bar` on `foo` and prepends `foo` as the receive
 - `((cons foo 'bar) x y)` behaves like:
   `(let [obj foo] ((get obj 'bar) obj x y))`
 
+## Keywords and Opwords
+
+- Reader literals:
+  - `:name` reads as a `Keyword`.
+  - `%name` reads as an `Opword`.
+- `Keyword` and `Opword` are distinct types; same spelling does not make them equal
+  (`:iter` is different from `%iter`).
+- Both are callable key accessors (`(:k m)` / `(%k m)`), but they serve different
+  roles by convention and runtime usage:
+  - `Keyword` keys are for regular data fields.
+  - `Opword` keys are for operator/protocol/meta slots.
+- Core runtime protocol hooks on maps are looked up with opwords:
+  - `%iter`, `%deref`, `%invoke`
+- Stdlib also uses opwords for meta slots (for example class/multimethod internals
+  like `%class`, `%name`, `%schema`, `%methods`).
+- Why opwords exist in addition to keywords:
+  - separate data keys from behavioral protocol keys
+  - avoid accidental collisions (`:iter` data does not affect iteration protocol;
+    `%iter` does)
+  - make intent explicit in source (`%...` signals mechanics, `:...` signals data)
+
 ## Quote and Quasiquote
 
 - For quote/quasiquote reader sugar and runtime semantics, see `docs/quote.md`.
