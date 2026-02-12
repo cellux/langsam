@@ -41,6 +41,20 @@
   [op]
   (opword? op))
 
+(defn peg-canonical-op
+  "Normalize syntactic PEG operator aliases."
+  [op]
+  (case op
+    '+ 'or
+    '* 'and
+    '> 'look
+    '? 'opt
+    '<- 'capture
+    '/ 'replace
+    '$ 'position
+    '-> 'backref
+    op))
+
 (defn peg-validate-reference
   "Ensure keyword/symbol ref resolves in rules/default aliases."
   [compiled ref]
@@ -56,6 +70,407 @@
     (if (not (= (len entry) 2))
       (raise 'peg "range entries must have length 2, got %s" (len entry)))))
 
+(defn peg-push-patterns
+  "Push all args onto stack in iteration order."
+  [stack args]
+  (for [arg args]
+    (setq stack (cons arg stack)))
+  stack)
+
+(defn peg-validate-form-push-first
+  [ctx op-name]
+  (if (= (:argc ctx) 1)
+    (cons (get (:argv ctx) 0) (:stack ctx))
+    (raise 'peg "%s expects 1 arg, got %s" op-name (:argc ctx))))
+
+(defn peg-validate-form-push-first-1or2
+  [ctx op-name]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 1) (= argc 2))
+      (cons (get argv 0) stack)
+      (raise 'peg "%s expects 1 or 2 args, got %s" op-name argc))))
+
+(defn peg-validate-form-push-first-2or3
+  [ctx op-name]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 2) (= argc 3))
+      (cons (get argv 0) stack)
+      (raise 'peg "%s expects 2 or 3 args, got %s" op-name argc))))
+
+(defn peg-validate-form-push-first-two
+  [ctx op-name]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 2)
+      (do
+        (setq stack (cons (get argv 0) stack))
+        (setq stack (cons (get argv 1) stack))
+        stack)
+      (raise 'peg "%s expects 2 args, got %s" op-name argc))))
+
+(defn peg-validate-form-arity-0or1
+  [ctx op-name]
+  (let [{:keys [argc stack]} ctx]
+    (if (or (= argc 0) (= argc 1))
+      stack
+      (raise 'peg "%s expects 0 or 1 args, got %s" op-name argc))))
+
+(defn peg-validate-form-arity-1or2
+  [ctx op-name]
+  (let [{:keys [argc stack]} ctx]
+    (if (or (= argc 1) (= argc 2))
+      stack
+      (raise 'peg "%s expects 1 or 2 args, got %s" op-name argc))))
+
+(defn peg-validate-form-validate-width-1or2
+  [ctx op-name]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 1) (= argc 2))
+      (let [width (get argv 0)]
+        (if (not (integer? width))
+          (raise 'peg "%s width should be Integer, got %s" op-name (type width)))
+        (if (<= width 0)
+          (raise 'peg "integer width should be positive, got %s" width))
+        stack)
+      (raise 'peg "%s expects 1 or 2 args, got %s" op-name argc))))
+
+(defn peg-validate-form-dispatch
+  [ctx]
+  (let [{:keys [raw-op op]} ctx]
+    (if (peg-op-accumulate-alias? raw-op)
+      :accumulate-alias
+      (if (integer? raw-op)
+        :numeric-repeat
+        op))))
+
+(defmulti peg-validate-form-op
+  "Validate one PEG list-form operator and return updated stack."
+  peg-validate-form-dispatch)
+
+(defmethod peg-validate-form-op 'or
+  [ctx]
+  (peg-push-patterns (:stack ctx) (:args ctx)))
+
+(defmethod peg-validate-form-op 'and
+  [ctx]
+  (peg-push-patterns (:stack ctx) (:args ctx)))
+
+(defmethod peg-validate-form-op 'any
+  [ctx]
+  (peg-validate-form-push-first ctx "any"))
+
+(defmethod peg-validate-form-op 'some
+  [ctx]
+  (peg-validate-form-push-first ctx "some"))
+
+(defmethod peg-validate-form-op 'repeat
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 2)
+      (let [n (get argv 0)]
+        (if (not (integer? n))
+          (raise 'peg "repeat count should be Integer, got %s" (type n)))
+        (if (< n 0)
+          (raise 'peg "repeat count must be non-negative, got %s" n))
+        (cons (get argv 1) stack))
+      (raise 'peg "repeat expects 2 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'at-least
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 2)
+      (let [n (get argv 0)]
+        (if (not (integer? n))
+          (raise 'peg "at-least count should be Integer, got %s" (type n)))
+        (if (< n 0)
+          (raise 'peg "at-least count must be non-negative, got %s" n))
+        (cons (get argv 1) stack))
+      (raise 'peg "at-least expects 2 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'at-most
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 2)
+      (let [n (get argv 0)]
+        (if (not (integer? n))
+          (raise 'peg "at-most count should be Integer, got %s" (type n)))
+        (if (< n 0)
+          (raise 'peg "at-most count must be non-negative, got %s" n))
+        (cons (get argv 1) stack))
+      (raise 'peg "at-most expects 2 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'between
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 3)
+      (let [nmin (get argv 0)
+            nmax (get argv 1)]
+        (if (or (not (integer? nmin)) (not (integer? nmax)))
+          (raise 'peg "between counts should be Integer, got %s %s"
+                 (type nmin) (type nmax)))
+        (if (< nmin 0)
+          (raise 'peg "between min must be non-negative, got %s" nmin))
+        (if (< nmax 0)
+          (raise 'peg "between max must be non-negative, got %s" nmax))
+        (if (> nmin nmax)
+          (raise 'peg "between expects min <= max, got %s > %s" nmin nmax))
+        (cons (get argv 2) stack))
+      (raise 'peg "between expects 3 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'if
+  [ctx]
+  (peg-validate-form-push-first-two ctx "if"))
+
+(defmethod peg-validate-form-op 'if-not
+  [ctx]
+  (peg-validate-form-push-first-two ctx "if-not"))
+
+(defmethod peg-validate-form-op 'not
+  [ctx]
+  (peg-validate-form-push-first ctx "not"))
+
+(defmethod peg-validate-form-op 'look
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 1)
+      (cons (get argv 0) stack)
+      (if (= argc 2)
+        (let [offset (get argv 0)]
+          (if (not (integer? offset))
+            (raise 'peg "look offset should be Integer, got %s" (type offset)))
+          (cons (get argv 1) stack))
+        (raise 'peg "look expects 1 or 2 args, got %s" argc)))))
+
+(defmethod peg-validate-form-op 'to
+  [ctx]
+  (peg-validate-form-push-first ctx "to"))
+
+(defmethod peg-validate-form-op 'thru
+  [ctx]
+  (peg-validate-form-push-first ctx "thru"))
+
+(defmethod peg-validate-form-op 'sub
+  [ctx]
+  (peg-validate-form-push-first-two ctx "sub"))
+
+(defmethod peg-validate-form-op 'split
+  [ctx]
+  (peg-validate-form-push-first-two ctx "split"))
+
+(defmethod peg-validate-form-op 'opt
+  [ctx]
+  (peg-validate-form-push-first ctx "opt"))
+
+(defmethod peg-validate-form-op 'capture
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "capture"))
+
+(defmethod peg-validate-form-op 'quote
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "quote"))
+
+(defmethod peg-validate-form-op 'replace
+  [ctx]
+  (peg-validate-form-push-first-2or3 ctx "replace"))
+
+(defmethod peg-validate-form-op 'group
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "group"))
+
+(defmethod peg-validate-form-op 'accumulate
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "accumulate"))
+
+(defmethod peg-validate-form-op :accumulate-alias
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "accumulate"))
+
+(defmethod peg-validate-form-op 'cmt
+  [ctx]
+  (peg-validate-form-push-first-2or3 ctx "cmt"))
+
+(defmethod peg-validate-form-op 'drop
+  [ctx]
+  (peg-validate-form-push-first ctx "drop"))
+
+(defmethod peg-validate-form-op 'unref
+  [ctx]
+  (peg-validate-form-push-first-1or2 ctx "unref"))
+
+(defmethod peg-validate-form-op 'only-tags
+  [ctx]
+  (peg-validate-form-push-first ctx "only-tags"))
+
+(defmethod peg-validate-form-op 'nth
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 2) (= argc 3))
+      (let [index (get argv 0)]
+        (if (not (integer? index))
+          (raise 'peg "nth index should be Integer, got %s" (type index)))
+        (cons (get argv 1) stack))
+      (raise 'peg "nth expects 2 or 3 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'number
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 1) (= argc 2) (= argc 3))
+      (do
+        (if (> argc 1)
+          (let [base (get argv 1)]
+            (if (and (some? base) (not (integer? base)))
+              (raise 'peg "number base should be Integer, got %s" (type base)))))
+        (cons (get argv 0) stack))
+      (raise 'peg "number expects 1 to 3 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'lenprefix
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 2)
+      (let [width (get argv 0)]
+        (if (not (integer? width))
+          (raise 'peg "lenprefix width should be Integer, got %s" (type width)))
+        (if (<= width 0)
+          (raise 'peg "integer width should be positive, got %s" width))
+        (cons (get argv 1) stack))
+      (raise 'peg "lenprefix expects 2 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'error
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 0) (= argc 1))
+      (if (= argc 1)
+        (cons (get argv 0) stack)
+        stack)
+      (raise 'peg "error expects 0 or 1 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'constant
+  [ctx]
+  (peg-validate-form-arity-1or2 ctx "constant"))
+
+(defmethod peg-validate-form-op 'argument
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (or (= argc 1) (= argc 2))
+      (let [index (get argv 0)]
+        (if (not (integer? index))
+          (raise 'peg "argument index should be Integer, got %s" (type index)))
+        (if (< index 0)
+          (raise 'peg "argument index should be non-negative, got %s" index))
+        stack)
+      (raise 'peg "argument expects 1 or 2 args, got %s" argc))))
+
+(defmethod peg-validate-form-op 'uint
+  [ctx]
+  (peg-validate-form-validate-width-1or2 ctx "uint"))
+
+(defmethod peg-validate-form-op 'uint-be
+  [ctx]
+  (peg-validate-form-validate-width-1or2 ctx "uint-be"))
+
+(defmethod peg-validate-form-op 'int
+  [ctx]
+  (peg-validate-form-validate-width-1or2 ctx "int"))
+
+(defmethod peg-validate-form-op 'int-be
+  [ctx]
+  (peg-validate-form-validate-width-1or2 ctx "int-be"))
+
+(defmethod peg-validate-form-op 'position
+  [ctx]
+  (peg-validate-form-arity-0or1 ctx "position"))
+
+(defmethod peg-validate-form-op 'line
+  [ctx]
+  (peg-validate-form-arity-0or1 ctx "line"))
+
+(defmethod peg-validate-form-op 'column
+  [ctx]
+  (peg-validate-form-arity-0or1 ctx "column"))
+
+(defmethod peg-validate-form-op 'backref
+  [ctx]
+  (peg-validate-form-arity-1or2 ctx "backref"))
+
+(defmethod peg-validate-form-op 'backmatch
+  [ctx]
+  (peg-validate-form-arity-0or1 ctx "backmatch"))
+
+(defmethod peg-validate-form-op 'range
+  [ctx]
+  (peg-validate-range-entries (:args ctx))
+  (:stack ctx))
+
+(defmethod peg-validate-form-op 'set
+  [ctx]
+  (let [{:keys [argc argv stack]} ctx]
+    (if (= argc 1)
+      (let [charset (get argv 0)]
+        (if (not (string? charset))
+          (raise 'peg "set expects String charset, got %s" (type charset)))
+        stack)
+      (raise 'peg "set expects 1 arg, got %s" argc))))
+
+(defmethod peg-validate-form-op :numeric-repeat
+  [ctx]
+  (let [{:keys [raw-op argc argv stack]} ctx]
+    (if (= argc 1)
+      (do
+        (if (< raw-op 0)
+          (raise 'peg "repeat count must be non-negative, got %s" raw-op))
+        (cons (get argv 0) stack))
+      (raise 'peg "numeric repeat expects 1 arg, got %s" argc))))
+
+(defmethod peg-validate-form-op :default
+  [ctx]
+  (raise 'peg "unsupported PEG operator: %s" (:raw-op ctx)))
+
+(defn peg-validate-form
+  "Validate one list-form PEG pattern and return updated stack."
+  [compiled pattern stack]
+  (peg-validate-form-op {:compiled compiled
+                         :pattern pattern
+                         :stack stack
+                         :raw-op (car pattern)
+                         :op (peg-canonical-op (car pattern))
+                         :args (cdr pattern)
+                         :argc (len (cdr pattern))
+                         :argv (Vector (cdr pattern))}))
+
+(defmulti peg-validate-pattern
+  "Validate one PEG pattern and return updated validation stack."
+  (fn [pattern _compiled _stack]
+    (type pattern)))
+
+(defmethod peg-validate-pattern String
+  [_pattern _compiled stack]
+  stack)
+
+(defmethod peg-validate-pattern Integer
+  [_pattern _compiled stack]
+  stack)
+
+(defmethod peg-validate-pattern Boolean
+  [_pattern _compiled stack]
+  stack)
+
+(defmethod peg-validate-pattern Keyword
+  [pattern compiled stack]
+  (peg-validate-reference compiled pattern)
+  stack)
+
+(defmethod peg-validate-pattern Symbol
+  [pattern compiled stack]
+  (peg-validate-reference compiled pattern)
+  stack)
+
+(defmethod peg-validate-pattern Cons
+  [pattern compiled stack]
+  (peg-validate-form compiled pattern stack))
+
+(defmethod peg-validate-pattern :default
+  [pattern _compiled _stack]
+  (raise 'peg "unsupported PEG pattern type: %s" (type pattern)))
+
 (defn peg-validate-compiled
   "Validate PEG arity/type/ref checks iteratively at compile time."
   [compiled]
@@ -67,310 +482,7 @@
     (while stack
       (let [pattern (car stack)]
         (setq stack (cdr stack))
-        (cond
-         (or (string? pattern) (integer? pattern) (boolean? pattern))
-         nil
-         (keyword? pattern)
-         (peg-validate-reference compiled pattern)
-         (symbol? pattern)
-         (peg-validate-reference compiled pattern)
-         (cons? pattern)
-         (let [op (car pattern)
-               args (cdr pattern)
-               argc (len args)
-               argv (Vector args)]
-           (case op
-             'or
-             (for [arg args]
-               (setq stack (cons arg stack)))
-             '+
-             (for [arg args]
-               (setq stack (cons arg stack)))
-             'and
-             (for [arg args]
-               (setq stack (cons arg stack)))
-             '*
-             (for [arg args]
-               (setq stack (cons arg stack)))
-             'any
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "any expects 1 arg, got %s" argc))
-             'some
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "some expects 1 arg, got %s" argc))
-             'repeat
-             (if (= argc 2)
-               (let [n (get argv 0)]
-                 (if (not (integer? n))
-                   (raise 'peg "repeat count should be Integer, got %s" (type n)))
-                 (if (< n 0)
-                   (raise 'peg "repeat count must be non-negative, got %s" n))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "repeat expects 2 args, got %s" argc))
-             'at-least
-             (if (= argc 2)
-               (let [n (get argv 0)]
-                 (if (not (integer? n))
-                   (raise 'peg "at-least count should be Integer, got %s" (type n)))
-                 (if (< n 0)
-                   (raise 'peg "at-least count must be non-negative, got %s" n))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "at-least expects 2 args, got %s" argc))
-             'at-most
-             (if (= argc 2)
-               (let [n (get argv 0)]
-                 (if (not (integer? n))
-                   (raise 'peg "at-most count should be Integer, got %s" (type n)))
-                 (if (< n 0)
-                   (raise 'peg "at-most count must be non-negative, got %s" n))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "at-most expects 2 args, got %s" argc))
-             'between
-             (if (= argc 3)
-               (let [nmin (get argv 0)
-                     nmax (get argv 1)]
-                 (if (or (not (integer? nmin)) (not (integer? nmax)))
-                   (raise 'peg "between counts should be Integer, got %s %s"
-                          (type nmin) (type nmax)))
-                 (if (< nmin 0)
-                   (raise 'peg "between min must be non-negative, got %s" nmin))
-                 (if (< nmax 0)
-                   (raise 'peg "between max must be non-negative, got %s" nmax))
-                 (if (> nmin nmax)
-                   (raise 'peg "between expects min <= max, got %s > %s" nmin nmax))
-                 (setq stack (cons (get argv 2) stack)))
-               (raise 'peg "between expects 3 args, got %s" argc))
-             'if
-             (if (= argc 2)
-               (do
-                 (setq stack (cons (get argv 0) stack))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "if expects 2 args, got %s" argc))
-             'if-not
-             (if (= argc 2)
-               (do
-                 (setq stack (cons (get argv 0) stack))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "if-not expects 2 args, got %s" argc))
-             'not
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "not expects 1 arg, got %s" argc))
-             'look
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (if (= argc 2)
-                 (let [offset (get argv 0)]
-                   (if (not (integer? offset))
-                     (raise 'peg "look offset should be Integer, got %s" (type offset)))
-                   (setq stack (cons (get argv 1) stack)))
-                 (raise 'peg "look expects 1 or 2 args, got %s" argc)))
-             '>
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (if (= argc 2)
-                 (let [offset (get argv 0)]
-                   (if (not (integer? offset))
-                     (raise 'peg "look offset should be Integer, got %s" (type offset)))
-                   (setq stack (cons (get argv 1) stack)))
-                 (raise 'peg "look expects 1 or 2 args, got %s" argc)))
-             'to
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "to expects 1 arg, got %s" argc))
-             'thru
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "thru expects 1 arg, got %s" argc))
-             'sub
-             (if (= argc 2)
-               (do
-                 (setq stack (cons (get argv 0) stack))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "sub expects 2 args, got %s" argc))
-             'split
-             (if (= argc 2)
-               (do
-                 (setq stack (cons (get argv 0) stack))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "split expects 2 args, got %s" argc))
-             'opt
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "opt expects 1 arg, got %s" argc))
-             '?
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "opt expects 1 arg, got %s" argc))
-             'capture
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "capture expects 1 or 2 args, got %s" argc))
-             '<-
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "capture expects 1 or 2 args, got %s" argc))
-             'quote
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "quote expects 1 or 2 args, got %s" argc))
-             'replace
-             (if (or (= argc 2) (= argc 3))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "replace expects 2 or 3 args, got %s" argc))
-             '/
-             (if (or (= argc 2) (= argc 3))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "replace expects 2 or 3 args, got %s" argc))
-             'group
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "group expects 1 or 2 args, got %s" argc))
-             'accumulate
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "accumulate expects 1 or 2 args, got %s" argc))
-             'cmt
-             (if (or (= argc 2) (= argc 3))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "cmt expects 2 or 3 args, got %s" argc))
-             'drop
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "drop expects 1 arg, got %s" argc))
-             'unref
-             (if (or (= argc 1) (= argc 2))
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "unref expects 1 or 2 args, got %s" argc))
-             'only-tags
-             (if (= argc 1)
-               (setq stack (cons (get argv 0) stack))
-               (raise 'peg "only-tags expects 1 arg, got %s" argc))
-             'nth
-             (if (or (= argc 2) (= argc 3))
-               (let [index (get argv 0)]
-                 (if (not (integer? index))
-                   (raise 'peg "nth index should be Integer, got %s" (type index)))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "nth expects 2 or 3 args, got %s" argc))
-             'number
-             (if (or (= argc 1) (= argc 2) (= argc 3))
-               (do
-                 (if (> argc 1)
-                   (let [base (get argv 1)]
-                     (if (and (some? base) (not (integer? base)))
-                       (raise 'peg "number base should be Integer, got %s" (type base)))))
-                 (setq stack (cons (get argv 0) stack)))
-               (raise 'peg "number expects 1 to 3 args, got %s" argc))
-             'lenprefix
-             (if (= argc 2)
-               (let [width (get argv 0)]
-                 (if (not (integer? width))
-                   (raise 'peg "lenprefix width should be Integer, got %s" (type width)))
-                 (if (<= width 0)
-                   (raise 'peg "integer width should be positive, got %s" width))
-                 (setq stack (cons (get argv 1) stack)))
-               (raise 'peg "lenprefix expects 2 args, got %s" argc))
-             'error
-             (if (or (= argc 0) (= argc 1))
-               (if (= argc 1)
-                 (setq stack (cons (get argv 0) stack)))
-               (raise 'peg "error expects 0 or 1 args, got %s" argc))
-             'constant
-             (if (or (= argc 1) (= argc 2))
-               nil
-               (raise 'peg "constant expects 1 or 2 args, got %s" argc))
-             'argument
-             (if (or (= argc 1) (= argc 2))
-               (let [index (get argv 0)]
-                 (if (not (integer? index))
-                   (raise 'peg "argument index should be Integer, got %s" (type index)))
-                 (if (< index 0)
-                   (raise 'peg "argument index should be non-negative, got %s" index)))
-               (raise 'peg "argument expects 1 or 2 args, got %s" argc))
-             'uint
-             (if (or (= argc 1) (= argc 2))
-               (let [width (get argv 0)]
-                 (if (not (integer? width))
-                   (raise 'peg "uint width should be Integer, got %s" (type width)))
-                 (if (<= width 0)
-                   (raise 'peg "integer width should be positive, got %s" width)))
-               (raise 'peg "uint expects 1 or 2 args, got %s" argc))
-             'uint-be
-             (if (or (= argc 1) (= argc 2))
-               (let [width (get argv 0)]
-                 (if (not (integer? width))
-                   (raise 'peg "uint-be width should be Integer, got %s" (type width)))
-                 (if (<= width 0)
-                   (raise 'peg "integer width should be positive, got %s" width)))
-               (raise 'peg "uint-be expects 1 or 2 args, got %s" argc))
-             'int
-             (if (or (= argc 1) (= argc 2))
-               (let [width (get argv 0)]
-                 (if (not (integer? width))
-                   (raise 'peg "int width should be Integer, got %s" (type width)))
-                 (if (<= width 0)
-                   (raise 'peg "integer width should be positive, got %s" width)))
-               (raise 'peg "int expects 1 or 2 args, got %s" argc))
-             'int-be
-             (if (or (= argc 1) (= argc 2))
-               (let [width (get argv 0)]
-                 (if (not (integer? width))
-                   (raise 'peg "int-be width should be Integer, got %s" (type width)))
-                 (if (<= width 0)
-                   (raise 'peg "integer width should be positive, got %s" width)))
-               (raise 'peg "int-be expects 1 or 2 args, got %s" argc))
-             'position
-             (if (or (= argc 0) (= argc 1))
-               nil
-               (raise 'peg "position expects 0 or 1 args, got %s" argc))
-             '$
-             (if (or (= argc 0) (= argc 1))
-               nil
-               (raise 'peg "position expects 0 or 1 args, got %s" argc))
-             'line
-             (if (or (= argc 0) (= argc 1))
-               nil
-               (raise 'peg "line expects 0 or 1 args, got %s" argc))
-             'column
-             (if (or (= argc 0) (= argc 1))
-               nil
-               (raise 'peg "column expects 0 or 1 args, got %s" argc))
-             'backref
-             (if (or (= argc 1) (= argc 2))
-               nil
-               (raise 'peg "backref expects 1 or 2 args, got %s" argc))
-             '->
-             (if (or (= argc 1) (= argc 2))
-               nil
-               (raise 'peg "backref expects 1 or 2 args, got %s" argc))
-             'backmatch
-             (if (or (= argc 0) (= argc 1))
-               nil
-               (raise 'peg "backmatch expects 0 or 1 args, got %s" argc))
-             'range
-             (peg-validate-range-entries args)
-             'set
-             (if (= argc 1)
-               (let [charset (get argv 0)]
-                 (if (not (string? charset))
-                   (raise 'peg "set expects String charset, got %s" (type charset))))
-               (raise 'peg "set expects 1 arg, got %s" argc))
-             (if (peg-op-accumulate-alias? op)
-               (if (or (= argc 1) (= argc 2))
-                 (setq stack (cons (get argv 0) stack))
-                 (raise 'peg "accumulate expects 1 or 2 args, got %s" argc))
-               (if (integer? op)
-                 (if (= argc 1)
-                   (do
-                     (if (< op 0)
-                       (raise 'peg "repeat count must be non-negative, got %s" op))
-                     (setq stack (cons (get argv 0) stack)))
-                   (raise 'peg "numeric repeat expects 1 arg, got %s" argc))
-                 (raise 'peg "unsupported PEG operator: %s" op)))))
-         (raise 'peg "unsupported PEG pattern type: %s" (type pattern)))))
+        (setq stack (peg-validate-pattern pattern compiled stack))))
     compiled))
 
 (defn compile
@@ -483,7 +595,7 @@
         (get defaults pattern)
         nil))))
 
-(defn peg-eval-choice
+(defn peg-eval-or
   [compiled source (Integer pos) (Integer limit) memo active args]
   (let [matched nil
         it (iter args)]
@@ -495,7 +607,7 @@
       (setq it (next it)))
     matched))
 
-(defn peg-eval-sequence
+(defn peg-eval-and
   [compiled source (Integer pos) (Integer limit) memo active args]
   (let [cur pos
         ok true
@@ -640,15 +752,14 @@
 
 (defn peg-eval-form
   [compiled source (Integer pos) (Integer limit) memo active pattern]
-  (let [op (car pattern)
+  (let [raw-op (car pattern)
+        op (peg-canonical-op raw-op)
         args (cdr pattern)
         argc (len args)
         argv (Vector args)]
     (case op
-      'or (peg-eval-choice compiled source pos limit memo active args)
-      '+ (peg-eval-choice compiled source pos limit memo active args)
-      'and (peg-eval-sequence compiled source pos limit memo active args)
-      '* (peg-eval-sequence compiled source pos limit memo active args)
+      'or (peg-eval-or compiled source pos limit memo active args)
+      'and (peg-eval-and compiled source pos limit memo active args)
       'any (if (= argc 1)
              (peg-eval-any compiled source pos limit memo active (get argv 0))
              (raise 'peg "any expects 1 arg, got %s" argc))
@@ -695,13 +806,9 @@
              (peg-eval-not compiled source pos limit memo active (get argv 0))
              (raise 'peg "not expects 1 arg, got %s" argc))
       'look (peg-eval-look compiled source pos limit memo active args)
-      '> (peg-eval-look compiled source pos limit memo active args)
       'opt (if (= argc 1)
              (peg-eval-opt compiled source pos limit memo active (get argv 0))
              (raise 'peg "opt expects 1 arg, got %s" argc))
-      '? (if (= argc 1)
-           (peg-eval-opt compiled source pos limit memo active (get argv 0))
-           (raise 'peg "opt expects 1 arg, got %s" argc))
       'range (peg-match-range source pos limit args)
       'set (if (= argc 1)
              (let [charset (get argv 0)]
@@ -709,38 +816,59 @@
                  (raise 'peg "set expects String charset, got %s" (type charset)))
                (peg-match-set source pos limit charset))
              (raise 'peg "set expects 1 arg, got %s" argc))
-      (if (integer? op)
+      (if (integer? raw-op)
         (if (= argc 1)
-          (peg-eval-repeat-count compiled source pos limit memo active op (get argv 0))
+          (peg-eval-repeat-count compiled source pos limit memo active raw-op (get argv 0))
           (raise 'peg "numeric repeat expects 1 arg, got %s" argc))
-        (raise 'peg "unsupported PEG operator: %s" op)))))
+        (raise 'peg "unsupported PEG operator: %s" raw-op)))))
+
+(defn peg-eval-reference
+  [compiled source (Integer pos) (Integer limit) memo active pattern]
+  (let [target (peg-resolve-ref compiled pattern)]
+    (if (some? target)
+      (peg-eval compiled source pos limit memo active target)
+      (raise 'peg "unknown PEG reference: %s" pattern))))
+
+(defmulti peg-eval-dispatch-type
+  "Evaluate PEG pattern by runtime type."
+  (fn [pattern _compiled _source _pos _limit _memo _active]
+    (type pattern)))
+
+(defmethod peg-eval-dispatch-type String
+  [pattern _compiled source (Integer pos) (Integer limit) _memo _active]
+  (peg-match-string source pos limit pattern))
+
+(defmethod peg-eval-dispatch-type Integer
+  [pattern _compiled _source (Integer pos) (Integer limit) _memo _active]
+  (peg-match-int pos limit pattern))
+
+(defmethod peg-eval-dispatch-type Boolean
+  [pattern _compiled _source (Integer pos) (Integer limit) _memo _active]
+  (if pattern
+    (if (< pos limit)
+      (+ pos 1)
+      nil)
+    nil))
+
+(defmethod peg-eval-dispatch-type Keyword
+  [pattern compiled source (Integer pos) (Integer limit) memo active]
+  (peg-eval-reference compiled source pos limit memo active pattern))
+
+(defmethod peg-eval-dispatch-type Symbol
+  [pattern compiled source (Integer pos) (Integer limit) memo active]
+  (peg-eval-reference compiled source pos limit memo active pattern))
+
+(defmethod peg-eval-dispatch-type Cons
+  [pattern compiled source (Integer pos) (Integer limit) memo active]
+  (peg-eval-form compiled source pos limit memo active pattern))
+
+(defmethod peg-eval-dispatch-type :default
+  [pattern _compiled _source _pos _limit _memo _active]
+  (raise 'peg "unsupported PEG pattern type: %s" (type pattern)))
 
 (defn peg-eval-dispatch
   [compiled source (Integer pos) (Integer limit) memo active pattern]
-  (cond
-   (string? pattern)
-   (peg-match-string source pos limit pattern)
-   (integer? pattern)
-   (peg-match-int pos limit pattern)
-   (boolean? pattern)
-   (if pattern
-     (if (< pos limit)
-       (+ pos 1)
-       nil)
-     nil)
-   (keyword? pattern)
-   (let [target (peg-resolve-ref compiled pattern)]
-     (if (some? target)
-       (peg-eval compiled source pos limit memo active target)
-       (raise 'peg "unknown PEG reference: %s" pattern)))
-   (symbol? pattern)
-   (let [target (peg-resolve-ref compiled pattern)]
-     (if (some? target)
-       (peg-eval compiled source pos limit memo active target)
-       (raise 'peg "unknown PEG reference: %s" pattern)))
-   (cons? pattern)
-   (peg-eval-form compiled source pos limit memo active pattern)
-   (raise 'peg "unsupported PEG pattern type: %s" (type pattern))))
+  (peg-eval-dispatch-type pattern compiled source pos limit memo active))
 
 (defn peg-memo-key
   "Return stable memo key for pattern+position."
@@ -999,6 +1127,74 @@
       (incq i))
     [line col]))
 
+(defn peg-eval-iter-return-state
+  "Return evaluator state bundle in :return mode."
+  [captures (Integer cap-count) tags ret]
+  {:captures captures
+   :cap-count cap-count
+   :tags tags
+   :ret ret
+   :mode :return})
+
+(defn peg-eval-iter-return-pushed
+  "Push capture value and return updated evaluator state bundle."
+  [captures (Integer cap-count) tags value tag ret]
+  (let [pushed (peg-capture-push captures cap-count tags value tag)]
+    (peg-eval-iter-return-state (get pushed 0)
+                                (get pushed 1)
+                                (get pushed 2)
+                                ret)))
+
+(defn peg-eval-iter-width-capture-op
+  "Run uint/int-like read op and capture decoded value."
+  [source (Integer cur-pos) (Integer limit)
+   captures (Integer cap-count) tags
+   argc argv op-name read-at]
+  (if (or (= argc 1) (= argc 2))
+    (let [width (get argv 0)
+          tag (if (= argc 2) (get argv 1) nil)]
+      (if (not (integer? width))
+        (raise 'peg "%s width should be Integer, got %s" op-name (type width)))
+      (let [value (read-at source cur-pos limit width)]
+        (if (nil? value)
+          (peg-eval-iter-return-state captures cap-count tags nil)
+          (peg-eval-iter-return-pushed captures
+                                       cap-count
+                                       tags
+                                       value
+                                       tag
+                                       (+ cur-pos width)))))
+    (raise 'peg "%s expects 1 or 2 args, got %s" op-name argc)))
+
+(defn peg-eval-iter-position-op
+  "Run position-like capture op that captures current cursor."
+  [captures (Integer cap-count) tags (Integer cur-pos) argc argv op-name]
+  (if (or (= argc 0) (= argc 1))
+    (peg-eval-iter-return-pushed captures
+                                 cap-count
+                                 tags
+                                 cur-pos
+                                 (if (= argc 1) (get argv 0) nil)
+                                 cur-pos)
+    (raise 'peg "%s expects 0 or 1 args, got %s" op-name argc)))
+
+(defn peg-eval-iter-backref-op
+  "Run backref-like op and capture latest tag value when present."
+  [captures (Integer cap-count) tags (Integer cur-pos) argc argv op-name]
+  (if (or (= argc 1) (= argc 2))
+    (let [src-tag (get argv 0)
+          out-tag (if (= argc 2) (get argv 1) nil)
+          vals (get tags src-tag)]
+      (if vals
+        (peg-eval-iter-return-pushed captures
+                                     cap-count
+                                     tags
+                                     (car vals)
+                                     out-tag
+                                     cur-pos)
+        (peg-eval-iter-return-state captures cap-count tags nil)))
+    (raise 'peg "%s expects 1 or 2 args, got %s" op-name argc)))
+
 (defn peg-eval-iter
   "Evaluate pattern at pos with an explicit interpreter stack."
   [compiled source (Integer pos) (Integer limit) memo active pattern captures (Integer cap-count) tags run-args use-memo]
@@ -1062,7 +1258,7 @@
                          (setq ret nil)
                          (setq mode :return))
                        (do
-                         (setq stack (cons {:kind :choice
+                         (setq stack (cons {:kind :or
                                             :args argv
                                             :index 1
                                             :start cur-pos
@@ -1075,7 +1271,7 @@
                          (setq ret nil)
                          (setq mode :return))
                        (do
-                         (setq stack (cons {:kind :choice
+                         (setq stack (cons {:kind :or
                                             :args argv
                                             :index 1
                                             :start cur-pos
@@ -1088,7 +1284,7 @@
                          (setq ret cur-pos)
                          (setq mode :return))
                        (do
-                         (setq stack (cons {:kind :sequence
+                         (setq stack (cons {:kind :and
                                             :args argv
                                             :index 1
                                             :cap cap-count}
@@ -1100,7 +1296,7 @@
                          (setq ret cur-pos)
                          (setq mode :return))
                        (do
-                         (setq stack (cons {:kind :sequence
+                         (setq stack (cons {:kind :and
                                             :args argv
                                             :index 1
                                             :cap cap-count}
@@ -1542,16 +1738,17 @@
                      'constant
                      (if (or (= argc 1) (= argc 2))
                        (do
-                         (let [[caps n t] (peg-capture-push captures
-                                                            cap-count
-                                                            tags
-                                                            (get argv 0)
-                                                            (if (= argc 2) (get argv 1) nil))]
-                           (setq captures caps)
-                           (setq cap-count n)
-                           (setq tags t))
-                         (setq ret cur-pos)
-                         (setq mode :return))
+                         (let [state (peg-eval-iter-return-pushed captures
+                                                                  cap-count
+                                                                  tags
+                                                                  (get argv 0)
+                                                                  (if (= argc 2) (get argv 1) nil)
+                                                                  cur-pos)]
+                           (setq captures (:captures state))
+                           (setq cap-count (:cap-count state))
+                           (setq tags (:tags state))
+                           (setq ret (:ret state))
+                           (setq mode (:mode state))))
                        (raise 'peg "constant expects 1 or 2 args, got %s" argc))
                      'argument
                      (if (or (= argc 1) (= argc 2))
@@ -1565,181 +1762,164 @@
                                value (if (< index argcnt)
                                        (get run-args index)
                                        nil)
-                               pushed (peg-capture-push captures cap-count tags value out-tag)]
-                           (setq captures (get pushed 0))
-                           (setq cap-count (get pushed 1))
-                           (setq tags (get pushed 2)))
-                         (setq ret cur-pos)
-                         (setq mode :return))
+                               state (peg-eval-iter-return-pushed captures
+                                                                  cap-count
+                                                                  tags
+                                                                  value
+                                                                  out-tag
+                                                                  cur-pos)]
+                           (setq captures (:captures state))
+                           (setq cap-count (:cap-count state))
+                           (setq tags (:tags state))
+                           (setq ret (:ret state))
+                           (setq mode (:mode state))))
                        (raise 'peg "argument expects 1 or 2 args, got %s" argc))
                      'uint
-                     (if (or (= argc 1) (= argc 2))
-                       (let [width (get argv 0)
-                             tag (if (= argc 2) (get argv 1) nil)]
-                         (if (not (integer? width))
-                           (raise 'peg "uint width should be Integer, got %s" (type width)))
-                         (let [value (peg-read-uint-le-at source cur-pos limit width)]
-                           (if (nil? value)
-                             (do
-                               (setq ret nil)
-                               (setq mode :return))
-                             (do
-                               (let [pushed (peg-capture-push captures cap-count tags value tag)]
-                                 (setq captures (get pushed 0))
-                                 (setq cap-count (get pushed 1))
-                                 (setq tags (get pushed 2)))
-                               (setq ret (+ cur-pos width))
-                               (setq mode :return)))))
-                       (raise 'peg "uint expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-width-capture-op source
+                                                                  cur-pos
+                                                                  limit
+                                                                  captures
+                                                                  cap-count
+                                                                  tags
+                                                                  argc
+                                                                  argv
+                                                                  "uint"
+                                                                  peg-read-uint-le-at)]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'uint-be
-                     (if (or (= argc 1) (= argc 2))
-                       (let [width (get argv 0)
-                             tag (if (= argc 2) (get argv 1) nil)]
-                         (if (not (integer? width))
-                           (raise 'peg "uint-be width should be Integer, got %s" (type width)))
-                         (let [value (peg-read-uint-be-at source cur-pos limit width)]
-                           (if (nil? value)
-                             (do
-                               (setq ret nil)
-                               (setq mode :return))
-                             (do
-                               (let [pushed (peg-capture-push captures cap-count tags value tag)]
-                                 (setq captures (get pushed 0))
-                                 (setq cap-count (get pushed 1))
-                                 (setq tags (get pushed 2)))
-                               (setq ret (+ cur-pos width))
-                               (setq mode :return)))))
-                       (raise 'peg "uint-be expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-width-capture-op source
+                                                                  cur-pos
+                                                                  limit
+                                                                  captures
+                                                                  cap-count
+                                                                  tags
+                                                                  argc
+                                                                  argv
+                                                                  "uint-be"
+                                                                  peg-read-uint-be-at)]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'int
-                     (if (or (= argc 1) (= argc 2))
-                       (let [width (get argv 0)
-                             tag (if (= argc 2) (get argv 1) nil)]
-                         (if (not (integer? width))
-                           (raise 'peg "int width should be Integer, got %s" (type width)))
-                         (let [value (peg-read-int-le-at source cur-pos limit width)]
-                           (if (nil? value)
-                             (do
-                               (setq ret nil)
-                               (setq mode :return))
-                             (do
-                               (let [pushed (peg-capture-push captures cap-count tags value tag)]
-                                 (setq captures (get pushed 0))
-                                 (setq cap-count (get pushed 1))
-                                 (setq tags (get pushed 2)))
-                               (setq ret (+ cur-pos width))
-                               (setq mode :return)))))
-                       (raise 'peg "int expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-width-capture-op source
+                                                                  cur-pos
+                                                                  limit
+                                                                  captures
+                                                                  cap-count
+                                                                  tags
+                                                                  argc
+                                                                  argv
+                                                                  "int"
+                                                                  peg-read-int-le-at)]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'int-be
-                     (if (or (= argc 1) (= argc 2))
-                       (let [width (get argv 0)
-                             tag (if (= argc 2) (get argv 1) nil)]
-                         (if (not (integer? width))
-                           (raise 'peg "int-be width should be Integer, got %s" (type width)))
-                         (let [value (peg-read-int-be-at source cur-pos limit width)]
-                           (if (nil? value)
-                             (do
-                               (setq ret nil)
-                               (setq mode :return))
-                             (do
-                               (let [pushed (peg-capture-push captures cap-count tags value tag)]
-                                 (setq captures (get pushed 0))
-                                 (setq cap-count (get pushed 1))
-                                 (setq tags (get pushed 2)))
-                               (setq ret (+ cur-pos width))
-                               (setq mode :return)))))
-                       (raise 'peg "int-be expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-width-capture-op source
+                                                                  cur-pos
+                                                                  limit
+                                                                  captures
+                                                                  cap-count
+                                                                  tags
+                                                                  argc
+                                                                  argv
+                                                                  "int-be"
+                                                                  peg-read-int-be-at)]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'position
-                     (if (or (= argc 0) (= argc 1))
-                       (do
-                         (let [[caps n t] (peg-capture-push captures
+                     (let [state (peg-eval-iter-position-op captures
                                                             cap-count
                                                             tags
                                                             cur-pos
-                                                            (if (= argc 1) (get argv 0) nil))]
-                           (setq captures caps)
-                           (setq cap-count n)
-                           (setq tags t))
-                         (setq ret cur-pos)
-                         (setq mode :return))
-                       (raise 'peg "position expects 0 or 1 args, got %s" argc))
+                                                            argc
+                                                            argv
+                                                            "position")]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      '$
-                     (if (or (= argc 0) (= argc 1))
-                       (do
-                         (let [[caps n t] (peg-capture-push captures
+                     (let [state (peg-eval-iter-position-op captures
                                                             cap-count
                                                             tags
                                                             cur-pos
-                                                            (if (= argc 1) (get argv 0) nil))]
-                           (setq captures caps)
-                           (setq cap-count n)
-                           (setq tags t))
-                         (setq ret cur-pos)
-                         (setq mode :return))
-                       (raise 'peg "position expects 0 or 1 args, got %s" argc))
+                                                            argc
+                                                            argv
+                                                            "position")]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'line
                      (if (or (= argc 0) (= argc 1))
                        (let [[line _col] (peg-line-column-at source cur-pos)]
-                         (let [[caps n t] (peg-capture-push captures
-                                                            cap-count
-                                                            tags
-                                                            line
-                                                            (if (= argc 1) (get argv 0) nil))]
-                           (setq captures caps)
-                           (setq cap-count n)
-                           (setq tags t))
-                         (setq ret cur-pos)
-                         (setq mode :return))
+                         (let [state (peg-eval-iter-return-pushed captures
+                                                                  cap-count
+                                                                  tags
+                                                                  line
+                                                                  (if (= argc 1) (get argv 0) nil)
+                                                                  cur-pos)]
+                           (setq captures (:captures state))
+                           (setq cap-count (:cap-count state))
+                           (setq tags (:tags state))
+                           (setq ret (:ret state))
+                           (setq mode (:mode state))))
                        (raise 'peg "line expects 0 or 1 args, got %s" argc))
                      'column
                      (if (or (= argc 0) (= argc 1))
                        (let [[_line col] (peg-line-column-at source cur-pos)]
-                         (let [[caps n t] (peg-capture-push captures
-                                                            cap-count
-                                                            tags
-                                                            col
-                                                            (if (= argc 1) (get argv 0) nil))]
-                           (setq captures caps)
-                           (setq cap-count n)
-                           (setq tags t))
-                         (setq ret cur-pos)
-                         (setq mode :return))
+                         (let [state (peg-eval-iter-return-pushed captures
+                                                                  cap-count
+                                                                  tags
+                                                                  col
+                                                                  (if (= argc 1) (get argv 0) nil)
+                                                                  cur-pos)]
+                           (setq captures (:captures state))
+                           (setq cap-count (:cap-count state))
+                           (setq tags (:tags state))
+                           (setq ret (:ret state))
+                           (setq mode (:mode state))))
                        (raise 'peg "column expects 0 or 1 args, got %s" argc))
                      'backref
-                     (if (or (= argc 1) (= argc 2))
-                       (let [src-tag (get argv 0)
-                             out-tag (if (= argc 2) (get argv 1) nil)
-                             vals (get tags src-tag)]
-                         (if vals
-                           (do
-                             (let [v (car vals)
-                                   pushed (peg-capture-push captures cap-count tags v out-tag)]
-                               (setq captures (get pushed 0))
-                               (setq cap-count (get pushed 1))
-                               (setq tags (get pushed 2)))
-                             (setq ret cur-pos)
-                             (setq mode :return))
-                           (do
-                             (setq ret nil)
-                             (setq mode :return))))
-                       (raise 'peg "backref expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-backref-op captures
+                                                           cap-count
+                                                           tags
+                                                           cur-pos
+                                                           argc
+                                                           argv
+                                                           "backref")]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      '->
-                     (if (or (= argc 1) (= argc 2))
-                       (let [src-tag (get argv 0)
-                             out-tag (if (= argc 2) (get argv 1) nil)
-                             vals (get tags src-tag)]
-                         (if vals
-                           (do
-                             (let [v (car vals)
-                                   pushed (peg-capture-push captures cap-count tags v out-tag)]
-                               (setq captures (get pushed 0))
-                               (setq cap-count (get pushed 1))
-                               (setq tags (get pushed 2)))
-                             (setq ret cur-pos)
-                             (setq mode :return))
-                           (do
-                             (setq ret nil)
-                             (setq mode :return))))
-                       (raise 'peg "backref expects 1 or 2 args, got %s" argc))
+                     (let [state (peg-eval-iter-backref-op captures
+                                                           cap-count
+                                                           tags
+                                                           cur-pos
+                                                           argc
+                                                           argv
+                                                           "backref")]
+                       (setq captures (:captures state))
+                       (setq cap-count (:cap-count state))
+                       (setq tags (:tags state))
+                       (setq ret (:ret state))
+                       (setq mode (:mode state)))
                      'backmatch
                      (if (or (= argc 0) (= argc 1))
                        (let [probe (if (= argc 1)
@@ -1812,7 +1992,7 @@
                 (if (:memo frame)
                   (put memo (:key frame) ret))
                 (setq mode :return))
-              :choice
+              :or
               (let [args (:args frame)
                     idx (:index frame)
                     start (:start frame)
@@ -1825,7 +2005,7 @@
                         (setq captures caps)
                         (setq cap-count n)
                         (setq tags t))
-                      (setq stack (cons {:kind :choice
+                      (setq stack (cons {:kind :or
                                          :args args
                                          :index (+ idx 1)
                                          :start start
@@ -1841,7 +2021,7 @@
                         (setq tags t))
                       (setq ret nil)
                       (setq mode :return)))))
-              :sequence
+              :and
               (let [args (:args frame)
                     idx (:index frame)
                     cap (:cap frame)]
@@ -1854,7 +2034,7 @@
                     (setq mode :return))
                   (if (< idx (len args))
                     (do
-                      (setq stack (cons {:kind :sequence
+                      (setq stack (cons {:kind :and
                                          :args args
                                          :index (+ idx 1)
                                          :cap cap}
