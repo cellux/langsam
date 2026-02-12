@@ -103,6 +103,11 @@
   [x]
   (if x false true))
 
+(defn identity
+  "Return x unchanged."
+  [x]
+  x)
+
 (defn not=
   "Return true when x and rest are not all equal."
   [x & rest]

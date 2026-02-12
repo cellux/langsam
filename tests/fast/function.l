@@ -1,5 +1,8 @@
 (assert (= (Function map) map))
 
+(assert (= (identity 7) 7))
+(assert (= (identity nil) nil))
+
 (let [foo (Function {:name 'foo
                      :params '[a b]
                      :doc "docstring"
