@@ -51,7 +51,7 @@
       pattern 0
       i 0]
   (while (< i depth)
-    (setq pattern (cons 'and (cons 0 (cons pattern nil))))
+    (setq pattern `(and 0 ,pattern))
     (incq i))
   (let [compiled (peg/compile pattern)]
     (assert (= (:kind compiled) :compiled-peg))))

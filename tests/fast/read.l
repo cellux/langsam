@@ -85,7 +85,6 @@
   (assert (= (type c) Cons)))
 
 (let [l (read-string "(foo bar baz)")]
-  (assert (= l (cons 'foo (cons 'bar (cons 'baz nil)))))
   (assert (= l '(foo bar baz)))
   (assert (= (type l) Cons)))
 

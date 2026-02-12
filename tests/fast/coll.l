@@ -21,6 +21,20 @@
 (assert (= (mapcat (fn [x] (if (even? x) [x] nil)) [1 2 3 4])
            '(2 4)))
 
+(assert (= (keys {}) '()))
+(assert (= (vals {}) '()))
+(let [m {:a 1 :b 2 :c 3}
+      ks (keys m)
+      vs (vals m)]
+  (assert (= (len ks) 3))
+  (assert (= (len vs) 3))
+  (assert (every? (fn [k] (member? k ks)) '(:a :b :c)))
+  (assert (every? (fn [v] (member? v vs)) '(1 2 3))))
+(assert (throws? '(keys . "keys expects Map, got Integer")
+                 (keys 1)))
+(assert (throws? '(vals . "vals expects Map, got Integer")
+                 (vals 1)))
+
 (assert (= (catv) []))
 (assert (= (catv [1 2] '(3 4) 5) [1 2 3 4 5]))
 (assert (= (catv [1 [2 3]] '(4)) [1 [2 3] 4]))

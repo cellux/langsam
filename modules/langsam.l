@@ -311,6 +311,32 @@
       (setq it (next it)))
     result))
 
+(defn keys
+  "Return a list of keys in map m."
+  [m]
+  (if (not (map? m))
+    (raise 'keys "keys expects Map, got %s" (type m)))
+  (let [result nil
+        it (iter m)]
+    (while it
+      (let [[k _] @it]
+        (setq result (cons k result)))
+      (setq it (next it)))
+    (nreverse result)))
+
+(defn vals
+  "Return a list of values in map m."
+  [m]
+  (if (not (map? m))
+    (raise 'vals "vals expects Map, got %s" (type m)))
+  (let [result nil
+        it (iter m)]
+    (while it
+      (let [[_ v] @it]
+        (setq result (cons v result)))
+      (setq it (next it)))
+    (nreverse result)))
+
 (defn filter
   "Return a list of elements in coll where f is truthy."
   [f coll]

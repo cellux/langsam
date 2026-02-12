@@ -10,15 +10,14 @@
               :s '(set " \t\r\n\0\v\f")
               :S '(not :s)
               :w '(or :a :d)
-              :W '(not :w)}
-        out (clone base)]
-    (for [[k _] base]
+              :W '(not :w)}]
+    (for [k (keys base)]
       (let [name (name k)
             plus (Keyword (str name "+"))
             star (Keyword (str name "*"))]
-        (put out plus (cons 'some (cons k nil)))
-        (put out star (cons 'any (cons k nil)))))
-    out))
+        (put base plus `(some ,k))
+        (put base star `(any ,k))))
+    base))
 
 (def peg-default-aliases (make-default-aliases))
 
