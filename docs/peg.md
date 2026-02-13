@@ -9,7 +9,6 @@
 - `(peg/find peg input &opt (start 0) & args)`
 - `(peg/find-all peg input &opt (start 0) & args)`
 - `(peg/replace peg subst input &opt (start 0) & args)`
-- `(peg/replacef peg f input &opt (start 0) & args)`
 
 `peg` may be a raw PEG pattern/grammar map or a compiled PEG object.
 
@@ -26,9 +25,10 @@ through `(stream input)`.
   success consumes skipped + matched bytes; failure consumes to EOF.
 - `peg/find-all`:
   scans and consumes through EOF while collecting all matches.
-- `peg/replace` and `peg/replacef`:
+- `peg/replace`:
   transform remaining input from cursor + `start`, consume to EOF, and return
   the replaced string.
+  `subst` may be a fixed value or a function `(fn [matched] ...)`.
 
 ## Features
 

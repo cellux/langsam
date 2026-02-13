@@ -6,7 +6,13 @@
   (assert (= (:source compiled) "abc"))
   (assert (= (:grammar compiled) nil))
   (assert (= (:root compiled) "abc"))
-  (assert (= (:nodes compiled) {}))
+  (assert (= (:ir-version compiled) 1))
+  (assert (integer? (:root-id compiled)))
+  (assert (map? (:rule-ids compiled)))
+  (assert (vector? (:nodes compiled)))
+  (assert (> (len (:nodes compiled)) 0))
+  (assert (<= 0 (:root-id compiled)))
+  (assert (< (:root-id compiled) (len (:nodes compiled))))
   (assert (= (:rules compiled) {}))
   (assert (map? (:defaults compiled)))
   (assert (= (get (:defaults compiled) :d) '(range "09")))
@@ -20,7 +26,9 @@
   (assert (= (:source compiled) grammar))
   (assert (= (:grammar compiled) grammar))
   (assert (= (:root compiled) '(and "a" "b")))
-  (assert (= (:rules compiled) grammar)))
+  (assert (= (:rules compiled) grammar))
+  (assert (contains? (:rule-ids compiled) :main))
+  (assert (contains? (:rule-ids compiled) :ws)))
 
 (assert (throws? '(peg . "grammar map requires :main rule")
                  (peg/compile {:ws :s})))
@@ -233,6 +241,8 @@
 (assert (= (peg/replace "zz" "X" "abcdef") "abcdef"))
 (assert (= (peg/replace "zz" "X" "abc" 99) "abc"))
 (assert (= (peg/replace 0 "_" "ab") "_a_b_"))
+(assert (= (peg/replace "ab" (fn [m] (+ "[" m "]")) "abxxab") "[ab]xx[ab]"))
+(assert (= (peg/replace "ab" (fn [m] (len m)) "abxxab") "2xx2"))
 
 (let [s (stream "zzabyyab")]
   (assert (= (peg/replace "ab" "X" s) "zzXyyX"))
@@ -249,21 +259,18 @@
     (s.close))
   (os/unlink path))
 
-; replacef semantics (consumes to EOF)
-(assert (= (peg/replacef "ab" (fn [m] (+ "[" m "]")) "abxxab") "[ab]xx[ab]"))
-(assert (= (peg/replacef "ab" (fn [m] (len m)) "abxxab") "2xx2"))
-
+; replace function-subst semantics (consumes to EOF, stream)
 (let [s (stream "abxxab")]
-  (assert (= (peg/replacef "ab" (fn [m] (+ "<" m ">")) s) "<ab>xx<ab>"))
+  (assert (= (peg/replace "ab" (fn [m] (+ "<" m ">")) s) "<ab>xx<ab>"))
   (assert (s.eof)))
 
-; replacef semantics (consumes to EOF, file stream)
-(let [path "/tmp/langsam-peg-replacef-filestream.txt"]
+; replace function-subst semantics (consumes to EOF, file stream)
+(let [path "/tmp/langsam-peg-replacefn-filestream.txt"]
   (let [f (os/open path (+ os/O_CREAT os/O_WRONLY os/O_TRUNC) 0o666)]
     (os/write f "abxxab")
     (os/close f))
   (let [s (stream (os/open path os/O_RDONLY))]
-    (assert (= (peg/replacef "ab" (fn [m] (+ "<" m ">")) s) "<ab>xx<ab>"))
+    (assert (= (peg/replace "ab" (fn [m] (+ "<" m ">")) s) "<ab>xx<ab>"))
     (assert (s.eof))
     (s.close))
   (os/unlink path))
@@ -292,6 +299,8 @@
 
 (assert (= (peg/match '(accumulate (and (capture "a") (capture "b"))) "ab") [["a" "b"]]))
 (assert (= (peg/match '(% (and (capture "a") (capture "b"))) "ab") [["a" "b"]]))
+(assert (throws? '(peg . "unsupported PEG operator: %foo")
+                 (peg/match '(%foo (and (capture "a") (capture "b"))) "ab")))
 (let [f (fn [x y] (+ x y))]
   (assert (= (peg/match `(cmt (and (capture "a") (capture "b")) ,f) "ab") ["ab"])))
 (assert (= (peg/match '(only-tags (and (capture "a") (capture "b" :x) (capture "c"))) "abc")

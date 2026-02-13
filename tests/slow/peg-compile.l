@@ -15,6 +15,9 @@
 (assert (throws? '(peg . "set expects 1 arg, got 0")
                  (peg/compile '(set))))
 
+(assert (throws? '(peg . "unsupported PEG operator: %foo")
+                 (peg/compile '(%foo "a"))))
+
 ; compile-time validation: type/value checks
 (assert (throws? '(peg . "look offset should be Integer, got String")
                  (peg/compile '(look "1" "a"))))
