@@ -58,6 +58,7 @@ With the stack written in Langsam and Schnell, porting Oben should mostly reduce
 **Conventions and Notes**
 - C is compiled with strict warnings and diagnostics (`-Wall -Wextra -Wpedantic`, plus `-Wconversion`, `-Wshadow`, `-Wcast-qual`, `-Wstrict-prototypes`, `-Wmissing-prototypes`, `-Wformat=2`, `-Wsign-conversion`, `-Wundef`, `-Wpointer-arith`).
 - Exceptions are first-class `LV` values; most API calls return `LV` and use `LANGSAM_CHECK`.
+- GC is manual: Langsam does not run automatic collection, so user/library code should call `(gc)` at known safe boundaries after allocation-heavy work.
 - The REPL is enabled when no script args are provided.
 - Stdlib helper names prefixed with `-` are internal/private and not part of the supported public API.
 - In Langsam, write function docstrings on their own line in `defn` headers, for example:

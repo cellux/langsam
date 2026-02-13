@@ -2,6 +2,12 @@
 
 This document captures language-level behavior that should remain stable.
 
+## Garbage Collection
+
+- Langsam does not run automatic/background garbage collection.
+- Memory is reclaimed only when `(gc)` is invoked explicitly.
+- User code and library code are expected to call `(gc)` at known safe boundaries after allocation-heavy work.
+
 ## Truthiness
 
 Only the following values are falsey:
