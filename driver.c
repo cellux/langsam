@@ -82,20 +82,28 @@ int main(int argc, char **argv) {
   if (debug && *debug) {
     langsam_loglevel(&vm, LANGSAM_DEBUG);
   }
+  int dashdash_index = -1;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--") == 0) {
+      dashdash_index = i;
+      break;
+    }
+  }
   set_os_args(&vm, argc, argv);
-  if (argc > 1) {
+  int script_argc = argc;
+  if (dashdash_index >= 0) {
+    script_argc = dashdash_index;
+  }
+  if (script_argc > 1) {
     bool opt_e = false;
-    for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < script_argc; i++) {
       if (strcmp(argv[i], "-e") == 0) {
         opt_e = true;
         continue;
       }
       LV result;
       if (opt_e) {
-        result = langsam_readstring(&vm, argv[i]);
-        if (!langsam_exceptionp(result)) {
-          result = langsam_eval(&vm, result);
-        }
+        result = langsam_loadstring(&vm, vm.curlet, argv[i]);
         opt_e = false;
       } else {
         result = loadfile(&vm, argv[i]);
