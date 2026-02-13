@@ -1,40 +1,24 @@
 (import peg)
 
-(defn strip-ir
-  [compiled]
-  (let [legacy (clone compiled)]
-    (del legacy :ir-version)
-    (del legacy :root-id)
-    (del legacy :rule-ids)
-    legacy))
-
-(defn assert-match-parity
+(defn assert-match-ok
   [pattern input]
-  (let [compiled (peg/compile pattern)
-        legacy (strip-ir compiled)]
-    (assert (= (peg/match compiled input)
-               (peg/match legacy input)))))
+  (assert (= (peg/match pattern input)
+             (peg/match (peg/compile pattern) input))))
 
-(defn assert-find-parity
+(defn assert-find-ok
   [pattern input]
-  (let [compiled (peg/compile pattern)
-        legacy (strip-ir compiled)]
-    (assert (= (peg/find compiled input)
-               (peg/find legacy input)))))
+  (assert (= (peg/find pattern input)
+             (peg/find (peg/compile pattern) input))))
 
-(defn assert-find-all-parity
+(defn assert-find-all-ok
   [pattern input]
-  (let [compiled (peg/compile pattern)
-        legacy (strip-ir compiled)]
-    (assert (= (peg/find-all compiled input)
-               (peg/find-all legacy input)))))
+  (assert (= (peg/find-all pattern input)
+             (peg/find-all (peg/compile pattern) input))))
 
-(defn assert-replace-parity
+(defn assert-replace-ok
   [pattern subst input]
-  (let [compiled (peg/compile pattern)
-        legacy (strip-ir compiled)]
-    (assert (= (peg/replace compiled subst input)
-               (peg/replace legacy subst input)))))
+  (assert (= (peg/replace pattern subst input)
+             (peg/replace (peg/compile pattern) subst input))))
 
 ; compile IR shape and ref resolution
 (let [compiled (peg/compile {:main '(and :word :d)
@@ -43,7 +27,6 @@
       n (len nodes)
       saw-ref false
       i 0]
-  (assert (= (:ir-version compiled) 1))
   (assert (integer? (:root-id compiled)))
   (assert (< (:root-id compiled) n))
   (assert (contains? (:rule-ids compiled) :main))
@@ -59,21 +42,21 @@
     (incq i))
   (assert saw-ref))
 
-; parity checks between IR runtime and legacy raw-form runtime
-(assert-match-parity "abc" "abcdef")
-(assert-match-parity '(or "ab" "cd") "cdxx")
-(assert-match-parity '(any "ab") "ababx")
-(assert-match-parity '(between 1 2 "ab") "ababab")
-(assert-match-parity '(look 2 "cd") "abcd")
-(assert-match-parity '(split "," (capture "ab")) "ab,ab")
-(assert-match-parity '(and (capture "ab" :x) (backmatch :x)) "abab")
-(assert-match-parity '(and (line) (column) "y") "x\ny")
-(assert-match-parity '(lenprefix 1 (and "ab")) "\x03abcZ")
-(assert-match-parity {:main :s
-                      :s '(or (and "(" :s ")" :s) "")}
-                     "(()())")
+; compiled-vs-source checks now exercise the IR runtime path only.
+(assert-match-ok "abc" "abcdef")
+(assert-match-ok '(or "ab" "cd") "cdxx")
+(assert-match-ok '(any "ab") "ababx")
+(assert-match-ok '(between 1 2 "ab") "ababab")
+(assert-match-ok '(look 2 "cd") "abcd")
+(assert-match-ok '(split "," (capture "ab")) "ab,ab")
+(assert-match-ok '(and (capture "ab" :x) (backmatch :x)) "abab")
+(assert-match-ok '(and (line) (column) "y") "x\ny")
+(assert-match-ok '(lenprefix 1 (and "ab")) "\x03abcZ")
+(assert-match-ok {:main :s
+                  :s '(or (and "(" :s ")" :s) "")}
+                 "(()())")
 
-(assert-find-parity '(capture "ab") "xxabyy")
-(assert-find-all-parity '(capture "ab") "abxxab")
-(assert-replace-parity "ab" "X" "zzabyyab")
-(assert-replace-parity "ab" (fn [m] (+ "[" m "]")) "abxxab")
+(assert-find-ok '(capture "ab") "xxabyy")
+(assert-find-all-ok '(capture "ab") "abxxab")
+(assert-replace-ok "ab" "X" "zzabyyab")
+(assert-replace-ok "ab" (fn [m] (+ "[" m "]")) "abxxab")

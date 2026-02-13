@@ -6,7 +6,6 @@
   (assert (= (:source compiled) "abc"))
   (assert (= (:grammar compiled) nil))
   (assert (= (:root compiled) "abc"))
-  (assert (= (:ir-version compiled) 1))
   (assert (integer? (:root-id compiled)))
   (assert (map? (:rule-ids compiled)))
   (assert (vector? (:nodes compiled)))
