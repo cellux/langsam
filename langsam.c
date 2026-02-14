@@ -3274,6 +3274,7 @@ LangsamSize langsam_Function_gcmark(LangsamVM *vm, void *p) {
   LangsamSize total = 0;
   total += langsam_mark(vm, f->name);
   total += langsam_mark(vm, f->params);
+  total += langsam_mark(vm, f->meta);
   total += langsam_mark(vm, f->doc);
   total += langsam_mark(vm, f->funclet);
   total += langsam_mark(vm, f->body);
@@ -3284,6 +3285,7 @@ LangsamHash langsam_Function_hash(LangsamVM *vm, LV self, LangsamHash hash) {
   LangsamFunction *f = self.p;
   hash = langsam_hash(vm, f->name, hash);
   hash = langsam_hash(vm, f->params, hash);
+  hash = langsam_hash(vm, f->meta, hash);
   hash = langsam_hash(vm, f->doc, hash);
   hash = langsam_hash(vm, f->body, hash);
   hash = hash_boolean(hash, f->evalargs);
@@ -3312,6 +3314,12 @@ LV langsam_Function_cast(LangsamVM *vm, LV other) {
         vm, "syntax", "Function parameters should be Vector or Nil, got %s",
         langsam_ctypename(vm, f->params.type));
   }
+  f->meta = langsam_get(vm, other, vm->kw.meta);
+  if (f->meta.type != LT_MAP && f->meta.type != LT_NIL) {
+    return langsam_exceptionf(
+        vm, "syntax", "Function metadata should be Map or Nil, got %s",
+        langsam_ctypename(vm, f->meta.type));
+  }
   f->doc = langsam_get(vm, other, vm->kw.doc);
   f->funclet = vm->curlet;
   f->body = langsam_get(vm, other, vm->kw.body);
@@ -3339,6 +3347,10 @@ LV langsam_Function_get(LangsamVM *vm, LV self, LV key) {
   LV params_key = vm->kw.params;
   if (LVEQ(key, params_key)) {
     return f->params;
+  }
+  LV meta_key = vm->kw.meta;
+  if (LVEQ(key, meta_key)) {
+    return f->meta;
   }
   LV doc_key = vm->kw.doc;
   if (LVEQ(key, doc_key)) {
@@ -3372,6 +3384,10 @@ LV langsam_Function_put(LangsamVM *vm, LV self, LV key, LV value) {
   LV params_key = vm->kw.params;
   if (LVEQ(key, params_key)) {
     f->params = value;
+  }
+  LV meta_key = vm->kw.meta;
+  if (LVEQ(key, meta_key)) {
+    f->meta = value;
   }
   LV doc_key = vm->kw.doc;
   if (LVEQ(key, doc_key)) {
@@ -4227,12 +4243,19 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
   LV tail = args;
   LV name = langsam_nil;
   LV params = langsam_nil;
+  LV meta = langsam_nil;
   LV doc = langsam_nil;
   while (langsam_nilp(params) && langsam_consp(tail)) {
     LV head = langsam_car(tail);
     if (head.type == LT_SYMBOL) {
       if (langsam_nilp(name)) {
         name = head;
+      } else {
+        break;
+      }
+    } else if (head.type == LT_MAP) {
+      if (langsam_nilp(meta)) {
+        meta = head;
       } else {
         break;
       }
@@ -4253,9 +4276,10 @@ static LV make_function(LangsamVM *vm, LV args, bool evalargs,
     return langsam_exceptionf(vm, "syntax", "missing function params");
   }
   LV body = tail;
-  LV desc = langsam_map(vm, langsam_nil, 6);
+  LV desc = langsam_map(vm, langsam_nil, 7);
   langsam_put(vm, desc, vm->kw.name, name);
   langsam_put(vm, desc, vm->kw.params, params);
+  langsam_put(vm, desc, vm->kw.meta, meta);
   langsam_put(vm, desc, vm->kw.doc, doc);
   langsam_put(vm, desc, vm->kw.body, body);
   langsam_put(vm, desc, vm->kw.evalargs, langsam_boolean(evalargs));
@@ -4875,6 +4899,7 @@ static void langsam_init_core_keywords(LangsamVM *vm) {
   vm->kw.keys = langsam_keyword(vm, "keys");
   vm->kw.name = langsam_keyword(vm, "name");
   vm->kw.params = langsam_keyword(vm, "params");
+  vm->kw.meta = langsam_keyword(vm, "meta");
   vm->kw.doc = langsam_keyword(vm, "doc");
   vm->kw.body = langsam_keyword(vm, "body");
   vm->kw.evalargs = langsam_keyword(vm, "evalargs");

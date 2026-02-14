@@ -5,12 +5,14 @@
 
 (let [foo (Function {:name 'foo
                      :params '[a b]
+                     :meta {:arity 2}
                      :doc "docstring"
                      :body '((+ a b))
                      :evalargs true
                      :evalresult false})]
   (assert (= (:name foo) 'foo))
   (assert (= (:params foo) '[a b]))
+  (assert (= (:meta foo) '{:arity 2}))
   (assert (= (:doc foo) "docstring"))
   (assert (= (:body foo) '((+ a b))))
   (assert (= (:evalargs foo) true))
@@ -20,9 +22,26 @@
 (let [f (fn foo [x & rest] (apply str x rest))]
   (assert (= (get f :name) 'foo))
   (assert (= (get f :params) '[x & rest]))
+  (assert (= (get f :meta) nil))
   (assert (= (get f :body) '((apply str x rest))))
   (assert (= (get f :evalargs) true))
   (assert (= (get f :evalresult) false)))
+
+(let [f (fn foo {:tag :sum} [x y]
+          (+ x y))]
+  (assert (= (:name f) 'foo))
+  (assert (= (:meta f) '{:tag :sum}))
+  (assert (= (f 2 3) 5)))
+
+(let [f (fn "doc" {:k 7} [x] x)]
+  (assert (= (:doc f) "doc"))
+  (assert (= (:meta f) '{:k 7}))
+  (assert (= (f 9) 9)))
+
+(let [f (fn {:order :meta-first} "doc2" [x] x)]
+  (assert (= (:doc f) "doc2"))
+  (assert (= (:meta f) '{:order :meta-first}))
+  (assert (= (f 11) 11)))
 
 (let [f (Function {:params '[x] :body '((+ x 5))})]
   (assert (= (type f) Function))
@@ -86,3 +105,8 @@
   (put root 'and broken-and)
   (assert (= (special? 1) false))
   (put root 'and old-and))
+
+(defn meta-defn {:kind :adder} [a b]
+  (+ a b))
+(assert (= (:meta meta-defn) '{:kind :adder}))
+(assert (= (meta-defn 2 8) 10))

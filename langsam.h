@@ -210,6 +210,7 @@ typedef LV (*LangsamNativeFn)(LangsamVM *vm, LV args);
 typedef struct {
   LV name;
   LV params;
+  LV meta;
   LV doc;
   LV funclet;
   LV body;
@@ -647,6 +648,7 @@ typedef struct {
   LV keys;
   LV name;
   LV params;
+  LV meta;
   LV doc;
   LV body;
   LV evalargs;
