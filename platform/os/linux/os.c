@@ -88,14 +88,21 @@ static LV os_read(LangsamVM *vm, LV args) {
   os_File *f = (os_File *)file.p;
   LANGSAM_ARG(size, args);
   LANGSAM_ARG_TYPE(size, LT_INTEGER);
+  if (size.i < 0) {
+    return langsam_exceptionf(vm, "read", "read size should be non-negative, got %s",
+                              langsam_cstr(vm, size));
+  }
   char *buf = langsam_alloc(vm, size.i + 1);
   LangsamSize remaining = size.i;
   LangsamIndex index = 0;
   while (remaining > 0) {
     ssize_t bytes_read = read((int)f->fd.i, buf + index, (size_t)remaining);
     if (bytes_read == 0) {
-      langsam_free(vm, buf);
-      return langsam_nil;
+      if (index == 0) {
+        langsam_free(vm, buf);
+        return langsam_nil;
+      }
+      break;
     } else if (bytes_read < 0) {
       langsam_free(vm, buf);
       return langsam_exceptionf(vm, "read", "%s", strerror(errno));
@@ -103,8 +110,8 @@ static LV os_read(LangsamVM *vm, LV args) {
     index += bytes_read;
     remaining -= bytes_read;
   }
-  buf[size.i] = 0;
-  return langsam_stringn_wrap(vm, buf, size.i);
+  buf[index] = 0;
+  return langsam_stringn_wrap(vm, buf, index);
 }
 
 static LV os_write(LangsamVM *vm, LV args) {
