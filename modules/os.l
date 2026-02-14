@@ -4,16 +4,31 @@
   [:buffer String {:required true}]
   [:ended Boolean {:required true}])
 
+(def -filestream-chunk-size 65536)
+
+(defn -filestream-append-chunks
+  "Append reversed chunk list to base using a single string build."
+  [base rev-chunks]
+  (if rev-chunks
+    (apply str (cons base (nreverse rev-chunks)))
+    base))
+
 (defn -filestream-fill
   "Fill buffer until it has at least want chars, or EOF when want<=0."
   [self (Integer want)]
-  (while (and (not (:ended self))
-              (or (<= want 0)
-                  (< (len (:buffer self)) want)))
-    (let [part (read (:file self) 1)]
-      (if (nil? part)
-        (put self :ended true)
-        (put self :buffer (str (:buffer self) part))))))
+  (let [have (len (:buffer self))
+        rev-chunks nil]
+    (while (and (not (:ended self))
+                (or (<= want 0)
+                    (< have want)))
+      (let [part (read (:file self) -filestream-chunk-size)]
+        (if (nil? part)
+          (put self :ended true)
+          (do
+            (setq rev-chunks (cons part rev-chunks))
+            (setq have (+ have (len part)))))))
+    (if rev-chunks
+      (put self :buffer (-filestream-append-chunks (:buffer self) rev-chunks)))))
 
 (defn -filestream-take
   "Take n chars from buffer and consume them."
