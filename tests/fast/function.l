@@ -98,6 +98,42 @@
   (assert (= (optimized 5) 6))
   (assert (= (dynamic 5) 105)))
 
+(assert (special? -core-fn))
+(assert (macro? fn))
+(assert (special? -core-defn))
+(assert (macro? defn))
+
+(let [m (macro m [x] `(+ ,x 1))]
+  (let [optimized (fn {:optimize true} [x] (m x))
+        dynamic (fn [x] (m x))]
+    (setq m (macro m [x] `(+ ,x 100)))
+    (assert (= (optimized 5) 6))
+    (assert (= (dynamic 5) 105))))
+
+(let [m (macro m [x] `(+ ,x 1))]
+  (defn defn-optimized {:optimize true} [x]
+    (m x))
+  (defn defn-dynamic [x]
+    (m x))
+  (setq m (macro m [x] `(+ ,x 100)))
+  (assert (= (defn-optimized 5) 6))
+  (assert (= (defn-dynamic 5) 105)))
+
+(let [f (fn {:optimize true :inline true} [x] (+ x 3))]
+  (assert (= (:meta f) '{:optimize true :inline true}))
+  (assert (= (f 4) 7)))
+
+(let [m (macro m [x] `(+ ,x 1))
+      f# :outer-f
+      meta# :outer-meta
+      optimize?# :outer-opt]
+  (let [optimized (fn {:optimize true} [x] (m x))]
+    (setq m (macro m [x] `(+ ,x 100)))
+    (assert (= (optimized 5) 6)))
+  (assert (= f# :outer-f))
+  (assert (= meta# :outer-meta))
+  (assert (= optimize?# :outer-opt)))
+
 (let [root (:funclet special?)
       old-and (get root 'and)
       broken-and (macro and [& forms]

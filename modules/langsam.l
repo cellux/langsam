@@ -1439,4 +1439,26 @@
   (for [k optimize-whitelist]
     (optimize-fn (get root k))))
 
+(def -core-fn fn)
+
+(defmacro fn
+  "Create a function and optimize it when metadata includes :optimize true."
+  [& spec]
+  (let [f# (gensym 'f)
+        meta# (gensym 'meta)]
+    `(let [,f# (-core-fn ,@spec)
+           ,meta# (:meta ,f#)]
+       (if (and (map? ,meta#) (:optimize ,meta#))
+         (optimize-fn ,f#)
+         ,f#))))
+
+(def -core-defn defn)
+
+(defmacro defn
+  "Define a function by delegating to fn, then bind and return it."
+  [name & spec]
+  `(do
+     (def ,name (fn ,name ,@spec))
+     ,name))
+
 (gc)
