@@ -3409,12 +3409,83 @@ static LV fn_evalargs(LangsamVM *vm, LV args) {
   return langsam_nreverse(ev_args);
 }
 
+static LangsamSize env_capacity_floor(LangsamSize estimate) {
+  return (estimate < 4) ? 4 : estimate;
+}
+
+static LangsamSize estimate_cons_length(LV list) {
+  LangsamSize n = 0;
+  while (langsam_consp(list)) {
+    n++;
+    list = langsam_cdr(list);
+  }
+  if (langsam_somep(list)) {
+    n++;
+  }
+  return n;
+}
+
+static LangsamSize estimate_pattern_binding_count(LV pattern) {
+  if (pattern.type == LT_NIL) {
+    return 0;
+  }
+  if (pattern.type == LT_SYMBOL) {
+    return 1;
+  }
+  if (pattern.type == LT_VECTOR) {
+    LangsamVector *v = pattern.p;
+    return v->len;
+  }
+  if (pattern.type == LT_MAP) {
+    LangsamMap *m = pattern.p;
+    return m->nitems;
+  }
+  if (pattern.type == LT_CONS) {
+    return estimate_cons_length(pattern);
+  }
+  return 1;
+}
+
+static LangsamSize estimate_function_env_capacity(LV params) {
+  return env_capacity_floor(estimate_pattern_binding_count(params));
+}
+
+static LangsamSize estimate_binding_pair_count(LV bindings) {
+  LangsamSize nforms = 0;
+  if (bindings.type == LT_VECTOR) {
+    LangsamVector *v = bindings.p;
+    nforms = v->len;
+  } else if (bindings.type == LT_CONS || bindings.type == LT_NIL) {
+    nforms = estimate_cons_length(bindings);
+  } else {
+    return 1;
+  }
+  LangsamSize pairs = nforms / 2;
+  if (nforms % 2 != 0) {
+    pairs++;
+  }
+  return (pairs > 0) ? pairs : 1;
+}
+
+static LangsamSize estimate_let_env_capacity(LV bindings) {
+  return env_capacity_floor(estimate_binding_pair_count(bindings));
+}
+
+static LangsamSize estimate_catch_env_capacity(LV pattern) {
+  LangsamSize estimate = estimate_pattern_binding_count(pattern);
+  if (estimate == 0) {
+    estimate = 1;
+  }
+  return env_capacity_floor(estimate);
+}
+
 static LV fn_invoke(LangsamVM *vm, LangsamFunction *f, LV args) {
   if (f->fn != NULL) {
     return f->fn(vm, args);
   } else {
     LV body = f->body;
-    LV fenv = langsam_map(vm, f->funclet, 64);
+    LV fenv = langsam_map(vm, f->funclet,
+                          estimate_function_env_capacity(f->params));
     LANGSAM_CHECK(langsam_pushlet(vm, fenv));
     LV bind_result = langsam_bind(vm, vm->curlet, f->params, args);
     if (langsam_exceptionp(bind_result)) {
@@ -4324,7 +4395,7 @@ static LV process_bindings(LangsamVM *vm, LV bindings,
 
 static LV eval_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
-  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LV letenv = langsam_map(vm, vm->curlet, estimate_let_env_capacity(bindings));
   LANGSAM_CHECK(langsam_pushlet(vm, letenv));
   LV bind_result = process_bindings(vm, bindings, false);
   if (langsam_exceptionp(bind_result)) {
@@ -4340,7 +4411,7 @@ static LV eval_if_match(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LANGSAM_ARG(if_expr, args);
   LANGSAM_ARG_OPT(else_expr, args);
-  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LV letenv = langsam_map(vm, vm->curlet, estimate_let_env_capacity(bindings));
   LANGSAM_CHECK(langsam_pushlet(vm, letenv));
   LV bind_result = process_bindings(vm, bindings, false);
   if (langsam_exceptionp(bind_result)) {
@@ -4361,7 +4432,7 @@ static LV eval_if_let(LangsamVM *vm, LV args) {
   LANGSAM_ARG(bindings, args);
   LANGSAM_ARG(if_expr, args);
   LANGSAM_ARG_OPT(else_expr, args);
-  LV letenv = langsam_map(vm, vm->curlet, 64);
+  LV letenv = langsam_map(vm, vm->curlet, estimate_let_env_capacity(bindings));
   LANGSAM_CHECK(langsam_pushlet(vm, letenv));
   LV bind_result = process_bindings(vm, bindings, true);
   if (langsam_exceptionp(bind_result)) {
@@ -4386,7 +4457,8 @@ static LV process_catch_clauses(LangsamVM *vm, LV clauses, LV payload) {
     if (!langsam_truthy(vm, it)) {
       return langsam_exceptionf(vm, "syntax", "incomplete catch clause");
     }
-    LV catchenv = langsam_map(vm, vm->curlet, 64);
+    LV catchenv =
+        langsam_map(vm, vm->curlet, estimate_catch_env_capacity(pat));
     LANGSAM_CHECK(langsam_pushlet(vm, catchenv));
     LV bind_result = langsam_bind(vm, vm->curlet, pat, payload);
     if (!langsam_exceptionp(bind_result)) {
