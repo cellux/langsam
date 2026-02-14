@@ -141,7 +141,7 @@
       result)
     (raise 'max "max expects at least one argument")))
 
-(defn special?
+(defn special? {:optimize true}
   "Return true when x is a special form function."
   [x]
   (and (function? x)
@@ -265,7 +265,7 @@
   [x]
   (not= (mod x 2) 0))
 
-(defn zero?
+(defn zero? {:optimize true}
   "Return true when numeric x equals zero."
   [x]
   (cond-match x
@@ -278,7 +278,7 @@
   [x]
   (not (zero? x)))
 
-(defn pos?
+(defn pos? {:optimize true}
   "Return true when numeric x is positive."
   [x]
   (cond-match x
@@ -286,7 +286,7 @@
     (Float f) (> f 0.0)
     false))
 
-(defn neg?
+(defn neg? {:optimize true}
   "Return true when numeric x is negative."
   [x]
   (cond-match x
@@ -366,7 +366,7 @@
       (setq it (next it)))
     (nreverse result)))
 
-(defn drop
+(defn drop {:optimize true}
   "Drop the first n elements from coll."
   [n coll]
   (cond
@@ -394,7 +394,7 @@
   [coll]
   (drop 1 coll))
 
-(defn -range-empty?
+(defn -range-empty? {:optimize true}
   [start end step]
   (cond
    (pos? step) (>= start end)
@@ -674,7 +674,7 @@
         (setq result (cons part result))))
     (Vector (nreverse result))))
 
-(defn flatten
+(defn flatten {:optimize true}
   "Recursively flatten nested iterables preserving outer type."
   [coll]
   (def result nil)
@@ -685,7 +685,7 @@
       (setq result (cons item result))))
   ((type coll) (nreverse result)))
 
-(defn flatten1
+(defn flatten1 {:optimize true}
   "Flatten only the first nesting level preserving outer type."
   [coll]
   (def result nil)
@@ -895,7 +895,7 @@
 ; Class and Multimethod Core
 ; --------------------------
 
-(defn class?
+(defn class? {:optimize true}
   "Return true if x is a class."
   [x]
   (and (map? x)
@@ -931,13 +931,13 @@
     true
     (-core-isa? x target)))
 
-(defn multimethod?
+(defn multimethod? {:optimize true}
   "Return true when x is a multimethod."
   [x]
   (and (map? x)
        (contains-own? x %multimethod)))
 
-(defn -class-enum?
+(defn -class-enum? {:optimize true}
   "Return true when spec is an enum declaration."
   [spec]
   (and (vector? spec)
@@ -949,7 +949,7 @@
   [spec value]
   (member? value (drop 1 spec)))
 
-(defn -class-coerce-value
+(defn -class-coerce-value {:optimize true}
   "Coerce and validate a class field value against spec."
   [class-name field spec value]
   (cond
@@ -988,7 +988,7 @@
               (type validate))))
     []))
 
-(defn -class-run-validators
+(defn -class-run-validators {:optimize true}
   "Run validators for one class field value."
   [class-name field validators value]
   (for [validator validators]
@@ -1420,25 +1420,6 @@
 
 (def stream make-stream)
 
-(let [optimize-whitelist
-      '(-class-coerce-value
-        -class-enum?
-        -class-run-validators
-        -range-empty?
-        -range-iterator
-        class?
-        drop
-        flatten
-        flatten1
-        multimethod?
-        neg?
-        pos?
-        special?
-        zero?)
-      root (rootlet)]
-  (for [k optimize-whitelist]
-    (optimize-fn (get root k))))
-
 (def -core-fn fn)
 
 (defmacro fn
@@ -1460,5 +1441,11 @@
   `(do
      (def ,name (fn ,name ,@spec))
      ,name))
+
+(for [[_ v] (rootlet)]
+  (if (and (function? v) (not (macro? v)))
+    (let [meta (:meta v)]
+      (if (and (map? meta) (:optimize meta))
+        (optimize-fn v)))))
 
 (gc)
