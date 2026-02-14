@@ -137,3 +137,12 @@
     (assert (symbol? tmp#))
     (assert (not (= tmp# :outer))))
   (assert (= tmp# :outer)))
+
+(let [root (:funclet with-syms)
+      old-thread (get root '->)
+      broken-thread (macro -> [& rest]
+                      `(throw '(optimize-fn . "broken ->")))]
+  (put root '-> broken-thread)
+  (assert (throws? '(optimize-fn . "broken ->")
+                   (macroexpand '(with-syms [x] x))))
+  (put root '-> old-thread))

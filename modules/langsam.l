@@ -826,6 +826,18 @@
   [form]
   `(macroexpand-all* ,form (curlet)))
 
+(defn optimize-fn
+  "Macroexpand all forms in function f's body once in f's defining env."
+  [f]
+  (if (not (function? f))
+    (raise 'type "optimize-fn expects Function, got %s" (type f)))
+  (let [env (:funclet f)
+        body (:body f)]
+    (put f :body (map (fn [form]
+                        (macroexpand-all* form env))
+                      body))
+    f))
+
 (defmacro ->
   "Thread head through forms as first argument."
   [head & rest]
@@ -1407,5 +1419,24 @@
   (raise 'stream "cannot create stream from %s" (class x)))
 
 (def stream make-stream)
+
+(let [optimize-whitelist
+      '(-class-coerce-value
+        -class-enum?
+        -class-run-validators
+        -range-empty?
+        -range-iterator
+        class?
+        drop
+        flatten
+        flatten1
+        multimethod?
+        neg?
+        pos?
+        special?
+        zero?)
+      root (rootlet)]
+  (for [k optimize-whitelist]
+    (optimize-fn (get root k))))
 
 (gc)

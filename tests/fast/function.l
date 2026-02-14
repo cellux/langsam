@@ -54,3 +54,35 @@
                      :evalargs false
                      :evalresult true})]
   (assert (= (foo 3 4) 7)))
+
+(assert (throws? '(type . "optimize-fn expects Function, got Integer")
+                 (optimize-fn 1)))
+
+(let [f (fn [x]
+          (when x
+            (+ x 1))
+          (-> x (+ 2)))]
+  (assert (= (:body f)
+             '((when x (+ x 1))
+               (-> x (+ 2)))))
+  (assert (= (optimize-fn f) f))
+  (assert (= (:body f)
+             '((if x (do (+ x 1)))
+               (+ x 2))))
+  (assert (= (f 3) 5)))
+
+(let [m (macro m [x] `(+ ,x 1))
+      optimized (fn [x] (m x))
+      dynamic (fn [x] (m x))]
+  (optimize-fn optimized)
+  (setq m (macro m [x] `(+ ,x 100)))
+  (assert (= (optimized 5) 6))
+  (assert (= (dynamic 5) 105)))
+
+(let [root (:funclet special?)
+      old-and (get root 'and)
+      broken-and (macro and [& forms]
+                   `(throw '(optimize-fn . "broken and")))]
+  (put root 'and broken-and)
+  (assert (= (special? 1) false))
+  (put root 'and old-and))
